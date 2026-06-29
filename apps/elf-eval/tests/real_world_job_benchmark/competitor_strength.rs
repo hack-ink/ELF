@@ -3,16 +3,17 @@ use std::fs;
 use color_eyre::{Result, eyre};
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result<()> {
-	let report =
-		serde_json::from_str::<Value>(&fs::read_to_string(strength_profile_report_path()?)?)?;
-	let markdown = fs::read_to_string(strength_profile_markdown_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let iteration_direction = fs::read_to_string(iteration_direction_report_path()?)?;
+	let report = serde_json::from_str::<Value>(&fs::read_to_string(
+		support::strength_profile_report_path()?,
+	)?)?;
+	let markdown = fs::read_to_string(support::strength_profile_markdown_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let iteration_direction = fs::read_to_string(support::iteration_direction_report_path()?)?;
 
 	assert_strength_profile_summary(&report);
 	assert_strength_profile_terms(&report)?;
@@ -32,21 +33,23 @@ fn qmd_openviking_strength_profile_report_preserves_claim_boundaries() -> Result
 
 #[test]
 fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
-	let measurement_audit = fs::read_to_string(measurement_coverage_audit_path()?)?;
+	let measurement_audit = fs::read_to_string(support::measurement_coverage_audit_path()?)?;
 	let measurement_audit_json = serde_json::from_str::<Value>(&fs::read_to_string(
-		measurement_coverage_audit_json_path()?,
+		support::measurement_coverage_audit_json_path()?,
 	)?)?;
-	let competitor_matrix = fs::read_to_string(competitor_strength_matrix_path()?)?;
+	let competitor_matrix = fs::read_to_string(support::competitor_strength_matrix_path()?)?;
 	let competitor_matrix_json = serde_json::from_str::<Value>(&fs::read_to_string(
-		competitor_strength_matrix_json_path()?,
+		support::competitor_strength_matrix_json_path()?,
 	)?)?;
-	let iteration_direction = fs::read_to_string(iteration_direction_report_path()?)?;
-	let external_manifest = fs::read_to_string(external_adapter_manifest_path())?;
-	let comparison_external_projects = fs::read_to_string(comparison_external_projects_path()?)?;
-	let retrieval_debug_profile =
-		serde_json::from_str::<Value>(&fs::read_to_string(retrieval_debug_profile_json_path()?)?)?;
+	let iteration_direction = fs::read_to_string(support::iteration_direction_report_path()?)?;
+	let external_manifest = fs::read_to_string(support::external_adapter_manifest_path())?;
+	let comparison_external_projects =
+		fs::read_to_string(support::comparison_external_projects_path()?)?;
+	let retrieval_debug_profile = serde_json::from_str::<Value>(&fs::read_to_string(
+		support::retrieval_debug_profile_json_path()?,
+	)?)?;
 	let temporal_history = serde_json::from_str::<Value>(&fs::read_to_string(
-		temporal_history_competitor_gap_json_path()?,
+		support::temporal_history_competitor_gap_json_path()?,
 	)?)?;
 
 	assert_current_report_text_boundaries(
@@ -60,8 +63,8 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	assert!(competitor_matrix.contains("claude-mem work_resume remains `not_encoded`"));
 	assert!(!competitor_matrix.contains("claude-mem `wrong_result`, OpenViking work_resume"));
 
-	let qmd_live = find_by_field(
-		array_at(&measurement_audit_json, "/live_real_world_adapters")?,
+	let qmd_live = support::find_by_field(
+		support::array_at(&measurement_audit_json, "/live_real_world_adapters")?,
 		"/adapter",
 		"qmd live CLI adapter",
 	)?;
@@ -71,8 +74,8 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 	assert_eq!(qmd_live.pointer("/expected_evidence_matched").and_then(Value::as_u64), Some(38));
 	assert_eq!(qmd_live.pointer("/evidence_covered_count").and_then(Value::as_u64), Some(45));
 
-	let memory_evolution = find_by_field(
-		array_at(&measurement_audit_json, "/live_suite_breakdown")?,
+	let memory_evolution = support::find_by_field(
+		support::array_at(&measurement_audit_json, "/live_suite_breakdown")?,
 		"/suite",
 		"memory_evolution",
 	)?;
@@ -100,8 +103,8 @@ fn current_benchmark_reports_preserve_live_sweep_boundaries() -> Result<()> {
 
 	assert_competitor_strength_matrix_json(&competitor_matrix_json)?;
 
-	let openmemory_command = find_by_field(
-		array_at(&temporal_history, "/commands")?,
+	let openmemory_command = support::find_by_field(
+		support::array_at(&temporal_history, "/commands")?,
 		"/command",
 		"cargo make openmemory-ui-export-readback",
 	)?;
@@ -204,8 +207,8 @@ fn assert_current_report_text_boundaries(
 }
 
 fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
-	let projects = array_at(matrix, "/project_matrix")?;
-	let scenarios = array_at(matrix, "/scenario_matrix")?;
+	let projects = support::array_at(matrix, "/project_matrix")?;
+	let scenarios = support::array_at(matrix, "/scenario_matrix")?;
 
 	assert_competitor_strength_matrix_manifest_counts(matrix);
 	assert_competitor_strength_matrix_project_json(projects)?;
@@ -215,10 +218,10 @@ fn assert_competitor_strength_matrix_json(matrix: &Value) -> Result<()> {
 }
 
 fn assert_competitor_strength_matrix_project_json(projects: &[Value]) -> Result<()> {
-	let qmd = find_by_field(projects, "/project", "qmd")?;
-	let mem0 = find_by_field(projects, "/project", "mem0/OpenMemory")?;
-	let claude_mem = find_by_field(projects, "/project", "claude-mem")?;
-	let openviking = find_by_field(projects, "/project", "OpenViking")?;
+	let qmd = support::find_by_field(projects, "/project", "qmd")?;
+	let mem0 = support::find_by_field(projects, "/project", "mem0/OpenMemory")?;
+	let claude_mem = support::find_by_field(projects, "/project", "claude-mem")?;
+	let openviking = support::find_by_field(projects, "/project", "OpenViking")?;
 
 	assert_eq!(
 		qmd.pointer("/current_evidence_class").and_then(Value::as_str),
@@ -288,11 +291,12 @@ fn assert_competitor_strength_matrix_project_json(projects: &[Value]) -> Result<
 }
 
 fn assert_competitor_strength_matrix_scenario_json(scenarios: &[Value]) -> Result<()> {
-	let retrieval_debug = find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
-	let work_resume = find_by_field(scenarios, "/scenario_id", "work_resume")?;
-	let operator_debug = find_by_field(scenarios, "/scenario_id", "operator_debugging")?;
-	let context_trajectory = find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
-	let consolidation = find_by_field(scenarios, "/scenario_id", "consolidation")?;
+	let retrieval_debug = support::find_by_field(scenarios, "/scenario_id", "retrieval_debug")?;
+	let work_resume = support::find_by_field(scenarios, "/scenario_id", "work_resume")?;
+	let operator_debug = support::find_by_field(scenarios, "/scenario_id", "operator_debugging")?;
+	let context_trajectory =
+		support::find_by_field(scenarios, "/scenario_id", "context_trajectory")?;
+	let consolidation = support::find_by_field(scenarios, "/scenario_id", "consolidation")?;
 
 	assert!(
 		retrieval_debug
@@ -343,7 +347,7 @@ fn assert_competitor_strength_matrix_scenario_json(scenarios: &[Value]) -> Resul
 				&& claim.contains("product references only"))
 	);
 
-	let personalization = find_by_field(scenarios, "/scenario_id", "personalization")?;
+	let personalization = support::find_by_field(scenarios, "/scenario_id", "personalization")?;
 
 	assert_personalization_matrix_record(personalization);
 
@@ -475,11 +479,11 @@ fn assert_strength_profile_summary(report: &Value) {
 }
 
 fn assert_strength_profile_terms(report: &Value) -> Result<()> {
-	let result_terms = array_at(report, "/result_type_terms")?;
-	let coverage_terms = array_at(report, "/coverage_status_terms")?;
-	let outcome_terms = array_at(report, "/outcome_terms")?;
-	let actual_result_terms = string_array_at(report, "/result_type_terms")?;
-	let actual_coverage_terms = string_array_at(report, "/coverage_status_terms")?;
+	let result_terms = support::array_at(report, "/result_type_terms")?;
+	let coverage_terms = support::array_at(report, "/coverage_status_terms")?;
+	let outcome_terms = support::array_at(report, "/outcome_terms")?;
+	let actual_result_terms = support::string_array_at(report, "/result_type_terms")?;
+	let actual_coverage_terms = support::string_array_at(report, "/coverage_status_terms")?;
 
 	assert_eq!(
 		actual_result_terms,
@@ -517,12 +521,14 @@ fn assert_strength_profile_terms(report: &Value) -> Result<()> {
 	assert_value_in_terms(report, "/summary/qmd/overall_outcome", outcome_terms)?;
 	assert_value_in_terms(report, "/summary/openviking/overall_outcome", outcome_terms)?;
 
-	for scenario in array_at(report, "/qmd_strength_profile/scenario_outcomes")? {
+	for scenario in support::array_at(report, "/qmd_strength_profile/scenario_outcomes")? {
 		assert_value_in_terms(scenario, "/result_type", result_terms)?;
 		assert_value_in_terms(scenario, "/elf_status", coverage_terms)?;
 		assert_value_in_terms(scenario, "/qmd_status", coverage_terms)?;
 	}
-	for scenario in array_at(report, "/openviking_context_trajectory_profile/scenario_outcomes")? {
+	for scenario in
+		support::array_at(report, "/openviking_context_trajectory_profile/scenario_outcomes")?
+	{
 		assert_value_in_terms(scenario, "/result_type", result_terms)?;
 		assert_value_in_terms(scenario, "/openviking_status", coverage_terms)?;
 		assert_value_in_terms(scenario, "/elf_equivalent_status", coverage_terms)?;
@@ -546,19 +552,25 @@ fn assert_value_in_terms(value: &Value, pointer: &str, terms: &[Value]) -> Resul
 }
 
 fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
-	let qmd_scenarios = array_at(report, "/qmd_strength_profile/scenario_outcomes")?;
+	let qmd_scenarios = support::array_at(report, "/qmd_strength_profile/scenario_outcomes")?;
 	let local_transparency =
-		find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-query-transparency")?;
-	let retrieval = find_by_field(qmd_scenarios, "/scenario_id", "qmd-retrieval-quality")?;
-	let rerank_controls =
-		find_by_field(qmd_scenarios, "/scenario_id", "qmd-expansion-fusion-rerank-controls")?;
+		support::find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-query-transparency")?;
+	let retrieval = support::find_by_field(qmd_scenarios, "/scenario_id", "qmd-retrieval-quality")?;
+	let rerank_controls = support::find_by_field(
+		qmd_scenarios,
+		"/scenario_id",
+		"qmd-expansion-fusion-rerank-controls",
+	)?;
 	let stale_isolation =
-		find_by_field(qmd_scenarios, "/scenario_id", "qmd-stale-context-isolation")?;
-	let lifecycle = find_by_field(qmd_scenarios, "/scenario_id", "qmd-update-delete-cold-start")?;
+		support::find_by_field(qmd_scenarios, "/scenario_id", "qmd-stale-context-isolation")?;
+	let lifecycle =
+		support::find_by_field(qmd_scenarios, "/scenario_id", "qmd-update-delete-cold-start")?;
 	let operator_debug =
-		find_by_field(qmd_scenarios, "/scenario_id", "qmd-operator-debug-evidence")?;
-	let replayability = find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-replayability")?;
-	let wrong_result = find_by_field(qmd_scenarios, "/scenario_id", "qmd-wrong-result-diagnosis")?;
+		support::find_by_field(qmd_scenarios, "/scenario_id", "qmd-operator-debug-evidence")?;
+	let replayability =
+		support::find_by_field(qmd_scenarios, "/scenario_id", "qmd-local-replayability")?;
+	let wrong_result =
+		support::find_by_field(qmd_scenarios, "/scenario_id", "qmd-wrong-result-diagnosis")?;
 
 	assert_eq!(qmd_scenarios.len(), 8);
 	assert_eq!(retrieval.pointer("/elf_outcome").and_then(Value::as_str), Some("tie"));
@@ -592,11 +604,13 @@ fn assert_qmd_strength_profile(report: &Value) -> Result<()> {
 }
 
 fn assert_qmd_wrong_result_diagnosis(report: &Value) -> Result<()> {
-	let taxonomy = array_at(report, "/qmd_strength_profile/wrong_result_diagnosis/taxonomy")?;
-	let absent = find_by_field(taxonomy, "/class", "evidence_absent")?;
-	let dropped = find_by_field(taxonomy, "/class", "retrieved_but_dropped")?;
-	let narrated = find_by_field(taxonomy, "/class", "selected_but_not_narrated")?;
-	let lifecycle = find_by_field(taxonomy, "/class", "contradicted_by_lifecycle_evidence")?;
+	let taxonomy =
+		support::array_at(report, "/qmd_strength_profile/wrong_result_diagnosis/taxonomy")?;
+	let absent = support::find_by_field(taxonomy, "/class", "evidence_absent")?;
+	let dropped = support::find_by_field(taxonomy, "/class", "retrieved_but_dropped")?;
+	let narrated = support::find_by_field(taxonomy, "/class", "selected_but_not_narrated")?;
+	let lifecycle =
+		support::find_by_field(taxonomy, "/class", "contradicted_by_lifecycle_evidence")?;
 
 	assert_eq!(absent.pointer("/coverage").and_then(Value::as_str), Some("observed"));
 	assert_eq!(
@@ -606,13 +620,14 @@ fn assert_qmd_wrong_result_diagnosis(report: &Value) -> Result<()> {
 	assert_eq!(narrated.pointer("/coverage").and_then(Value::as_str), Some("observed"));
 	assert_eq!(lifecycle.pointer("/coverage").and_then(Value::as_str), Some("observed"));
 
-	let qmd_diagnosis_jobs = array_at(report, "/qmd_strength_profile/wrong_result_diagnosis/jobs")?;
+	let qmd_diagnosis_jobs =
+		support::array_at(report, "/qmd_strength_profile/wrong_result_diagnosis/jobs")?;
 	let delete_job =
-		find_by_field(qmd_diagnosis_jobs, "/job_id", "memory-evolution-delete-ttl-001")?;
+		support::find_by_field(qmd_diagnosis_jobs, "/job_id", "memory-evolution-delete-ttl-001")?;
 
 	assert_eq!(qmd_diagnosis_jobs.len(), 6);
 	assert_eq!(delete_job.pointer("/qmd_status").and_then(Value::as_str), Some("wrong_result"));
-	assert!(array_contains_str(delete_job, "/missing_evidence", "delete-tombstone")?);
+	assert!(support::array_contains_str(delete_job, "/missing_evidence", "delete-tombstone")?);
 	assert!(
 		delete_job
 			.pointer("/diagnosis")
@@ -625,27 +640,33 @@ fn assert_qmd_wrong_result_diagnosis(report: &Value) -> Result<()> {
 
 fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 	let openviking_scenarios =
-		array_at(report, "/openviking_context_trajectory_profile/scenario_outcomes")?;
-	let trajectory = find_by_field(
+		support::array_at(report, "/openviking_context_trajectory_profile/scenario_outcomes")?;
+	let trajectory = support::find_by_field(
 		openviking_scenarios,
 		"/scenario_id",
 		"openviking-staged-retrieval-trajectory",
 	)?;
-	let precondition = find_by_field(
+	let precondition = support::find_by_field(
 		openviking_scenarios,
 		"/scenario_id",
 		"openviking-evidence-bearing-retrieval-precondition",
 	)?;
-	let local_embed_setup =
-		find_by_field(openviking_scenarios, "/scenario_id", "openviking-local-embed-setup")?;
-	let missed_terms = find_by_field(
+	let local_embed_setup = support::find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-local-embed-setup",
+	)?;
+	let missed_terms = support::find_by_field(
 		openviking_scenarios,
 		"/scenario_id",
 		"openviking-missed-expected-terms-evidence",
 	)?;
-	let hierarchy =
-		find_by_field(openviking_scenarios, "/scenario_id", "openviking-hierarchy-selection")?;
-	let recursive_expansion = find_by_field(
+	let hierarchy = support::find_by_field(
+		openviking_scenarios,
+		"/scenario_id",
+		"openviking-hierarchy-selection",
+	)?;
+	let recursive_expansion = support::find_by_field(
 		openviking_scenarios,
 		"/scenario_id",
 		"openviking-recursive-context-expansion",
@@ -687,27 +708,27 @@ fn assert_openviking_strength_profile(report: &Value) -> Result<()> {
 }
 
 fn assert_strength_profile_json_claim_boundaries(report: &Value) -> Result<()> {
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries",
 		"ELF does not broadly beat qmd; it ties encoded retrieval and lifecycle correctness, keeps qmd query transparency as not_tested for comparative scoring, and leaves replayability not_tested."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries",
 		"qmd expansion, fusion, and rerank superiority remains not_tested because the current qmd paths use --no-rerank and do not score internals."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries",
 		"ELF does not beat OpenViking on context trajectory; OpenViking trajectory strengths remain blocked/not_tested behind a wrong_result same-corpus output precondition and missing staged artifacts."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries",
 		"Research_gate and blocked fixture records are follow-up gates, not pass evidence."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries",
 		"Missing equivalent surfaces are encoded as unsupported, blocked, or not_encoded rather than fake losses."
@@ -756,7 +777,9 @@ fn assert_operator_facing_strength_profile_boundaries(
 	assert!(readme.contains("broad qmd, Graphiti/Zep, mem0/OpenMemory, Letta"));
 	assert!(readme.contains("production-ops operator boundaries"));
 	assert!(readme.contains("core/archival live adapter gap"));
-	assert!(collapse_whitespace(readme).contains("blocked context-trajectory measurement"));
+	assert!(
+		support::collapse_whitespace(readme).contains("blocked context-trajectory measurement")
+	);
 	assert!(
 		readme
 			.contains("consolidation, knowledge, capture, and core/archival typed non-pass states")

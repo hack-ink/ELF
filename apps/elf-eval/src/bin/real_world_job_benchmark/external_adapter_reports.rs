@@ -1,4 +1,7 @@
-use super::*;
+use crate::{
+	AdapterCoverageStatus, Deserialize, ElfScenarioPosition, FollowUpInput,
+	ScenarioComparisonOutcome, Serialize, TypedStatus,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(super) struct AdapterReport {

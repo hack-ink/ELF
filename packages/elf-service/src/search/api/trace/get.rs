@@ -1,7 +1,6 @@
-use super::*;
-
-use super::{
-	explain::SearchExplainItem, metadata::SearchTrace, trajectory::SearchTrajectorySummary,
+use crate::search::api::trace::{
+	Deserialize, Serialize, Uuid, explain::SearchExplainItem, metadata::SearchTrace,
+	trajectory::SearchTrajectorySummary,
 };
 
 /// Request payload for loading trace metadata and items.

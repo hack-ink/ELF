@@ -3,9 +3,10 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::provenance::types::rows::{
+	NoteIndexingOutboxRow, NoteIngestDecisionRow, NoteVersionRow,
+};
 use elf_storage::models::MemoryNote;
-
-use super::rows::{NoteIndexingOutboxRow, NoteIngestDecisionRow, NoteVersionRow};
 
 /// Current note snapshot returned by provenance APIs.
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -1,4 +1,10 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, ErrorBody, Extension, HeaderMap, Json, JsonRejection, Path,
+	RequestContext, SecurityAuthRole, State, StatusCode, Uuid, WorkJournalEntryCreateBody,
+	WorkJournalEntryCreateRequest, WorkJournalEntryCreateResponse, WorkJournalEntryGetRequest,
+	WorkJournalEntryResponse, WorkJournalSessionReadbackBody, WorkJournalSessionReadbackRequest,
+	WorkJournalSessionReadbackResponse,
+};
 
 #[utoipa::path(
 	post,
@@ -24,12 +30,20 @@ pub(super) async fn work_journal_entry_create(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let role = role.map(|Extension(role)| role);
 
 	if payload.scope.trim() == "org_shared" {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 
 	let response = state
@@ -75,7 +89,7 @@ pub(super) async fn work_journal_entry_get(
 	Path(entry_id): Path<Uuid>,
 ) -> Result<Json<WorkJournalEntryResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let response = state
 		.service
 		.work_journal_entry_get(WorkJournalEntryGetRequest {
@@ -110,11 +124,16 @@ pub(super) async fn work_journal_session_readback(
 	payload: Result<Json<WorkJournalSessionReadbackBody>, JsonRejection>,
 ) -> Result<Json<WorkJournalSessionReadbackResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

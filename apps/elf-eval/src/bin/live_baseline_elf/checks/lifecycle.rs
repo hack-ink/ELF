@@ -1,37 +1,42 @@
-use super::*;
+use color_eyre::Result;
+
+use crate::checks::{
+	self, AGENT_ID, BTreeMap, BaselineRuntime, CheckResult, CorpusNote, DeleteRequest, ElfService,
+	PROJECT_ID, QueryCase, TENANT_ID, UpdateRequest, Uuid,
+};
 
 pub(super) async fn run_lifecycle_checks_impl(
 	runtime: &BaselineRuntime,
 	service: &ElfService,
 	notes: &[CorpusNote],
 	note_ids: &[Uuid],
-) -> color_eyre::Result<Vec<CheckResult>> {
+) -> Result<Vec<CheckResult>> {
 	let Some(update_note) = notes.first() else {
-		return Ok(vec![incomplete_check(
+		return Ok(vec![checks::incomplete_check(
 			"update_replaces_note_text",
 			"Corpus has no note to update.",
 		)]);
 	};
 	let Some(update_note_id) = note_ids.first().copied() else {
-		return Ok(vec![incomplete_check(
+		return Ok(vec![checks::incomplete_check(
 			"update_replaces_note_text",
 			"ELF add_note returned no note_id for lifecycle update.",
 		)]);
 	};
 	let Some(delete_note) = notes.get(1) else {
-		return Ok(vec![incomplete_check(
+		return Ok(vec![checks::incomplete_check(
 			"delete_suppresses_retrieval",
 			"Corpus has no note to delete.",
 		)]);
 	};
 	let Some(delete_note_id) = note_ids.get(1).copied() else {
-		return Ok(vec![incomplete_check(
+		return Ok(vec![checks::incomplete_check(
 			"delete_suppresses_retrieval",
 			"ELF add_note returned no note_id for lifecycle delete.",
 		)]);
 	};
 	let Some(recovery_note) = notes.get(2) else {
-		return Ok(vec![incomplete_check(
+		return Ok(vec![checks::incomplete_check(
 			"cold_start_recovery_search",
 			"Corpus has no stable note for recovery search.",
 		)]);
@@ -49,7 +54,7 @@ async fn run_update_replacement_check(
 	service: &ElfService,
 	update_note: &CorpusNote,
 	update_note_id: Uuid,
-) -> color_eyre::Result<CheckResult> {
+) -> Result<CheckResult> {
 	let update_text = "\
 	Rotated auth middleware validates JWT tokens with key id `kid-v4` under \
 	`RotatedJwtKeyPlan`. It still requires tenant scope `project_shared` for deployment \
@@ -68,8 +73,9 @@ async fn run_update_replacement_check(
 		})
 		.await?;
 	let update_worker =
-		run_worker_until_indexed(runtime, service, &[update_note_id], "lifecycle_update").await?;
-	let update_query = run_single_query(
+		checks::run_worker_until_indexed(runtime, service, &[update_note_id], "lifecycle_update")
+			.await?;
+	let update_query = checks::run_single_query(
 		service,
 		QueryCase::generated(
 			"lifecycle-update-new-marker".to_string(),
@@ -82,10 +88,10 @@ async fn run_update_replacement_check(
 	let old_marker_absent = update_query
 		.top_snippet
 		.as_deref()
-		.is_some_and(|snippet| !contains_case_insensitive(snippet, "kid-v3"));
+		.is_some_and(|snippet| !checks::contains_case_insensitive(snippet, "kid-v3"));
 	let update_pass = update_query.matched
 		&& old_marker_absent
-		&& outbox_done(&update_worker.after, update_worker.expected_note_count);
+		&& checks::outbox_done(&update_worker.after, update_worker.expected_note_count);
 
 	Ok(CheckResult {
 		name: "update_replaces_note_text",
@@ -110,7 +116,7 @@ async fn run_delete_suppression_check(
 	service: &ElfService,
 	delete_note: &CorpusNote,
 	delete_note_id: Uuid,
-) -> color_eyre::Result<CheckResult> {
+) -> Result<CheckResult> {
 	let delete_response = service
 		.delete(DeleteRequest {
 			tenant_id: TENANT_ID.to_string(),
@@ -120,19 +126,20 @@ async fn run_delete_suppression_check(
 		})
 		.await?;
 	let delete_worker =
-		run_worker_until_indexed(runtime, service, &[delete_note_id], "lifecycle_delete").await?;
-	let delete_query = run_single_query(
+		checks::run_worker_until_indexed(runtime, service, &[delete_note_id], "lifecycle_delete")
+			.await?;
+	let delete_query = checks::run_single_query(
 		service,
 		QueryCase::generated(
 			"lifecycle-delete-suppresses-note".to_string(),
 			delete_note.text.clone(),
 			delete_note.source_doc.clone(),
-			distinctive_terms(&delete_note.text, 2),
+			checks::distinctive_terms(&delete_note.text, 2),
 		),
 	)
 	.await?;
 	let delete_pass = !delete_query.matched
-		&& outbox_done(&delete_worker.after, delete_worker.expected_note_count);
+		&& checks::outbox_done(&delete_worker.after, delete_worker.expected_note_count);
 
 	Ok(CheckResult {
 		name: "delete_suppresses_retrieval",
@@ -156,15 +163,15 @@ async fn run_cold_start_recovery_check(
 	runtime: &BaselineRuntime,
 	service: &ElfService,
 	recovery_note: &CorpusNote,
-) -> color_eyre::Result<CheckResult> {
-	let recovery_service = build_service(runtime).await?;
-	let recovery_query = run_single_query(
+) -> Result<CheckResult> {
+	let recovery_service = checks::build_service(runtime).await?;
+	let recovery_query = checks::run_single_query(
 		&recovery_service,
 		QueryCase::generated(
 			"lifecycle-cold-start-recovery".to_string(),
 			recovery_note.text.clone(),
 			recovery_note.source_doc.clone(),
-			distinctive_terms(&recovery_note.text, 2),
+			checks::distinctive_terms(&recovery_note.text, 2),
 		),
 	)
 	.await?;
@@ -186,7 +193,7 @@ async fn run_cold_start_recovery_check(
 	})
 }
 
-async fn pending_outbox_counts(service: &ElfService) -> color_eyre::Result<BTreeMap<String, i64>> {
+async fn pending_outbox_counts(service: &ElfService) -> Result<BTreeMap<String, i64>> {
 	let rows = sqlx::query_as::<_, (String, i64)>(
 		"\
 SELECT op, COUNT(*)::bigint

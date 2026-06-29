@@ -1,4 +1,6 @@
-use super::*;
+use crate::graph_report::{
+	FromRow, GraphQueryEntityRef, GraphQueryPredicateRef, OffsetDateTime, Uuid,
+};
 
 #[derive(Debug)]
 pub(super) struct PreparedGraphReport {

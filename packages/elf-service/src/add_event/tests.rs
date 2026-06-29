@@ -1,8 +1,10 @@
-use super::{
-	types::{AddEventRequest, EventMessage},
-	validation,
+use crate::{
+	Error,
+	add_event::{
+		types::{AddEventRequest, EventMessage},
+		validation,
+	},
 };
-use crate::Error;
 
 #[test]
 fn rejects_long_non_english_message_content() {

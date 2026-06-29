@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use super::{
+use crate::{
 	OUTPUT_SCHEMA,
-	mapping::{baseline_query, doc_candidate, note_candidate},
+	mapping::{self},
 	types::{
 		AdapterOutput, AdapterSource, AdapterSummary, AgentmemoryFixture, AgentmemorySession,
 		BaselineQuery, DocCandidate, FixtureContext, IgnoredItem, NoteCandidate,
 	},
-	util::{clean_string, stable_uuid},
+	util::{self},
 };
 
 pub(super) fn adapt_fixture(
@@ -63,19 +63,19 @@ pub(super) fn adapt_fixture(
 
 fn adapter_source(fixture: &AgentmemoryFixture) -> AdapterSource {
 	AdapterSource {
-		system: clean_string(fixture.source.system.as_deref())
+		system: util::clean_string(fixture.source.system.as_deref())
 			.unwrap_or_else(|| "agentmemory".to_string()),
-		version: clean_string(fixture.source.version.as_deref()),
-		export_id: clean_string(fixture.source.export_id.as_deref()),
-		exported_at: clean_string(fixture.source.exported_at.as_deref()),
-		fixture_schema: clean_string(fixture.schema.as_deref()),
+		version: util::clean_string(fixture.source.version.as_deref()),
+		export_id: util::clean_string(fixture.source.export_id.as_deref()),
+		exported_at: util::clean_string(fixture.source.exported_at.as_deref()),
+		fixture_schema: util::clean_string(fixture.schema.as_deref()),
 	}
 }
 
 fn fixture_id(fixture: &AgentmemoryFixture, source_system: &str) -> String {
-	clean_string(fixture.fixture_id.as_deref())
-		.or_else(|| clean_string(fixture.source.export_id.as_deref()))
-		.unwrap_or_else(|| stable_uuid("fixture", &[source_system]).to_string())
+	util::clean_string(fixture.fixture_id.as_deref())
+		.or_else(|| util::clean_string(fixture.source.export_id.as_deref()))
+		.unwrap_or_else(|| util::stable_uuid("fixture", &[source_system]).to_string())
 }
 
 fn map_observations(
@@ -85,7 +85,7 @@ fn map_observations(
 	ignored: &mut Vec<IgnoredItem>,
 ) {
 	for observation in &session.observations {
-		match doc_candidate(session, observation, ctx) {
+		match mapping::doc_candidate(session, observation, ctx) {
 			Ok(candidate) => docs.push(candidate),
 			Err(reason) => ignored.push(IgnoredItem {
 				item_kind: "observation",
@@ -106,7 +106,7 @@ fn map_memories(
 	ignored: &mut Vec<IgnoredItem>,
 ) {
 	for memory in &session.memories {
-		match note_candidate(session, memory, ctx) {
+		match mapping::note_candidate(session, memory, ctx) {
 			Ok(candidate) => {
 				memory_map.insert(memory.memory_id.clone(), candidate.clone());
 				notes.push(candidate);
@@ -129,7 +129,7 @@ fn map_baselines(
 	ignored: &mut Vec<IgnoredItem>,
 ) {
 	for case in &session.retrieval_cases {
-		match baseline_query(session, case, memory_map) {
+		match mapping::baseline_query(session, case, memory_map) {
 			Some(baseline) => baselines.push(baseline),
 			None => ignored.push(IgnoredItem {
 				item_kind: "retrieval_case",

@@ -1,4 +1,9 @@
-use super::*;
+use crate::routes::{
+	self, AdminNoteCorrectionBody, ApiError, AppState, ErrorBody, HeaderMap, Json, JsonRejection,
+	MemoryCorrectionRequest, MemoryCorrectionResponse, MemoryHistoryGetRequest,
+	MemoryHistoryResponse, NoteProvenanceBundleResponse, NoteProvenanceGetRequest, Path,
+	RequestContext, State, StatusCode, Uuid,
+};
 
 #[utoipa::path(
 	get,
@@ -89,7 +94,12 @@ pub(super) async fn admin_note_correction_apply(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

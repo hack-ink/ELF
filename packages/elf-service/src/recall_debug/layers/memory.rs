@@ -1,4 +1,9 @@
-use super::*;
+use crate::recall_debug::layers::{
+	self, BTreeMap, BTreeSet, ElfService, Error, MemoryNote, NoteDebugSourceRow, ORG_PROJECT_ID,
+	OffsetDateTime, RecallDebugLayer, RecallDebugPanelRequest, RecallDebugRow, Result,
+	TraceBundleGetRequest, TraceBundleMode, Uuid, access, memory_compact_replay_artifact,
+	note_debug_source_pair, search, search_item_candidate_key,
+};
 
 impl ElfService {
 	pub(super) async fn recall_memory_layer(
@@ -7,7 +12,7 @@ impl ElfService {
 		limit: u32,
 	) -> Result<RecallDebugLayer> {
 		let Some(trace_id) = req.trace_id else {
-			return Ok(not_requested_layer(
+			return Ok(layers::not_requested_layer(
 				"memory_notes",
 				"Supply trace_id to show selected and dropped Memory Note candidates.",
 			));
@@ -50,7 +55,7 @@ impl ElfService {
 			.as_deref()
 			.unwrap_or_default()
 			.iter()
-			.filter(|candidate| !candidate_is_selected(&selected_candidate_keys, candidate))
+			.filter(|candidate| !layers::candidate_is_selected(&selected_candidate_keys, candidate))
 			.filter(|candidate| source_refs.contains_key(&candidate.note_id))
 			.collect::<Vec<_>>();
 		let compact_replay = serde_json::json!({
@@ -84,12 +89,12 @@ impl ElfService {
 				}),
 				selection_state: "selected".to_string(),
 				authority_layer: "memory_note".to_string(),
-				freshness_state: freshness_from_note_source(source),
-				source_refs: source_ref_from_note_source(source),
+				freshness_state: layers::freshness_from_note_source(source),
+				source_refs: layers::source_ref_from_note_source(source),
 				score: Some(item.explain.ranking.final_score),
 				rank: Some(item.rank),
 				rationale: Some("final ranked search result".to_string()),
-				stage_reason: last_stage_name(bundle.stages.as_slice())
+				stage_reason: layers::last_stage_name(bundle.stages.as_slice())
 					.or_else(|| Some("final_ranking".to_string())),
 				replay_command: Some(replay_command.clone()),
 				evidence_class: "pass".to_string(),
@@ -103,7 +108,7 @@ impl ElfService {
 		let dropped_cap = limit.saturating_sub(rows.len() as u32) as usize;
 
 		for candidate in dropped_candidates.into_iter().take(dropped_cap) {
-			rows.push(candidate_debug_row(
+			rows.push(layers::candidate_debug_row(
 				trace_id,
 				candidate,
 				source_refs.get(&candidate.note_id),
@@ -111,7 +116,7 @@ impl ElfService {
 			));
 		}
 
-		Ok(layer_from_rows_with_artifacts(
+		Ok(layers::layer_from_rows_with_artifacts(
 			"memory_notes",
 			"pass",
 			Some(trace_id.to_string()),
@@ -200,7 +205,7 @@ FROM memory_notes
 		Ok(rows
 			.into_iter()
 			.filter(|note| {
-				note_debug_read_allowed(
+				layers::note_debug_read_allowed(
 					note,
 					req.agent_id.trim(),
 					&allowed_scopes,

@@ -1,4 +1,11 @@
-use super::*;
+use color_eyre::Result;
+
+use crate::{
+	AGENT_ID, Arc, BTreeMap, BaselineRuntime, ChunkingConfig, Db, ElfService, EmbeddingMode,
+	FailedOutboxJob, Instant, JoinSet, PROJECT_ID, PayloadLevel, QdrantStore, QueryCase,
+	QueryResult, SearchRequest, TENANT_ID, Uuid, Value, WorkerRunEvidence, WorkerState, env, eyre,
+	worker,
+};
 
 pub(super) fn worker_max_iterations(note_count: usize) -> usize {
 	env::var("ELF_BASELINE_WORKER_MAX_ITERATIONS")
@@ -7,9 +14,9 @@ pub(super) fn worker_max_iterations(note_count: usize) -> usize {
 		.unwrap_or_else(|| note_count.saturating_mul(3).saturating_add(32))
 }
 
-pub(super) async fn build_service(runtime: &BaselineRuntime) -> color_eyre::Result<ElfService> {
-	let cfg = runtime_config(runtime)?;
-	let embedding_mode = embedding_mode()?;
+pub(super) async fn build_service(runtime: &BaselineRuntime) -> Result<ElfService> {
+	let cfg = crate::runtime_config(runtime)?;
+	let embedding_mode = crate::embedding_mode()?;
 	let vector_dim = cfg.storage.qdrant.vector_dim;
 	let db = Db::connect(&cfg.storage.postgres).await?;
 
@@ -22,14 +29,12 @@ pub(super) async fn build_service(runtime: &BaselineRuntime) -> color_eyre::Resu
 	if embedding_mode == EmbeddingMode::Provider {
 		Ok(ElfService::new(cfg, db, qdrant))
 	} else {
-		Ok(ElfService::with_providers(cfg, db, qdrant, deterministic_providers(vector_dim)))
+		Ok(ElfService::with_providers(cfg, db, qdrant, crate::deterministic_providers(vector_dim)))
 	}
 }
 
-pub(super) async fn build_worker_state(
-	runtime: &BaselineRuntime,
-) -> color_eyre::Result<WorkerState> {
-	let cfg = runtime_config(runtime)?;
+pub(super) async fn build_worker_state(runtime: &BaselineRuntime) -> Result<WorkerState> {
+	let cfg = crate::runtime_config(runtime)?;
 	let db = Db::connect(&cfg.storage.postgres).await?;
 
 	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
@@ -65,8 +70,8 @@ pub(super) async fn run_worker_until_indexed(
 	service: &ElfService,
 	note_ids: &[Uuid],
 	label: &str,
-) -> color_eyre::Result<WorkerRunEvidence> {
-	let concurrency = worker_concurrency();
+) -> Result<WorkerRunEvidence> {
+	let concurrency = crate::worker_concurrency();
 	let mut states = Vec::with_capacity(concurrency);
 
 	for _ in 0..concurrency {
@@ -80,7 +85,7 @@ pub(super) async fn run_worker_until_indexed(
 	while iterations < max_iterations {
 		let after = outbox_status_counts(service, note_ids).await?;
 
-		if outbox_done(&after, note_ids.len()) {
+		if crate::outbox_done(&after, note_ids.len()) {
 			let (chunk_rows, chunk_embedding_rows) = chunk_counts(service, note_ids).await?;
 			let failed_jobs = failed_outbox_jobs(service, note_ids).await?;
 
@@ -136,7 +141,7 @@ pub(super) async fn run_worker_until_indexed(
 pub(super) async fn outbox_status_counts(
 	service: &ElfService,
 	note_ids: &[Uuid],
-) -> color_eyre::Result<BTreeMap<String, i64>> {
+) -> Result<BTreeMap<String, i64>> {
 	if note_ids.is_empty() {
 		return Ok(BTreeMap::new());
 	}
@@ -156,10 +161,7 @@ ORDER BY status",
 	Ok(rows.into_iter().collect())
 }
 
-pub(super) async fn chunk_counts(
-	service: &ElfService,
-	note_ids: &[Uuid],
-) -> color_eyre::Result<(i64, i64)> {
+pub(super) async fn chunk_counts(service: &ElfService, note_ids: &[Uuid]) -> Result<(i64, i64)> {
 	if note_ids.is_empty() {
 		return Ok((0, 0));
 	}
@@ -190,7 +192,7 @@ WHERE c.note_id = ANY($1)",
 pub(super) async fn failed_outbox_jobs(
 	service: &ElfService,
 	note_ids: &[Uuid],
-) -> color_eyre::Result<Vec<FailedOutboxJob>> {
+) -> Result<Vec<FailedOutboxJob>> {
 	if note_ids.is_empty() {
 		return Ok(Vec::new());
 	}
@@ -223,7 +225,7 @@ ORDER BY n.key NULLS LAST, o.note_id",
 pub(super) async fn run_queries(
 	service: &ElfService,
 	queries: Vec<QueryCase>,
-) -> color_eyre::Result<Vec<QueryResult>> {
+) -> Result<Vec<QueryResult>> {
 	let mut out = Vec::with_capacity(queries.len());
 
 	for case in queries {
@@ -233,10 +235,7 @@ pub(super) async fn run_queries(
 	Ok(out)
 }
 
-pub(super) async fn run_single_query(
-	service: &ElfService,
-	case: QueryCase,
-) -> color_eyre::Result<QueryResult> {
+pub(super) async fn run_single_query(service: &ElfService, case: QueryCase) -> Result<QueryResult> {
 	let top_k = env::var("ELF_BASELINE_TOP_K")
 		.ok()
 		.and_then(|value| value.parse::<u32>().ok())
@@ -264,25 +263,26 @@ pub(super) async fn run_single_query(
 	let matched_terms = case
 		.expected_terms
 		.iter()
-		.filter(|term| contains_case_insensitive(&top_text, term))
+		.filter(|term| crate::contains_case_insensitive(&top_text, term))
 		.cloned()
 		.collect::<Vec<_>>();
 	let top_key = top.and_then(|item| item.key.clone());
-	let expected_docs = expected_docs_for_case(&case);
-	let matched_doc =
-		top_key.as_deref().and_then(|key| expected_docs.iter().find(|doc| key_for_doc(doc) == key));
+	let expected_docs = crate::expected_docs_for_case(&case);
+	let matched_doc = top_key
+		.as_deref()
+		.and_then(|key| expected_docs.iter().find(|doc| crate::key_for_doc(doc) == key));
 	let top_evidence_id = top.and_then(|item| {
-		item.source_ref.get("document").and_then(Value::as_str).map(evidence_id_for_doc)
+		item.source_ref.get("document").and_then(Value::as_str).map(crate::evidence_id_for_doc)
 	});
-	let matched_evidence_id = matched_doc.map(|doc| evidence_id_for_doc(doc));
+	let matched_evidence_id = matched_doc.map(|doc| crate::evidence_id_for_doc(doc));
 	let matched = matched_terms.len() == case.expected_terms.len() || matched_doc.is_some();
 	let expected_evidence_ids = if case.expected_evidence_ids.is_empty() {
-		vec![evidence_id_for_doc(&case.expected_doc)]
+		vec![crate::evidence_id_for_doc(&case.expected_doc)]
 	} else {
 		case.expected_evidence_ids.clone()
 	};
 	let allowed_alternate_evidence_ids = if case.allowed_alternate_evidence_ids.is_empty() {
-		case.allowed_alternate_docs.iter().map(|doc| evidence_id_for_doc(doc)).collect()
+		case.allowed_alternate_docs.iter().map(|doc| crate::evidence_id_for_doc(doc)).collect()
 	} else {
 		case.allowed_alternate_evidence_ids.clone()
 	};

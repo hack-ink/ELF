@@ -1,4 +1,6 @@
-use super::*;
+use crate::scoring::{
+	self, DimensionScoreReport, FailureCounts, ProducedAnswer, RealWorldJob, TypedStatus, Value,
+};
 
 pub(super) fn dimension_scores(
 	job: &RealWorldJob,
@@ -14,6 +16,80 @@ pub(super) fn dimension_scores(
 			weight: dimension.weight,
 		})
 		.collect()
+}
+
+pub(super) fn latency_violations(job: &RealWorldJob, answer: &ProducedAnswer) -> usize {
+	let Some(max_latency_ms) = latency_threshold_ms(job) else {
+		return 0;
+	};
+	let Some(latency_ms) = answer.latency_ms else {
+		return 1;
+	};
+
+	usize::from(latency_ms > max_latency_ms)
+}
+
+pub(super) fn normalized_score(scores: &[DimensionScoreReport]) -> f64 {
+	let total_weight = scores.iter().map(|score| score.weight).sum::<f64>();
+
+	if total_weight == 0.0 {
+		return 0.0;
+	}
+
+	scores.iter().map(|score| (score.score / score.max_points) * score.weight).sum::<f64>()
+		/ total_weight
+}
+
+pub(super) fn job_status(
+	normalized_score: f64,
+	pass_threshold: f64,
+	wrong_result_count: usize,
+	unsupported_claim_count: usize,
+	source_mutation_count: usize,
+	blocking_executable_gap_count: usize,
+) -> TypedStatus {
+	if unsupported_claim_count > 0 {
+		TypedStatus::UnsupportedClaim
+	} else if source_mutation_count > 0 {
+		TypedStatus::LifecycleFail
+	} else if blocking_executable_gap_count > 0 {
+		TypedStatus::Blocked
+	} else if wrong_result_count > 0 {
+		TypedStatus::WrongResult
+	} else if normalized_score >= pass_threshold {
+		TypedStatus::Pass
+	} else {
+		TypedStatus::WrongResult
+	}
+}
+
+pub(super) fn job_reason(
+	status: TypedStatus,
+	counts: &FailureCounts,
+	normalized_score: f64,
+) -> String {
+	let wrong_result_signal_count = scoring::wrong_result_signal_count(counts);
+
+	match status {
+		TypedStatus::Pass => format!("Job passed with normalized_score {normalized_score:.3}."),
+		TypedStatus::UnsupportedClaim => format!(
+			"Job produced {} unsupported claim(s), {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
+			counts.unsupported_claims, wrong_result_signal_count, counts.latency_violations
+		),
+		TypedStatus::WrongResult => format!(
+			"Job produced {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
+			wrong_result_signal_count, counts.latency_violations
+		),
+		TypedStatus::LifecycleFail => format!(
+			"Job produced {} source mutation(s) and normalized_score {normalized_score:.3}.",
+			counts.source_mutations
+		),
+		TypedStatus::Blocked => format!(
+			"Job has {} blocking executable gap(s) and normalized_score {normalized_score:.3}.",
+			counts.blocking_executable_gaps
+		),
+		_ => "Job did not reach a runnable scoring state.".to_string(),
+	}
 }
 
 fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) -> f64 {
@@ -124,84 +200,10 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 	if failed { 0.0 } else { max_points }
 }
 
-pub(super) fn latency_violations(job: &RealWorldJob, answer: &ProducedAnswer) -> usize {
-	let Some(max_latency_ms) = latency_threshold_ms(job) else {
-		return 0;
-	};
-	let Some(latency_ms) = answer.latency_ms else {
-		return 1;
-	};
-
-	usize::from(latency_ms > max_latency_ms)
-}
-
 fn latency_threshold_ms(job: &RealWorldJob) -> Option<f64> {
 	job.scoring_rubric
 		.dimensions
 		.get("latency_resource")
 		.and_then(|dimension| dimension.criteria.get("max_latency_ms"))
 		.and_then(Value::as_f64)
-}
-
-pub(super) fn normalized_score(scores: &[DimensionScoreReport]) -> f64 {
-	let total_weight = scores.iter().map(|score| score.weight).sum::<f64>();
-
-	if total_weight == 0.0 {
-		return 0.0;
-	}
-
-	scores.iter().map(|score| (score.score / score.max_points) * score.weight).sum::<f64>()
-		/ total_weight
-}
-
-pub(super) fn job_status(
-	normalized_score: f64,
-	pass_threshold: f64,
-	wrong_result_count: usize,
-	unsupported_claim_count: usize,
-	source_mutation_count: usize,
-	blocking_executable_gap_count: usize,
-) -> TypedStatus {
-	if unsupported_claim_count > 0 {
-		TypedStatus::UnsupportedClaim
-	} else if source_mutation_count > 0 {
-		TypedStatus::LifecycleFail
-	} else if blocking_executable_gap_count > 0 {
-		TypedStatus::Blocked
-	} else if wrong_result_count > 0 {
-		TypedStatus::WrongResult
-	} else if normalized_score >= pass_threshold {
-		TypedStatus::Pass
-	} else {
-		TypedStatus::WrongResult
-	}
-}
-
-pub(super) fn job_reason(
-	status: TypedStatus,
-	counts: &FailureCounts,
-	normalized_score: f64,
-) -> String {
-	let wrong_result_signal_count = wrong_result_signal_count(counts);
-
-	match status {
-		TypedStatus::Pass => format!("Job passed with normalized_score {normalized_score:.3}."),
-		TypedStatus::UnsupportedClaim => format!(
-			"Job produced {} unsupported claim(s), {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
-			counts.unsupported_claims, wrong_result_signal_count, counts.latency_violations
-		),
-		TypedStatus::WrongResult => format!(
-			"Job produced {} wrong-result signal(s), {} latency violation(s), and normalized_score {normalized_score:.3}.",
-			wrong_result_signal_count, counts.latency_violations
-		),
-		TypedStatus::LifecycleFail => format!(
-			"Job produced {} source mutation(s) and normalized_score {normalized_score:.3}.",
-			counts.source_mutations
-		),
-		TypedStatus::Blocked => format!(
-			"Job has {} blocking executable gap(s) and normalized_score {normalized_score:.3}.",
-			counts.blocking_executable_gaps
-		),
-		_ => "Job did not reach a runnable scoring state.".to_string(),
-	}
 }

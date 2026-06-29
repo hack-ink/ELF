@@ -1,4 +1,7 @@
-use super::*;
+use crate::writegate::{
+	WritePolicy, WritePolicyAudit, WritePolicyError, WritePolicyResult, WriteRedaction,
+	WriteRedactionResult, WriteSpan,
+};
 
 #[derive(Clone, Debug)]
 enum WriteOpKind {

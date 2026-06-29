@@ -1,11 +1,14 @@
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
-use super::types::{
-	KnowledgePageLintFindingInsert, KnowledgePageSectionInsert, KnowledgePageSourceRefInsert,
-	KnowledgePageUpsert,
+use crate::{
+	Result,
+	knowledge::types::{
+		KnowledgePageLintFindingInsert, KnowledgePageSectionInsert, KnowledgePageSourceRefInsert,
+		KnowledgePageUpsert,
+	},
+	models::KnowledgePage,
 };
-use crate::{Result, models::KnowledgePage};
 
 /// Upserts one derived knowledge page and returns the persisted row.
 pub async fn upsert_knowledge_page<'e, E>(

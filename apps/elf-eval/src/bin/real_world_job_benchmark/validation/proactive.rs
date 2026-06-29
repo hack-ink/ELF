@@ -1,4 +1,6 @@
-use super::*;
+use crate::validation::{
+	self, BTreeSet, Path, ProactiveBriefArtifact, ProactiveSuggestion, Result, eyre,
+};
 
 pub(super) fn validate_proactive_brief_artifact(
 	brief: &ProactiveBriefArtifact,
@@ -18,13 +20,13 @@ pub(super) fn validate_proactive_brief_artifact(
 		return Err(eyre::eyre!("{} has an incomplete proactive brief.", path.display()));
 	}
 
-	validate_optional_rfc3339(&brief.generated_at, path, brief.brief_id.as_str())?;
+	validation::validate_optional_rfc3339(&brief.generated_at, path, brief.brief_id.as_str())?;
 
 	for suggestion in &brief.suggestions {
 		validate_proactive_suggestion(suggestion, path, evidence_ids)?;
 	}
 
-	validate_memory_summary_source_trace(&brief.source_trace, path, evidence_ids)?;
+	validation::validate_memory_summary_source_trace(&brief.source_trace, path, evidence_ids)?;
 
 	Ok(())
 }
@@ -41,21 +43,21 @@ fn validate_proactive_suggestion(
 	{
 		return Err(eyre::eyre!("{} has an incomplete proactive suggestion.", path.display()));
 	}
-	if !is_proactive_suggestion_kind(suggestion.suggestion_kind.as_str()) {
+	if !validation::is_proactive_suggestion_kind(suggestion.suggestion_kind.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown proactive suggestion kind {}.",
 			path.display(),
 			suggestion.suggestion_kind
 		));
 	}
-	if !is_memory_summary_freshness_status(suggestion.freshness.status.as_str()) {
+	if !validation::is_memory_summary_freshness_status(suggestion.freshness.status.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown proactive freshness status {}.",
 			path.display(),
 			suggestion.freshness.status
 		));
 	}
-	if !is_proactive_action_decision(suggestion.action.decision.as_str()) {
+	if !validation::is_proactive_action_decision(suggestion.action.decision.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown proactive action decision {}.",
 			path.display(),
@@ -68,10 +70,10 @@ fn validate_proactive_suggestion(
 	}
 
 	for evidence_id in &suggestion.evidence_refs {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 	for evidence_id in &suggestion.freshness.tombstone_refs {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 	for flag in &suggestion.unsupported_claim_flags {
 		if !flag.is_object() {
@@ -82,22 +84,22 @@ fn validate_proactive_suggestion(
 		}
 	}
 
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		suggestion.freshness.observed_at.as_deref(),
 		suggestion.suggestion_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		suggestion.freshness.valid_from.as_deref(),
 		suggestion.suggestion_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		suggestion.freshness.valid_to.as_deref(),
 		suggestion.suggestion_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		suggestion.freshness.last_confirmed_at.as_deref(),
 		suggestion.suggestion_id.as_str(),

@@ -1,4 +1,7 @@
-use super::*;
+use crate::{
+	Error,
+	search::{CacheKind, CachePayload, OffsetDateTime, PgExecutor, Result, Uuid, Value},
+};
 
 pub(super) async fn fetch_cache_payload<'e, E>(
 	executor: E,
@@ -34,7 +37,7 @@ FROM updated",
 		return Ok(None);
 	};
 	let size_bytes = serde_json::to_vec(&payload)
-		.map_err(|err| crate::Error::Storage {
+		.map_err(|err| Error::Storage {
 			message: format!("Failed to encode cache payload: {err}"),
 		})?
 		.len();
@@ -54,7 +57,7 @@ pub(super) async fn store_cache_payload<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	let payload_bytes = serde_json::to_vec(&payload).map_err(|err| crate::Error::Storage {
+	let payload_bytes = serde_json::to_vec(&payload).map_err(|err| Error::Storage {
 		message: format!("Failed to encode cache payload: {err}"),
 	})?;
 	let payload_size = payload_bytes.len();

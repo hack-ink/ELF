@@ -1,18 +1,33 @@
-use super::*;
+use axum::{
+	body::{self, Body},
+	http::{Request, StatusCode},
+};
+use serde_json::Value;
+use tower::util::ServiceExt as _;
+use uuid::Uuid;
+
+use crate::{TEST_AGENT_A, TEST_AGENT_B, TEST_PROJECT_ID, TEST_TENANT_ID};
+use elf_api::{routes, state::AppState};
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn sharing_visibility_requires_explicit_project_grant() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let note_id = Uuid::new_v4();
 
-	insert_note(&state, note_id, "project_shared", TEST_AGENT_A, "Fact: shared note without grant")
-		.await;
+	crate::insert_note(
+		&state,
+		note_id,
+		"project_shared",
+		TEST_AGENT_A,
+		"Fact: shared note without grant",
+	)
+	.await;
 
 	let response = app
 		.clone()
@@ -34,8 +49,7 @@ async fn sharing_visibility_requires_explicit_project_grant() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_json: serde_json::Value =
-		serde_json::from_slice(&body).expect("Failed to parse list response.");
+	let list_json: Value = serde_json::from_slice(&body).expect("Failed to parse list response.");
 
 	assert_eq!(list_json["items"].as_array().expect("Missing items array.").len(), 0);
 
@@ -58,8 +72,7 @@ async fn sharing_visibility_requires_explicit_project_grant() {
 	let body = body::to_bytes(note_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read get response body.");
-	let note_json: serde_json::Value =
-		serde_json::from_slice(&body).expect("Failed to parse get response.");
+	let note_json: Value = serde_json::from_slice(&body).expect("Failed to parse get response.");
 
 	assert_eq!(note_json["error_code"], "INVALID_REQUEST");
 
@@ -69,14 +82,14 @@ async fn sharing_visibility_requires_explicit_project_grant() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn core_blocks_are_explicitly_attached_and_separate_from_archival_search() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let admin_app = routes::admin_router(state.clone());
-	let private_block_id = create_core_block(
+	let private_block_id = crate::create_core_block(
 		&admin_app,
 		"agent_private",
 		"private_operating_context",
@@ -85,7 +98,7 @@ async fn core_blocks_are_explicitly_attached_and_separate_from_archival_search()
 	.await;
 	let note_id = Uuid::new_v4();
 
-	insert_note(
+	crate::insert_note(
 		&state,
 		note_id,
 		"agent_private",
@@ -95,10 +108,10 @@ async fn core_blocks_are_explicitly_attached_and_separate_from_archival_search()
 	.await;
 
 	let (status, _) =
-		attach_core_block(&admin_app, private_block_id, TEST_AGENT_A, "private_only").await;
-	let before_sessions = search_session_count(&state).await;
-	let blocks = get_core_blocks(&app, TEST_AGENT_A, "private_only").await;
-	let after_sessions = search_session_count(&state).await;
+		crate::attach_core_block(&admin_app, private_block_id, TEST_AGENT_A, "private_only").await;
+	let before_sessions = crate::search_session_count(&state).await;
+	let blocks = crate::get_core_blocks(&app, TEST_AGENT_A, "private_only").await;
+	let after_sessions = crate::search_session_count(&state).await;
 
 	assert_eq!(status, StatusCode::OK);
 	assert_eq!(before_sessions, after_sessions);
@@ -112,11 +125,11 @@ async fn core_blocks_are_explicitly_attached_and_separate_from_archival_search()
 	assert!(blocks["items"][0]["audit_history"].as_array().expect("audit history").len() >= 2);
 	assert!(!blocks.to_string().contains("archival note must not appear"));
 
-	let b_private = get_core_blocks(&app, TEST_AGENT_B, "private_only").await;
+	let b_private = crate::get_core_blocks(&app, TEST_AGENT_B, "private_only").await;
 
 	assert_eq!(b_private["items"].as_array().expect("items array").len(), 0);
 
-	let shared_block_id = create_core_block(
+	let shared_block_id = crate::create_core_block(
 		&admin_app,
 		"project_shared",
 		"shared_operating_context",
@@ -124,16 +137,18 @@ async fn core_blocks_are_explicitly_attached_and_separate_from_archival_search()
 	)
 	.await;
 	let (denied_status, _) =
-		attach_core_block(&admin_app, shared_block_id, TEST_AGENT_B, "private_plus_project").await;
+		crate::attach_core_block(&admin_app, shared_block_id, TEST_AGENT_B, "private_plus_project")
+			.await;
 
 	assert_eq!(denied_status, StatusCode::FORBIDDEN);
 
-	insert_project_scope_grant(&state, TEST_AGENT_A, TEST_AGENT_A).await;
+	crate::insert_project_scope_grant(&state, TEST_AGENT_A, TEST_AGENT_A).await;
 
 	let (shared_status, _) =
-		attach_core_block(&admin_app, shared_block_id, TEST_AGENT_B, "private_plus_project").await;
-	let b_shared = get_core_blocks(&app, TEST_AGENT_B, "private_plus_project").await;
-	let b_wrong_profile = get_core_blocks(&app, TEST_AGENT_B, "private_only").await;
+		crate::attach_core_block(&admin_app, shared_block_id, TEST_AGENT_B, "private_plus_project")
+			.await;
+	let b_shared = crate::get_core_blocks(&app, TEST_AGENT_B, "private_plus_project").await;
+	let b_wrong_profile = crate::get_core_blocks(&app, TEST_AGENT_B, "private_only").await;
 
 	assert_eq!(shared_status, StatusCode::OK);
 	assert_eq!(b_shared["items"].as_array().expect("items array").len(), 1);
@@ -147,18 +162,18 @@ async fn core_blocks_are_explicitly_attached_and_separate_from_archival_search()
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn org_shared_note_is_visible_across_projects() {
 	let Some((test_db, app, state, note_id)) =
-		org_shared_note_is_visible_across_projects_fixture().await
+		crate::org_shared_note_is_visible_across_projects_fixture().await
 	else {
 		return;
 	};
-	let list_before_json = list_org_shared_notes_as_reader(&app).await;
+	let list_before_json = crate::list_org_shared_notes_as_reader(&app).await;
 
 	assert_eq!(list_before_json["items"].as_array().expect("Missing items array.").len(), 0);
 
-	publish_org_shared_note_as_reader_can_see(&app, note_id).await;
+	crate::publish_org_shared_note_as_reader_can_see(&app, note_id).await;
 
 	let grant_upsert_payload = serde_json::json!({ "grantee_kind": "project" }).to_string();
-	let grant_upsert_response = post_with_authorization_and_json_body(
+	let grant_upsert_response = crate::post_with_authorization_and_json_body(
 		&app,
 		"/v2/spaces/org_shared/grants",
 		"Bearer admin-token",
@@ -170,7 +185,7 @@ async fn org_shared_note_is_visible_across_projects() {
 
 	assert_eq!(grant_upsert_response.status(), StatusCode::OK);
 
-	assert_note_visible_to_project_reader(&app, &state, note_id).await;
+	crate::assert_note_visible_to_project_reader(&app, &state, note_id).await;
 
 	test_db.cleanup().await.expect("Failed to cleanup test database.");
 }
@@ -178,15 +193,15 @@ async fn org_shared_note_is_visible_across_projects() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn sharing_project_grant_enables_agent_access_to_shared_note() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let note_id = Uuid::new_v4();
 
-	insert_note(
+	crate::insert_note(
 		&state,
 		note_id,
 		"project_shared",
@@ -194,7 +209,7 @@ async fn sharing_project_grant_enables_agent_access_to_shared_note() {
 		"Fact: shared note with explicit grant.",
 	)
 	.await;
-	insert_project_scope_grant(&state, TEST_AGENT_A, TEST_AGENT_A).await;
+	crate::insert_project_scope_grant(&state, TEST_AGENT_A, TEST_AGENT_A).await;
 
 	let response = app
 		.clone()
@@ -216,8 +231,7 @@ async fn sharing_project_grant_enables_agent_access_to_shared_note() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_json: serde_json::Value =
-		serde_json::from_slice(&body).expect("Failed to parse list response.");
+	let list_json: Value = serde_json::from_slice(&body).expect("Failed to parse list response.");
 	let items = list_json["items"].as_array().expect("Missing items array.");
 
 	assert_eq!(items.len(), 1);
@@ -242,8 +256,7 @@ async fn sharing_project_grant_enables_agent_access_to_shared_note() {
 	let body = body::to_bytes(note_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read get response body.");
-	let note_json: serde_json::Value =
-		serde_json::from_slice(&body).expect("Failed to parse get response.");
+	let note_json: Value = serde_json::from_slice(&body).expect("Failed to parse get response.");
 
 	assert_eq!(note_json["note_id"], note_id.to_string());
 	assert_eq!(note_json["scope"], "project_shared");
@@ -254,15 +267,15 @@ async fn sharing_project_grant_enables_agent_access_to_shared_note() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn sharing_publish_creates_scope_and_grant_visibility() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let note_id = Uuid::new_v4();
 
-	insert_note(
+	crate::insert_note(
 		&state,
 		note_id,
 		"agent_private",
@@ -271,7 +284,7 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 	)
 	.await;
 
-	let initial_grant_count = active_project_grant_count(&state, TEST_AGENT_A).await;
+	let initial_grant_count = crate::active_project_grant_count(&state, TEST_AGENT_A).await;
 
 	assert_eq!(initial_grant_count, 0);
 
@@ -297,13 +310,13 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 	let publish_body = body::to_bytes(publish_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read publish response body.");
-	let publish_json: serde_json::Value =
+	let publish_json: Value =
 		serde_json::from_slice(&publish_body).expect("Failed to parse publish response.");
 
 	assert_eq!(publish_json["note_id"], note_id.to_string());
 	assert_eq!(publish_json["space"], "team_shared");
 
-	let after_grant_count = active_project_grant_count(&state, TEST_AGENT_A).await;
+	let after_grant_count = crate::active_project_grant_count(&state, TEST_AGENT_A).await;
 
 	assert_eq!(after_grant_count, 1);
 
@@ -327,7 +340,7 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 	let list_body = body::to_bytes(list_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_json: serde_json::Value =
+	let list_json: Value =
 		serde_json::from_slice(&list_body).expect("Failed to parse list response.");
 	let items = list_json["items"].as_array().expect("Missing items array.");
 
@@ -353,8 +366,7 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 	let get_body = body::to_bytes(get_response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read get response body.");
-	let get_json: serde_json::Value =
-		serde_json::from_slice(&get_body).expect("Failed to parse get response.");
+	let get_json: Value = serde_json::from_slice(&get_body).expect("Failed to parse get response.");
 
 	assert_eq!(get_json["note_id"], note_id.to_string());
 	assert_eq!(get_json["scope"], "project_shared");
@@ -365,15 +377,15 @@ async fn sharing_publish_creates_scope_and_grant_visibility() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn sharing_revoke_project_grant_removes_visibility() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let note_id = Uuid::new_v4();
 
-	insert_note(
+	crate::insert_note(
 		&state,
 		note_id,
 		"project_shared",
@@ -381,9 +393,9 @@ async fn sharing_revoke_project_grant_removes_visibility() {
 		"Fact: shared note for revoke test.",
 	)
 	.await;
-	insert_project_scope_grant(&state, TEST_AGENT_A, TEST_AGENT_A).await;
+	crate::insert_project_scope_grant(&state, TEST_AGENT_A, TEST_AGENT_A).await;
 
-	let grant_count_before = active_project_grant_count(&state, TEST_AGENT_A).await;
+	let grant_count_before = crate::active_project_grant_count(&state, TEST_AGENT_A).await;
 
 	assert_eq!(grant_count_before, 1);
 
@@ -404,7 +416,7 @@ async fn sharing_revoke_project_grant_removes_visibility() {
 	let list_before_body = body::to_bytes(list_before.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_before_json: serde_json::Value =
+	let list_before_json: Value =
 		serde_json::from_slice(&list_before_body).expect("Failed to parse list response.");
 
 	assert_eq!(list_before_json["items"].as_array().expect("Missing items array.").len(), 1);
@@ -428,7 +440,7 @@ async fn sharing_revoke_project_grant_removes_visibility() {
 
 	assert_eq!(revoke_response.status(), StatusCode::OK);
 
-	let grant_count_after = active_project_grant_count(&state, TEST_AGENT_A).await;
+	let grant_count_after = crate::active_project_grant_count(&state, TEST_AGENT_A).await;
 
 	assert_eq!(grant_count_after, 0);
 
@@ -452,7 +464,7 @@ async fn sharing_revoke_project_grant_removes_visibility() {
 	let list_after_body = body::to_bytes(list_after.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read list response body.");
-	let list_after_json: serde_json::Value =
+	let list_after_json: Value =
 		serde_json::from_slice(&list_after_body).expect("Failed to parse list response.");
 
 	assert_eq!(list_after_json["items"].as_array().expect("Missing items array.").len(), 0);

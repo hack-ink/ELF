@@ -1,4 +1,7 @@
-use super::*;
+use crate::scoring::{
+	BTreeSet, EvolutionConflict, EvolutionJobReport, MemoryEvolution, ProducedAnswer, RealWorldJob,
+	UpdateRationale, answers,
+};
 
 pub(super) fn evolution_job_report(
 	job: &RealWorldJob,
@@ -7,7 +10,7 @@ pub(super) fn evolution_job_report(
 	forbidden_claim_count: usize,
 ) -> Option<EvolutionJobReport> {
 	let evolution = job.memory_evolution.as_ref()?;
-	let produced = produced_evidence_ids(answer);
+	let produced = answers::produced_evidence_ids(answer);
 	let stale_trap_ids_used = stale_trap_ids_used(job, evolution, trap_ids_used);
 	let stale_answer_count =
 		stale_answer_count(job, evolution, &stale_trap_ids_used, forbidden_claim_count);
@@ -79,6 +82,16 @@ pub(super) fn evolution_job_report(
 		history_requires_note_version_links,
 		follow_up,
 	})
+}
+
+pub(super) fn update_rationale_missing_count(report: &EvolutionJobReport) -> usize {
+	if report.update_rationale_available || report.temporal_validity_not_encoded {
+		0
+	} else if report.conflict_count > 0 {
+		1
+	} else {
+		0
+	}
 }
 
 fn stale_answer_count(
@@ -218,14 +231,4 @@ fn update_rationale_is_available(rationale: &UpdateRationale, answer: &ProducedA
 				claim.evidence_ids.iter().any(|produced| produced == evidence_id)
 			})
 	})
-}
-
-pub(super) fn update_rationale_missing_count(report: &EvolutionJobReport) -> usize {
-	if report.update_rationale_available || report.temporal_validity_not_encoded {
-		0
-	} else if report.conflict_count > 0 {
-		1
-	} else {
-		0
-	}
 }

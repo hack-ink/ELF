@@ -2,12 +2,15 @@ use std::collections::HashSet;
 
 use time::OffsetDateTime;
 
-use super::{
-	TOP_OF_MIND_IMPORTANCE_THRESHOLD,
-	storage::{EntityCoreBlockRow, EntityNoteRow},
-	types::{EntityMemoryItem, EntityMemoryRelation, EntityMemorySummary},
+use crate::{
+	access,
+	entity_memory::{
+		TOP_OF_MIND_IMPORTANCE_THRESHOLD,
+		storage::{EntityCoreBlockRow, EntityNoteRow},
+		types::{EntityMemoryItem, EntityMemoryRelation, EntityMemorySummary},
+	},
+	graph,
 };
-use crate::access;
 
 pub(super) fn build_note_items(
 	rows: Vec<EntityNoteRow>,
@@ -112,32 +115,6 @@ pub(super) fn build_core_block_items(
 		.collect()
 }
 
-fn row_read_allowed(
-	owner_agent_id: &str,
-	scope: &str,
-	requester_agent_id: &str,
-	allowed_scopes: &[String],
-	shared_grants: &HashSet<access::SharedSpaceGrantKey>,
-) -> bool {
-	if !allowed_scopes.iter().any(|allowed| allowed == scope) {
-		return false;
-	}
-	if scope == "agent_private" {
-		return owner_agent_id == requester_agent_id;
-	}
-	if !matches!(scope, "project_shared" | "org_shared") {
-		return false;
-	}
-	if owner_agent_id == requester_agent_id {
-		return true;
-	}
-
-	shared_grants.contains(&access::SharedSpaceGrantKey {
-		scope: scope.to_string(),
-		space_owner_agent_id: owner_agent_id.to_string(),
-	})
-}
-
 pub(super) fn note_lifecycle(
 	status: &str,
 	expires_at: Option<OffsetDateTime>,
@@ -157,22 +134,6 @@ pub(super) fn note_read_bucket(lifecycle: &str, importance: f32) -> String {
 		"top_of_mind".to_string()
 	} else {
 		"background".to_string()
-	}
-}
-
-fn relation_from_note_row(row: &EntityNoteRow, as_of: OffsetDateTime) -> EntityMemoryRelation {
-	EntityMemoryRelation {
-		fact_id: row.fact_id,
-		predicate: row.predicate.clone(),
-		scope: row.fact_scope.clone(),
-		actor: row.fact_agent_id.clone(),
-		valid_from: row.valid_from,
-		valid_to: row.valid_to,
-		temporal_status: crate::graph::relation_temporal_status(
-			row.valid_from,
-			row.valid_to,
-			as_of,
-		),
 	}
 }
 
@@ -224,6 +185,44 @@ pub(super) fn sort_entity_memory_items(items: &mut [EntityMemoryItem]) {
 			.then_with(|| right.updated_at.cmp(&left.updated_at))
 			.then_with(|| left.source.cmp(&right.source))
 	});
+}
+
+fn row_read_allowed(
+	owner_agent_id: &str,
+	scope: &str,
+	requester_agent_id: &str,
+	allowed_scopes: &[String],
+	shared_grants: &HashSet<access::SharedSpaceGrantKey>,
+) -> bool {
+	if !allowed_scopes.iter().any(|allowed| allowed == scope) {
+		return false;
+	}
+	if scope == "agent_private" {
+		return owner_agent_id == requester_agent_id;
+	}
+	if !matches!(scope, "project_shared" | "org_shared") {
+		return false;
+	}
+	if owner_agent_id == requester_agent_id {
+		return true;
+	}
+
+	shared_grants.contains(&access::SharedSpaceGrantKey {
+		scope: scope.to_string(),
+		space_owner_agent_id: owner_agent_id.to_string(),
+	})
+}
+
+fn relation_from_note_row(row: &EntityNoteRow, as_of: OffsetDateTime) -> EntityMemoryRelation {
+	EntityMemoryRelation {
+		fact_id: row.fact_id,
+		predicate: row.predicate.clone(),
+		scope: row.fact_scope.clone(),
+		actor: row.fact_agent_id.clone(),
+		valid_from: row.valid_from,
+		valid_to: row.valid_to,
+		temporal_status: graph::relation_temporal_status(row.valid_from, row.valid_to, as_of),
+	}
 }
 
 fn read_bucket_rank(bucket: &str) -> u8 {

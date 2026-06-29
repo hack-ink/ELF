@@ -330,7 +330,6 @@ pub(crate) enum SearchMode {
 	QuickFind,
 	PlannedSearch,
 }
-
 impl SearchMode {
 	pub(crate) fn as_str(self) -> &'static str {
 		match self {
@@ -347,7 +346,6 @@ pub(crate) enum PayloadLevel {
 	L1,
 	L2,
 }
-
 impl PayloadLevel {
 	pub(crate) fn as_str(self) -> &'static str {
 		match self {
@@ -376,7 +374,6 @@ pub(crate) enum BenchmarkRunKind {
 	ProductionPrivateAddendum,
 	Soak,
 }
-
 impl BenchmarkRunKind {
 	pub(crate) fn task_name(self) -> &'static str {
 		match self {

@@ -4,9 +4,7 @@ use sqlx::{PgConnection, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::Result;
-
-use super::types::StructuredFields;
+use crate::{Result, structured_fields::types::StructuredFields};
 
 /// Upserts summary, fact, and concept fields for one note inside an existing transaction.
 pub async fn upsert_structured_fields_tx(

@@ -1,6 +1,4 @@
-use super::*;
-
-use super::metadata::SearchTrace;
+use crate::search::api::trace::{Deserialize, Serialize, Uuid, Value, metadata::SearchTrace};
 
 /// Condensed search-trajectory explanation.
 #[derive(Clone, Debug, Deserialize, Serialize)]

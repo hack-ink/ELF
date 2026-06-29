@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{selectors::TextPositionSelector, trajectory::DocRetrievalTrajectory};
+use crate::docs::api::{selectors::TextPositionSelector, trajectory::DocRetrievalTrajectory};
 
 /// Request payload for L0 document retrieval.
 #[derive(Clone, Debug, Deserialize)]

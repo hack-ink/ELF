@@ -1,4 +1,8 @@
-use super::*;
+use crate::docs::validation::{
+	DOC_STATUSES, DocType, DocsSearchL0Filters, DocsSearchL0FiltersParsed,
+	DocsSearchL0RangesParsed, DocsSearchL0Request, DocsSparseMode, Error, OffsetDateTime, Result,
+	Rfc3339, english_gate,
+};
 
 pub(in crate::docs) fn validate_docs_search_l0(
 	req: &DocsSearchL0Request,

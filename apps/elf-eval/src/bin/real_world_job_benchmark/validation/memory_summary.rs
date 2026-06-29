@@ -1,4 +1,7 @@
-use super::*;
+use crate::validation::{
+	self, BTreeSet, MemorySummaryArtifact, MemorySummaryEntry, MemorySummarySourceTrace, Path,
+	Result, eyre,
+};
 
 pub(super) fn validate_memory_summary_artifact(
 	summary: &MemorySummaryArtifact,
@@ -17,7 +20,11 @@ pub(super) fn validate_memory_summary_artifact(
 		return Err(eyre::eyre!("{} has an incomplete memory summary.", path.display()));
 	}
 
-	validate_optional_rfc3339(&summary.generated_at, path, summary.summary_id.as_str())?;
+	validation::validate_optional_rfc3339(
+		&summary.generated_at,
+		path,
+		summary.summary_id.as_str(),
+	)?;
 
 	for entry in &summary.entries {
 		validate_memory_summary_entry(entry, path, evidence_ids)?;
@@ -45,7 +52,7 @@ pub(super) fn validate_memory_summary_source_trace(
 			return Err(eyre::eyre!("{} has an empty memory summary trace item.", path.display()));
 		}
 
-		ensure_known_evidence(path, evidence_ids, item.evidence_id.as_str())?;
+		validation::ensure_known_evidence(path, evidence_ids, item.evidence_id.as_str())?;
 	}
 	for flag in &trace.unsupported_claim_flags {
 		if !flag.is_object() {
@@ -70,21 +77,21 @@ fn validate_memory_summary_entry(
 	{
 		return Err(eyre::eyre!("{} has an incomplete memory summary entry.", path.display()));
 	}
-	if !is_memory_summary_category(entry.category.as_str()) {
+	if !validation::is_memory_summary_category(entry.category.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown memory summary category {}.",
 			path.display(),
 			entry.category
 		));
 	}
-	if !is_memory_summary_freshness_status(entry.freshness.status.as_str()) {
+	if !validation::is_memory_summary_freshness_status(entry.freshness.status.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown memory summary freshness status {}.",
 			path.display(),
 			entry.freshness.status
 		));
 	}
-	if !is_memory_summary_rationale_decision(entry.rationale.decision.as_str()) {
+	if !validation::is_memory_summary_rationale_decision(entry.rationale.decision.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown memory summary rationale decision {}.",
 			path.display(),
@@ -93,10 +100,10 @@ fn validate_memory_summary_entry(
 	}
 
 	for evidence_id in &entry.source_refs {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 	for evidence_id in &entry.freshness.tombstone_refs {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 	for flag in &entry.unsupported_claim_flags {
 		if !flag.is_object() {
@@ -107,22 +114,22 @@ fn validate_memory_summary_entry(
 		}
 	}
 
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		entry.freshness.observed_at.as_deref(),
 		entry.entry_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		entry.freshness.valid_from.as_deref(),
 		entry.entry_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		entry.freshness.valid_to.as_deref(),
 		entry.entry_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		entry.freshness.last_confirmed_at.as_deref(),
 		entry.entry_id.as_str(),

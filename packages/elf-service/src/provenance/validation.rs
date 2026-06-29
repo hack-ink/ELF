@@ -1,5 +1,7 @@
-use super::types::{NoteProvenanceGetRequest, ValidatedNoteProvenanceRequest};
-use crate::{Error, Result};
+use crate::{
+	Error, Result,
+	provenance::types::{NoteProvenanceGetRequest, requests::ValidatedNoteProvenanceRequest},
+};
 
 pub(super) fn validate_note_provenance_request(
 	req: NoteProvenanceGetRequest,

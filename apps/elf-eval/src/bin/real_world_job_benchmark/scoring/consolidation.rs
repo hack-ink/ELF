@@ -1,4 +1,7 @@
-use super::*;
+use crate::scoring::{
+	self, BTreeSet, ConsolidationExecutableGapReport, ConsolidationJobReport,
+	ConsolidationProposalFixture, ConsolidationProposalReport, RealWorldJob,
+};
 
 pub(super) fn consolidation_job_report(job: &RealWorldJob) -> Option<ConsolidationJobReport> {
 	let fixture = job.corpus.adapter_response.as_ref()?.consolidation.as_ref()?;
@@ -21,13 +24,13 @@ pub(super) fn consolidation_job_report(job: &RealWorldJob) -> Option<Consolidati
 
 	Some(ConsolidationJobReport {
 		proposal_count,
-		proposal_usefulness: mean_proposal_metric(
+		proposal_usefulness: scoring::mean_proposal_metric(
 			proposals.iter().map(|proposal| proposal.usefulness_score),
 		),
-		lineage_completeness: mean_proposal_metric(
+		lineage_completeness: scoring::mean_proposal_metric(
 			proposals.iter().map(|proposal| proposal.lineage_completeness),
 		),
-		review_action_correctness: mean_proposal_metric(
+		review_action_correctness: scoring::mean_proposal_metric(
 			proposals.iter().map(|proposal| if proposal.review_action_correct { 1.0 } else { 0.0 }),
 		),
 		source_mutation_count,
@@ -35,34 +38,6 @@ pub(super) fn consolidation_job_report(job: &RealWorldJob) -> Option<Consolidati
 		executable_gaps,
 		proposals,
 	})
-}
-
-fn consolidation_proposal_report(
-	proposal: &ConsolidationProposalFixture,
-) -> ConsolidationProposalReport {
-	ConsolidationProposalReport {
-		proposal_id: proposal.proposal_id.clone(),
-		proposal_kind: proposal.proposal_kind.clone(),
-		usefulness_score: round3(proposal.usefulness_score),
-		min_usefulness_score: round3(proposal.min_usefulness_score),
-		lineage_completeness: round3(lineage_completeness(proposal)),
-		expected_review_action: proposal.expected_review_action,
-		actual_review_action: proposal.actual_review_action,
-		review_action_correct: proposal.expected_review_action == proposal.actual_review_action,
-		source_mutation_count: proposal.source_mutations.len()
-			+ forbidden_diff_key_count(&proposal.diff),
-		unsupported_claim_count: proposal
-			.unsupported_claim_count
-			.max(proposal.unsupported_claim_flags.len()),
-	}
-}
-
-fn lineage_completeness(proposal: &ConsolidationProposalFixture) -> f64 {
-	let expected = proposal.expected_source_refs.iter().collect::<BTreeSet<_>>();
-	let actual = proposal.source_refs.iter().collect::<BTreeSet<_>>();
-	let matched = expected.iter().filter(|source_ref| actual.contains(**source_ref)).count();
-
-	matched as f64 / expected.len() as f64
 }
 
 pub(super) fn proposal_usefulness_failures(
@@ -93,4 +68,32 @@ pub(super) fn blocking_executable_gaps(consolidation: Option<&ConsolidationJobRe
 	consolidation.map_or(0, |report| {
 		report.executable_gaps.iter().filter(|gap| gap.blocks_fixture_pass).count()
 	})
+}
+
+fn consolidation_proposal_report(
+	proposal: &ConsolidationProposalFixture,
+) -> ConsolidationProposalReport {
+	ConsolidationProposalReport {
+		proposal_id: proposal.proposal_id.clone(),
+		proposal_kind: proposal.proposal_kind.clone(),
+		usefulness_score: scoring::round3(proposal.usefulness_score),
+		min_usefulness_score: scoring::round3(proposal.min_usefulness_score),
+		lineage_completeness: scoring::round3(lineage_completeness(proposal)),
+		expected_review_action: proposal.expected_review_action,
+		actual_review_action: proposal.actual_review_action,
+		review_action_correct: proposal.expected_review_action == proposal.actual_review_action,
+		source_mutation_count: proposal.source_mutations.len()
+			+ scoring::forbidden_diff_key_count(&proposal.diff),
+		unsupported_claim_count: proposal
+			.unsupported_claim_count
+			.max(proposal.unsupported_claim_flags.len()),
+	}
+}
+
+fn lineage_completeness(proposal: &ConsolidationProposalFixture) -> f64 {
+	let expected = proposal.expected_source_refs.iter().collect::<BTreeSet<_>>();
+	let actual = proposal.source_refs.iter().collect::<BTreeSet<_>>();
+	let matched = expected.iter().filter(|source_ref| actual.contains(**source_ref)).count();
+
+	matched as f64 / expected.len() as f64
 }

@@ -1,4 +1,4 @@
-use super::*;
+use crate::markdown::{self, OperatorDebugEvidence, OperatorUxGap, RealWorldReport};
 
 pub(super) fn render_markdown_suites(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Suites\n\n");
@@ -10,12 +10,12 @@ pub(super) fn render_markdown_suites(out: &mut String, report: &RealWorldReport)
 	for suite in &report.suites {
 		out.push_str(&format!(
 			"| {} | `{}` | {} | `{}` | `{}` | `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
-			md_cell(suite.suite_id.as_str()),
-			status_str(suite.status),
+			markdown::md_cell(suite.suite_id.as_str()),
+			markdown::status_str(suite.status),
 			suite.encoded_job_count,
-			optional_f64(suite.score_mean, ""),
-			optional_f64(suite.expected_evidence_recall, ""),
-			optional_f64(suite.irrelevant_context_ratio, ""),
+			markdown::optional_f64(suite.score_mean, ""),
+			markdown::optional_f64(suite.expected_evidence_recall, ""),
+			markdown::optional_f64(suite.irrelevant_context_ratio, ""),
 			suite.trace_explainability_count,
 			suite.stale_answer_count,
 			suite.conflict_detection_count,
@@ -24,7 +24,7 @@ pub(super) fn render_markdown_suites(out: &mut String, report: &RealWorldReport)
 			suite.history_readback_encoded_count,
 			suite.unsupported_claim_count,
 			suite.wrong_result_count,
-			md_cell(suite.reason.as_str())
+			markdown::md_cell(suite.reason.as_str())
 		));
 	}
 
@@ -49,27 +49,27 @@ pub(super) fn render_markdown_jobs(out: &mut String, report: &RealWorldReport) {
 
 		out.push_str(&format!(
 			"| {} | {} | `{}` | `{}` | `{}` | `{}` | `{}` | `{:.3}` | `{:.3}` | `{:.3}` | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | {} | {} | `{}` | `{}` |\n",
-			md_cell(job.suite_id.as_str()),
-			md_cell(job.job_id.as_str()),
-			status_str(job.status),
-			md_inline(job.answer_type.as_str()),
-			bool_display(job.requires_caveat),
-			bool_display(job.requires_refusal),
-			bool_display(job.can_answer_unknown),
+			markdown::md_cell(job.suite_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
+			markdown::status_str(job.status),
+			markdown::md_inline(job.answer_type.as_str()),
+			markdown::bool_display(job.requires_caveat),
+			markdown::bool_display(job.requires_refusal),
+			markdown::bool_display(job.can_answer_unknown),
 			job.normalized_score,
 			job.retrieval_quality.expected_evidence_recall,
 			job.retrieval_quality.irrelevant_context_ratio,
-			md_inline(expected.as_str()),
-			md_inline(produced.as_str()),
-			md_inline(trace_failure_stage(job.trace_explainability.as_ref()).unwrap_or("-")),
+			markdown::md_inline(expected.as_str()),
+			markdown::md_inline(produced.as_str()),
+			markdown::md_inline(markdown::trace_failure_stage(job.trace_explainability.as_ref()).unwrap_or("-")),
 			job.stale_answer_count,
 			job.conflict_detection_count,
-			bool_display(job.update_rationale_available),
-			bool_display(job.temporal_validity_not_encoded),
+			markdown::bool_display(job.update_rationale_available),
+			markdown::bool_display(job.temporal_validity_not_encoded),
 			job.unsupported_claim_count,
 			job.wrong_result_count,
-			optional_f64(job.latency_ms, " ms"),
-			cost_display(job.cost.as_ref())
+			markdown::optional_f64(job.latency_ms, " ms"),
+			markdown::cost_display(job.cost.as_ref())
 		));
 	}
 
@@ -94,16 +94,16 @@ pub(super) fn render_markdown_operator_debugging(out: &mut String, report: &Real
 		if let Some(debug) = &job.operator_debug {
 			out.push_str(&format!(
 				"| {} | {} | {} | `{}` | `{}` | {} | `{}` | {} | `{}` | `{}` | {} |\n",
-				md_cell(job.job_id.as_str()),
-				md_cell(debug.failure_mode.as_str()),
+				markdown::md_cell(job.job_id.as_str()),
+				markdown::md_cell(debug.failure_mode.as_str()),
 				debug_trace_cell(debug),
 				debug.trace_available.unwrap_or(debug.trace_id.is_some()),
 				debug.replay_command_available.unwrap_or(debug.replay_command.is_some()),
 				debug.steps_to_root_cause,
 				debug.raw_sql_needed,
-				md_cell(debug.dropped_candidate_visibility.as_str()),
-				md_inline(debug.trace_completeness.as_str()),
-				md_inline(debug.repair_action_clarity.as_str()),
+				markdown::md_cell(debug.dropped_candidate_visibility.as_str()),
+				markdown::md_inline(debug.trace_completeness.as_str()),
+				markdown::md_inline(debug.repair_action_clarity.as_str()),
 				ux_gap_cell(debug.ux_gaps.as_slice())
 			));
 		}
@@ -113,27 +113,36 @@ pub(super) fn render_markdown_operator_debugging(out: &mut String, report: &Real
 
 	for job in report.jobs.iter().filter(|job| job.operator_debug.is_some()) {
 		if let Some(debug) = &job.operator_debug {
-			out.push_str(&format!("#### `{}`\n\n", md_inline(job.job_id.as_str())));
-			out.push_str(&format!("- Root cause: {}\n", md_cell(debug.root_cause.as_str())));
+			out.push_str(&format!("#### `{}`\n\n", markdown::md_inline(job.job_id.as_str())));
+			out.push_str(&format!(
+				"- Root cause: {}\n",
+				markdown::md_cell(debug.root_cause.as_str())
+			));
 			out.push_str(&format!(
 				"- Viewer panels: `{}`\n",
-				md_inline(debug.viewer_panels.join(", ").as_str())
+				markdown::md_inline(debug.viewer_panels.join(", ").as_str())
 			));
 			out.push_str(&format!(
 				"- CLI steps: `{}`\n",
-				md_inline(debug.cli_steps.join(" -> ").as_str())
+				markdown::md_inline(debug.cli_steps.join(" -> ").as_str())
 			));
 
 			if let Some(command) = &debug.replay_command {
-				out.push_str(&format!("- Replay command: `{}`\n", md_inline(command.as_str())));
+				out.push_str(&format!(
+					"- Replay command: `{}`\n",
+					markdown::md_inline(command.as_str())
+				));
 			}
 			if let Some(artifact) = &debug.replay_artifact {
-				out.push_str(&format!("- Replay artifact: `{}`\n", md_inline(artifact.as_str())));
+				out.push_str(&format!(
+					"- Replay artifact: `{}`\n",
+					markdown::md_inline(artifact.as_str())
+				));
 			}
 
 			out.push_str(&format!(
 				"- Trace evidence: `{}`\n",
-				md_inline(debug.trace_evidence.join(", ").as_str())
+				markdown::md_inline(debug.trace_evidence.join(", ").as_str())
 			));
 			out.push('\n');
 		}
@@ -145,15 +154,15 @@ fn debug_trace_cell(debug: &OperatorDebugEvidence) -> String {
 	let viewer = debug
 		.viewer_url
 		.as_deref()
-		.map(|url| format!("[viewer]({})", md_url(url)))
+		.map(|url| format!("[viewer]({})", markdown::md_url(url)))
 		.unwrap_or_else(|| "viewer: -".to_string());
 	let bundle = debug
 		.admin_trace_bundle_url
 		.as_deref()
-		.map(|url| format!("[bundle]({})", md_url(url)))
+		.map(|url| format!("[bundle]({})", markdown::md_url(url)))
 		.unwrap_or_else(|| "bundle: -".to_string());
 
-	format!("`{}`<br>{}<br>{}", md_inline(trace), viewer, bundle)
+	format!("`{}`<br>{}<br>{}", markdown::md_inline(trace), viewer, bundle)
 }
 
 fn ux_gap_cell(gaps: &[OperatorUxGap]) -> String {
@@ -165,9 +174,9 @@ fn ux_gap_cell(gaps: &[OperatorUxGap]) -> String {
 		.map(|gap| {
 			format!(
 				"`{}`: {} ({})",
-				md_inline(gap.gap_id.as_str()),
-				md_cell(gap.description.as_str()),
-				md_inline(gap.follow_up_issue.as_str())
+				markdown::md_inline(gap.gap_id.as_str()),
+				markdown::md_cell(gap.description.as_str()),
+				markdown::md_inline(gap.follow_up_issue.as_str())
 			)
 		})
 		.collect::<Vec<_>>()

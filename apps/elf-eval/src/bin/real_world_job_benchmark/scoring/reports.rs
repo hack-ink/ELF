@@ -1,7 +1,10 @@
-use super::*;
+use crate::scoring::{
+	self, BTreeMap, BTreeSet, ExpectedEvidenceReport, JobMetrics, JobReport, JobScoring,
+	NegativeTrap, ProducedAnswer, RealWorldJob, RetrievalQualityReport, Value, answers,
+};
 
 pub(super) fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
-	let answer = produced_answer(job);
+	let answer = answers::produced_answer(job);
 	let metrics = job_metrics(job, answer);
 	let retrieval_quality = retrieval_quality_report(job, answer);
 
@@ -10,16 +13,16 @@ pub(super) fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		job_id: job.job_id.clone(),
 		title: job.title.clone(),
 		status: scoring.status,
-		operational_evidence_tier: operational_evidence_tier(job).to_string(),
+		operational_evidence_tier: scoring::operational_evidence_tier(job).to_string(),
 		answer_type: job.expected_answer.answer_type.clone(),
 		requires_caveat: job.expected_answer.requires_caveat,
 		requires_refusal: job.expected_answer.requires_refusal,
 		can_answer_unknown: job.allowed_uncertainty.can_answer_unknown,
-		normalized_score: round3(scoring.normalized_score),
+		normalized_score: scoring::round3(scoring.normalized_score),
 		hard_fail_hits: scoring.hard_fail_hits,
 		expected_evidence: expected_evidence_report(job),
 		produced_answer: answer.content.clone(),
-		produced_evidence: produced_evidence_ids(answer).into_iter().collect(),
+		produced_evidence: answers::produced_evidence_ids(answer).into_iter().collect(),
 		unsupported_claim_count: scoring.unsupported_claims.len(),
 		wrong_result_count: scoring.wrong_result_count,
 		stale_answer_count: scoring
@@ -74,21 +77,21 @@ pub(super) fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 }
 
 fn job_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> JobMetrics {
-	let produced_evidence = produced_evidence_ids(answer);
+	let produced_evidence = answers::produced_evidence_ids(answer);
 	let source_ref_by_evidence = source_ref_by_evidence(job);
 	let evidence_required_count =
-		job.required_evidence.iter().filter(|evidence| is_required_use(evidence)).count();
+		job.required_evidence.iter().filter(|evidence| answers::is_required_use(evidence)).count();
 	let evidence_covered_count = job
 		.required_evidence
 		.iter()
-		.filter(|evidence| is_required_use(evidence))
+		.filter(|evidence| answers::is_required_use(evidence))
 		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
 		.count();
 	let source_ref_required_count = evidence_required_count;
 	let source_ref_covered_count = job
 		.required_evidence
 		.iter()
-		.filter(|evidence| is_required_use(evidence))
+		.filter(|evidence| answers::is_required_use(evidence))
 		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
 		.filter(|evidence| {
 			source_ref_by_evidence.get(evidence.evidence_id.as_str()).is_some_and(|source_ref| {
@@ -99,12 +102,12 @@ fn job_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> JobMetrics {
 	let quote_required_count = job
 		.required_evidence
 		.iter()
-		.filter(|evidence| is_required_use(evidence) && evidence.quote.is_some())
+		.filter(|evidence| answers::is_required_use(evidence) && evidence.quote.is_some())
 		.count();
 	let quote_covered_count = job
 		.required_evidence
 		.iter()
-		.filter(|evidence| is_required_use(evidence) && evidence.quote.is_some())
+		.filter(|evidence| answers::is_required_use(evidence) && evidence.quote.is_some())
 		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
 		.count();
 	let stale_retrieval_count = trap_use_count(job, &produced_evidence, "stale_fact", answer);
@@ -186,7 +189,7 @@ fn answer_contains_corpus_item(
 fn retrieval_quality_report(job: &RealWorldJob, answer: &ProducedAnswer) -> RetrievalQualityReport {
 	let expected = expected_evidence_ids(job);
 	let allowed = allowed_evidence_ids(job);
-	let produced = produced_evidence_ids(answer);
+	let produced = answers::produced_evidence_ids(answer);
 	let trap_evidence = trap_evidence_ids(job);
 	let expected_evidence_matched =
 		expected.iter().filter(|evidence_id| produced.contains(evidence_id.as_str())).count();
@@ -198,10 +201,10 @@ fn retrieval_quality_report(job: &RealWorldJob, answer: &ProducedAnswer) -> Retr
 	RetrievalQualityReport {
 		expected_evidence_total: expected.len(),
 		expected_evidence_matched,
-		expected_evidence_recall: ratio_or(expected_evidence_matched, expected.len(), 1.0),
+		expected_evidence_recall: scoring::ratio_or(expected_evidence_matched, expected.len(), 1.0),
 		produced_evidence_total: produced.len(),
 		irrelevant_context_count,
-		irrelevant_context_ratio: ratio_or(irrelevant_context_count, produced.len(), 0.0),
+		irrelevant_context_ratio: scoring::ratio_or(irrelevant_context_count, produced.len(), 0.0),
 		trap_context_count,
 	}
 }
@@ -209,7 +212,7 @@ fn retrieval_quality_report(job: &RealWorldJob, answer: &ProducedAnswer) -> Retr
 fn expected_evidence_ids(job: &RealWorldJob) -> BTreeSet<String> {
 	job.required_evidence
 		.iter()
-		.filter(|evidence| is_required_use(evidence))
+		.filter(|evidence| answers::is_required_use(evidence))
 		.map(|evidence| evidence.evidence_id.clone())
 		.collect()
 }

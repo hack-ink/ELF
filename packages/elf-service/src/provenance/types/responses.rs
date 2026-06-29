@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{
+use crate::provenance::types::{
 	events::MemoryHistoryEvent,
 	notes::{
 		NoteProvenanceIndexingOutbox, NoteProvenanceIngestDecision, NoteProvenanceNote,

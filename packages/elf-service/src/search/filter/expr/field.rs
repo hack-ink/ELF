@@ -1,8 +1,9 @@
 use serde_json::Value;
 
-use crate::search::NoteMeta;
-
-use super::super::{parser::FilterParseError, value::FilterNodeValue};
+use crate::search::{
+	NoteMeta,
+	filter::{parser::FilterParseError, value::FilterNodeValue},
+};
 
 #[derive(Clone, Debug)]
 pub(in crate::search::filter) enum FilterField {
@@ -17,7 +18,6 @@ pub(in crate::search::filter) enum FilterField {
 	HitCount,
 	LastHitAt,
 }
-
 impl FilterField {
 	pub(in crate::search::filter) fn as_str(&self) -> &'static str {
 		match self {

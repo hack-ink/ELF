@@ -1,4 +1,8 @@
-use super::*;
+use crate::{
+	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile, OffsetDateTime, Path,
+	PathBuf, PrivateCorpusRedaction, PublishArgs, REPORT_SCHEMA, RealWorldJob, RealWorldReport,
+	Result, Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
+};
 
 pub(super) fn run_command(args: RunArgs) -> Result<()> {
 	let jobs = load_jobs(&args.fixtures)?;
@@ -11,7 +15,7 @@ pub(super) fn run_command(args: RunArgs) -> Result<()> {
 pub(super) fn publish_command(args: PublishArgs) -> Result<()> {
 	let raw = fs::read_to_string(&args.report)?;
 	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
-	let markdown = render_markdown(&report, &args.report);
+	let markdown = crate::render_markdown(&report, &args.report);
 
 	write_or_print(args.out.as_deref(), markdown.as_str())
 }
@@ -25,7 +29,7 @@ fn load_jobs(path: &Path) -> Result<Vec<RealWorldJob>> {
 		let job = serde_json::from_str::<RealWorldJob>(&raw)
 			.map_err(|err| eyre::eyre!("Failed to parse {}: {err}", fixture.display()))?;
 
-		validate_job(&job, &fixture)?;
+		crate::validate_job(&job, &fixture)?;
 
 		jobs.push(job);
 	}
@@ -78,27 +82,27 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 	let mut unsupported_claims = Vec::new();
 
 	for job in jobs {
-		let scoring = score_job(job);
+		let scoring = crate::score_job(job);
 
 		unsupported_claims.extend(scoring.unsupported_claims.clone());
-		job_reports.push(job_report(job, scoring));
+		job_reports.push(crate::job_report(job, scoring));
 	}
 
-	let suites = suite_reports(&job_reports);
+	let suites = crate::suite_reports(&job_reports);
 	let not_encoded_suites = suites
 		.iter()
 		.filter(|suite| suite.status == TypedStatus::NotEncoded)
 		.map(|suite| suite.suite_id.clone())
 		.collect::<Vec<_>>();
-	let summary = report_summary(&job_reports, &suites);
-	let evolution = evolution_summary(&job_reports);
-	let follow_ups = follow_up_reports(jobs);
-	let external_adapters = external_adapter_section(
+	let summary = crate::report_summary(&job_reports, &suites);
+	let evolution = crate::evolution_summary(&job_reports);
+	let follow_ups = crate::follow_up_reports(jobs);
+	let external_adapters = crate::external_adapter_section(
 		&args.external_adapter_manifest,
 		args.skip_external_adapter_manifest,
 	)?;
-	let scoreboard = scoreboard_report(jobs, &job_reports, &summary, &external_adapters);
-	let operational_evidence = operational_evidence_report(jobs, &job_reports);
+	let scoreboard = crate::scoreboard_report(jobs, &job_reports, &summary, &external_adapters);
+	let operational_evidence = crate::operational_evidence_report(jobs, &job_reports);
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),

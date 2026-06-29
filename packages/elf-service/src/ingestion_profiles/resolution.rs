@@ -1,11 +1,13 @@
 use sqlx::PgPool;
 
-use super::{
-	profile::parse_profile,
-	storage::{seed_default_profile, select_default_selector, select_profile},
-	types::{IngestionProfileRef, IngestionProfileSelector, ResolvedIngestionProfile},
+use crate::{
+	Error, Result,
+	ingestion_profiles::{
+		profile,
+		storage::{self},
+		types::{IngestionProfileRef, IngestionProfileSelector, ResolvedIngestionProfile},
+	},
 };
-use crate::{Error, Result};
 
 pub(crate) async fn resolve_add_event_profile(
 	pool: &PgPool,
@@ -13,15 +15,15 @@ pub(crate) async fn resolve_add_event_profile(
 	project_id: &str,
 	selector: Option<&IngestionProfileSelector>,
 ) -> Result<ResolvedIngestionProfile> {
-	seed_default_profile(pool, tenant_id, project_id).await?;
+	storage::seed_default_profile(pool, tenant_id, project_id).await?;
 
 	let selector = if let Some(selector) = selector {
 		selector.clone()
 	} else {
-		select_default_selector(pool, tenant_id, project_id).await?
+		storage::select_default_selector(pool, tenant_id, project_id).await?
 	};
-	let row = select_profile(pool, tenant_id, project_id, &selector).await?;
-	let parsed = parse_profile(row.profile)?;
+	let row = storage::select_profile(pool, tenant_id, project_id, &selector).await?;
+	let parsed = profile::parse_profile(row.profile)?;
 	let merged = parsed.with_defaults();
 
 	if merged.schema_version != 1 {

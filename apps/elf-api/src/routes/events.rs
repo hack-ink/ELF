@@ -1,4 +1,8 @@
-use super::*;
+use crate::routes::{
+	self, AddEventRequest, AddEventResponse, ApiError, AppState, ErrorBody, EventsIngestRequest,
+	Extension, HeaderMap, Json, JsonRejection, MAX_MESSAGE_CHARS, MAX_MESSAGES_PER_EVENT,
+	RequestContext, SecurityAuthRole, State, StatusCode,
+};
 
 #[utoipa::path(
 	post,
@@ -24,15 +28,23 @@ pub(super) async fn events_ingest(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let role = role.map(|Extension(role)| role);
 
 	if payload.scope.as_deref().map(str::trim) == Some("org_shared") {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 	if payload.messages.len() > MAX_MESSAGES_PER_EVENT {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Messages list is too large.",
@@ -42,7 +54,7 @@ pub(super) async fn events_ingest(
 
 	for (idx, msg) in payload.messages.iter().enumerate() {
 		if msg.content.chars().count() > MAX_MESSAGE_CHARS {
-			return Err(json_error(
+			return Err(routes::json_error(
 				StatusCode::BAD_REQUEST,
 				"INVALID_REQUEST",
 				"Message content is too long.",

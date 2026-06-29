@@ -1,4 +1,4 @@
-use super::*;
+use crate::validation::{self, BTreeSet, DerivedPageArtifact, Path, Result, Value, eyre};
 
 pub(super) fn validate_page_artifact(
 	page: &DerivedPageArtifact,
@@ -27,10 +27,10 @@ pub(super) fn validate_page_artifact(
 		}
 
 		for evidence_id in &section.evidence_ids {
-			ensure_known_evidence(path, evidence_ids, evidence_id)?;
+			validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 		}
 		for event_id in &section.timeline_event_ids {
-			ensure_known_event(path, event_ids, event_id)?;
+			validation::ensure_known_event(path, event_ids, event_id)?;
 		}
 	}
 	for backlink in &page.backlinks {
@@ -56,7 +56,7 @@ pub(super) fn validate_page_artifact(
 		}
 
 		for evidence_id in &finding.evidence_ids {
-			ensure_known_evidence(path, evidence_ids, evidence_id)?;
+			validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 		}
 	}
 

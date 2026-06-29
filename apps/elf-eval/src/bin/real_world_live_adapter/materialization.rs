@@ -1,4 +1,8 @@
-use super::*;
+use crate::{
+	AdapterResponseOutput, AnswerOutput, CostOutput, LoadedJob, MaterializationStatus,
+	MaterializedJob, MaterializedJobEvidence, MaterializedJobInput, TraceExplainabilityOutput,
+	TraceStageOutput,
+};
 
 pub(super) fn materialized_job(
 	loaded: &LoadedJob,
@@ -6,8 +10,8 @@ pub(super) fn materialized_job(
 	input: MaterializedJobInput,
 ) -> MaterializedJob {
 	let capture_failure = input.capture_failure.clone();
-	let required_evidence_satisfied =
-		capture_failure.is_none() && required_evidence_satisfied(loaded, &input.evidence_ids);
+	let required_evidence_satisfied = capture_failure.is_none()
+		&& crate::required_evidence_satisfied(loaded, &input.evidence_ids);
 	let status = if input.failure.is_some() {
 		MaterializationStatus::Incomplete
 	} else if !required_evidence_satisfied {
@@ -49,7 +53,7 @@ pub(super) fn materialized_job(
 			answer: AnswerOutput {
 				content: input.content,
 				evidence_ids: input.evidence_ids.clone(),
-				claims: answer_claims(loaded, &input.evidence_ids),
+				claims: crate::answer_claims(loaded, &input.evidence_ids),
 				pages: input.pages,
 				memory_summaries: input.memory_summaries,
 				proactive_briefs: input.proactive_briefs,
@@ -151,60 +155,9 @@ pub(super) fn not_encoded_job(adapter_id: &str, loaded: &LoadedJob) -> Option<Ma
 	})
 }
 
-fn is_operator_debug_live_adapter(adapter_id: &str, suite: &str) -> bool {
-	suite == "operator_debugging_ux"
-		&& matches!(
-			adapter_id,
-			"elf_live_real_world"
-				| "qmd_live_real_world"
-				| "elf_operator_debug_live"
-				| "qmd_operator_debug_live"
-		)
-}
-
-fn is_elf_consolidation_live_adapter(adapter_id: &str, suite: &str) -> bool {
-	suite == "consolidation" && adapter_id == "elf_live_real_world"
-}
-
-fn is_elf_knowledge_live_adapter(adapter_id: &str, suite: &str) -> bool {
-	suite == "knowledge_compilation" && adapter_id == "elf_live_real_world"
-}
-
-fn is_elf_capture_live_adapter(adapter_id: &str, suite: &str) -> bool {
-	suite == "capture_integration"
-		&& matches!(adapter_id, "elf_live_real_world" | "elf_capture_write_policy_live")
-}
-
 pub(super) fn is_elf_dreaming_readback_live_adapter(adapter_id: &str, suite: &str) -> bool {
 	matches!(suite, "memory_summary" | "proactive_brief" | "scheduled_memory")
 		&& matches!(adapter_id, "elf_service_native_dreaming" | "elf_live_real_world")
-}
-
-fn not_encoded_reason(suite: &str) -> Option<&'static str> {
-	match suite {
-		"trust_source_of_truth"
-		| "work_resume"
-		| "project_decisions"
-		| "retrieval"
-		| "memory_evolution"
-		| "personalization" => None,
-		"consolidation" => Some(
-			"The live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals.",
-		),
-		"knowledge_compilation" => Some(
-			"The live adapter sweep retrieves evidence-linked answers but does not generate derived knowledge pages.",
-		),
-		"operator_debugging_ux" => Some(
-			"The full live adapter sweep keeps operator trace/viewer diagnostics in a focused operator-debug slice.",
-		),
-		"capture_integration" => Some(
-			"The live adapter sweep does not exercise capture integrations or write-policy redaction boundaries.",
-		),
-		"production_ops" => Some(
-			"The live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations.",
-		),
-		_ => Some("The live adapter sweep has no encoded runtime path for this suite."),
-	}
 }
 
 pub(super) fn materialized_declared_status_job(
@@ -275,5 +228,56 @@ pub(super) fn materialized_declared_status_job(
 			dreaming_readback: None,
 		},
 		operator_debug: None,
+	}
+}
+
+fn is_operator_debug_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "operator_debugging_ux"
+		&& matches!(
+			adapter_id,
+			"elf_live_real_world"
+				| "qmd_live_real_world"
+				| "elf_operator_debug_live"
+				| "qmd_operator_debug_live"
+		)
+}
+
+fn is_elf_consolidation_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "consolidation" && adapter_id == "elf_live_real_world"
+}
+
+fn is_elf_knowledge_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "knowledge_compilation" && adapter_id == "elf_live_real_world"
+}
+
+fn is_elf_capture_live_adapter(adapter_id: &str, suite: &str) -> bool {
+	suite == "capture_integration"
+		&& matches!(adapter_id, "elf_live_real_world" | "elf_capture_write_policy_live")
+}
+
+fn not_encoded_reason(suite: &str) -> Option<&'static str> {
+	match suite {
+		"trust_source_of_truth"
+		| "work_resume"
+		| "project_decisions"
+		| "retrieval"
+		| "memory_evolution"
+		| "personalization" => None,
+		"consolidation" => Some(
+			"The live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals.",
+		),
+		"knowledge_compilation" => Some(
+			"The live adapter sweep retrieves evidence-linked answers but does not generate derived knowledge pages.",
+		),
+		"operator_debugging_ux" => Some(
+			"The full live adapter sweep keeps operator trace/viewer diagnostics in a focused operator-debug slice.",
+		),
+		"capture_integration" => Some(
+			"The live adapter sweep does not exercise capture integrations or write-policy redaction boundaries.",
+		),
+		"production_ops" => Some(
+			"The live adapter sweep does not run backup/restore, private corpus, provider credential, or backfill operations.",
+		),
+		_ => Some("The live adapter sweep has no encoded runtime path for this suite."),
 	}
 }

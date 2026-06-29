@@ -1,4 +1,7 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, ErrorBody, HeaderMap, Json, JsonRejection, RecallDebugPanelBody,
+	RecallDebugPanelRequest, RecallDebugPanelResponse, RequestContext, State, StatusCode,
+};
 
 #[utoipa::path(
 	post,
@@ -36,11 +39,16 @@ pub(super) async fn recall_debug_panel_inner(
 	allow_project_trace_debug: bool,
 ) -> Result<Json<RecallDebugPanelResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

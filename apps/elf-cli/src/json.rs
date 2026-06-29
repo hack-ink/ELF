@@ -42,17 +42,6 @@ pub(crate) fn source_ref(
 	))
 }
 
-fn parse_json_object(raw: &str, flag: &str) -> Result<Value> {
-	let value: Value =
-		serde_json::from_str(raw).map_err(|err| eyre::eyre!("{flag} must be valid JSON: {err}"))?;
-
-	if !value.is_object() {
-		return Err(eyre::eyre!("{flag} must be a JSON object."));
-	}
-
-	Ok(value)
-}
-
 pub(crate) fn write_json(value: &Value, pretty: bool) -> Result<()> {
 	if pretty {
 		serde_json::to_writer_pretty(io::stdout(), value)?;
@@ -63,4 +52,15 @@ pub(crate) fn write_json(value: &Value, pretty: bool) -> Result<()> {
 	writeln!(io::stdout())?;
 
 	Ok(())
+}
+
+fn parse_json_object(raw: &str, flag: &str) -> Result<Value> {
+	let value: Value =
+		serde_json::from_str(raw).map_err(|err| eyre::eyre!("{flag} must be valid JSON: {err}"))?;
+
+	if !value.is_object() {
+		return Err(eyre::eyre!("{flag} must be a JSON object."));
+	}
+
+	Ok(value)
 }

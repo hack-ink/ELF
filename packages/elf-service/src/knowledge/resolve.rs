@@ -1,4 +1,13 @@
-use super::*;
+use crate::{
+	access::SharedSpaceGrantKey,
+	knowledge::{
+		BTreeMap, BTreeSet, ElfService, Error, HashSet, KnowledgeDocChunkSource,
+		KnowledgeDocSource, KnowledgeEventSource, KnowledgeNoteSource, KnowledgePage,
+		KnowledgePageKind, KnowledgePageRebuildRequest, KnowledgePageSourceRef,
+		KnowledgeProposalSource, KnowledgeRelationSource, KnowledgeRelationSourcesFetch, Result,
+		SourceIds, SourceSnapshot, access, knowledge,
+	},
+};
 
 impl ElfService {
 	pub(in crate::knowledge) async fn resolve_sources(
@@ -36,7 +45,9 @@ impl ElfService {
 			proposals.len(),
 		)?;
 
-		Ok(source_snapshots(docs, doc_chunks, notes, events, relations, proposals))
+		Ok(crate::knowledge::source_snapshots(
+			docs, doc_chunks, notes, events, relations, proposals,
+		))
 	}
 
 	#[allow(clippy::type_complexity)]
@@ -46,7 +57,7 @@ impl ElfService {
 		project_id: &str,
 		agent_id: Option<&str>,
 		allowed_scopes: &[String],
-		shared_grants: &HashSet<access::SharedSpaceGrantKey>,
+		shared_grants: &HashSet<SharedSpaceGrantKey>,
 		ids: &SourceIds,
 	) -> Result<(
 		Vec<KnowledgeDocSource>,
@@ -68,7 +79,7 @@ impl ElfService {
 		let docs = docs
 			.into_iter()
 			.filter(|source| {
-				source_row_read_allowed(
+				crate::knowledge::source_row_read_allowed(
 					source.agent_id.as_str(),
 					source.scope.as_str(),
 					agent_id,
@@ -89,7 +100,7 @@ impl ElfService {
 		let doc_chunks = doc_chunks
 			.into_iter()
 			.filter(|source| {
-				source_row_read_allowed(
+				crate::knowledge::source_row_read_allowed(
 					source.agent_id.as_str(),
 					source.scope.as_str(),
 					agent_id,
@@ -110,7 +121,7 @@ impl ElfService {
 		let notes = notes
 			.into_iter()
 			.filter(|source| {
-				source_row_read_allowed(
+				crate::knowledge::source_row_read_allowed(
 					source.agent_id.as_str(),
 					source.scope.as_str(),
 					agent_id,
@@ -131,7 +142,7 @@ impl ElfService {
 		let events = events
 			.into_iter()
 			.filter(|source| {
-				source_row_read_allowed(
+				crate::knowledge::source_row_read_allowed(
 					source.agent_id.as_str(),
 					source.scope.as_str(),
 					agent_id,
@@ -184,9 +195,14 @@ impl ElfService {
 				ids,
 			)
 			.await?;
-		let mut sources = source_snapshots(docs, doc_chunks, notes, events, relations, proposals);
+		let mut sources = crate::knowledge::source_snapshots(
+			docs, doc_chunks, notes, events, relations, proposals,
+		);
 
-		Ok(sources.drain(..).map(|source| (source_key(&source), source)).collect())
+		Ok(sources
+			.drain(..)
+			.map(|source| (crate::knowledge::source_key(&source), source))
+			.collect())
 	}
 
 	pub(in crate::knowledge) async fn resolve_current_recallable_source_keys(
@@ -195,7 +211,7 @@ impl ElfService {
 		project_id: &str,
 		agent_id: &str,
 		allowed_scopes: &[String],
-		shared_grants: &HashSet<access::SharedSpaceGrantKey>,
+		shared_grants: &HashSet<SharedSpaceGrantKey>,
 		source_refs: &[KnowledgePageSourceRef],
 	) -> Result<BTreeSet<String>> {
 		let ids = SourceIds::from_source_refs(source_refs)?;
@@ -210,9 +226,11 @@ impl ElfService {
 			)
 			.await?;
 
-		Ok(source_snapshots(docs, doc_chunks, notes, events, relations, proposals)
-			.into_iter()
-			.map(|source| source_key(&source))
-			.collect())
+		Ok(crate::knowledge::source_snapshots(
+			docs, doc_chunks, notes, events, relations, proposals,
+		)
+		.into_iter()
+		.map(|source| crate::knowledge::source_key(&source))
+		.collect())
 	}
 }

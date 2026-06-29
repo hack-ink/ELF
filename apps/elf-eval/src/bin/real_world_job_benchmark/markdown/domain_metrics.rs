@@ -1,4 +1,4 @@
-use super::*;
+use crate::markdown::{self, RealWorldReport};
 
 pub(super) fn render_markdown_consolidation(out: &mut String, report: &RealWorldReport) {
 	if report.summary.consolidation.proposal_count == 0 {
@@ -16,11 +16,11 @@ pub(super) fn render_markdown_consolidation(out: &mut String, report: &RealWorld
 
 		out.push_str(&format!(
 			"| {} | {} | `{}` | `{}` | `{}` | {} | {} | {} |\n",
-			md_cell(job.job_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
 			consolidation.proposal_count,
-			optional_f64(consolidation.proposal_usefulness, ""),
-			optional_f64(consolidation.lineage_completeness, ""),
-			optional_f64(consolidation.review_action_correctness, ""),
+			markdown::optional_f64(consolidation.proposal_usefulness, ""),
+			markdown::optional_f64(consolidation.lineage_completeness, ""),
+			markdown::optional_f64(consolidation.review_action_correctness, ""),
 			consolidation.source_mutation_count,
 			consolidation.proposal_unsupported_claim_count,
 			consolidation.executable_gaps.len()
@@ -55,7 +55,7 @@ pub(super) fn render_markdown_knowledge(out: &mut String, report: &RealWorldRepo
 
 		out.push_str(&format!(
 			"| {} | {} | {} | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} |\n",
-			md_cell(job.job_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
 			knowledge.page_count,
 			knowledge.section_count,
 			knowledge.citation_coverage,
@@ -94,7 +94,7 @@ pub(super) fn render_markdown_memory_summary(out: &mut String, report: &RealWorl
 
 		out.push_str(&format!(
 			"| {} | {} | {} | `{}/{}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} | {} |\n",
-			md_cell(job.job_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
 			metrics.summary_count,
 			metrics.entry_count,
 			metrics.covered_required_category_count,
@@ -134,7 +134,7 @@ pub(super) fn render_markdown_proactive_brief(out: &mut String, report: &RealWor
 
 		out.push_str(&format!(
 			"| {} | {} | {} | `{}/{}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} | {} | {} |\n",
-			md_cell(job.job_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
 			metrics.brief_count,
 			metrics.suggestion_count,
 			metrics.covered_required_suggestion_kind_count,
@@ -175,7 +175,7 @@ pub(super) fn render_markdown_scheduled_memory(out: &mut String, report: &RealWo
 
 		out.push_str(&format!(
 			"| {} | {} | {} | `{}/{}` | `{:.3}` | `{:.3}` | `{:.3}` | `{:.3}` | {} | {} | {} | {} | {} |\n",
-			md_cell(job.job_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
 			metrics.task_run_count,
 			metrics.output_count,
 			metrics.covered_required_task_kind_count,
@@ -216,7 +216,7 @@ pub(super) fn render_markdown_work_continuity(out: &mut String, report: &RealWor
 
 		out.push_str(&format!(
 			"| {} | {} | {} | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | `{}/{}` (`{:.3}`) | {} | {} |\n",
-			md_cell(job.job_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
 			metrics.readback_count,
 			metrics.entry_count,
 			metrics.reset_resume_success_count,
@@ -272,11 +272,11 @@ fn render_markdown_consolidation_gaps(out: &mut String, report: &RealWorldReport
 	for (job_id, gap) in gaps {
 		out.push_str(&format!(
 			"| {} | {} | {} | `{}` | {} |\n",
-			md_cell(job_id),
-			md_cell(gap.primitive.as_str()),
-			md_cell(gap.follow_up_issue.as_str()),
+			markdown::md_cell(job_id),
+			markdown::md_cell(gap.primitive.as_str()),
+			markdown::md_cell(gap.follow_up_issue.as_str()),
 			gap.blocks_fixture_pass,
-			md_cell(gap.reason.as_str())
+			markdown::md_cell(gap.reason.as_str())
 		));
 	}
 

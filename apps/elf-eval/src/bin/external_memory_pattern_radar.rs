@@ -14,11 +14,7 @@
 use clap::Parser;
 use color_eyre::Result;
 
-use self::{
-	cli::{Args, Command},
-	runtime::run_radar,
-	validation::validate_command,
-};
+use self::cli::{Args, Command};
 
 const CURSOR_SCHEMA: &str = "elf.external_memory_pattern_radar_cursor/v1";
 const RUN_SCHEMA: &str = "elf.external_memory_pattern_radar_run/v1";
@@ -30,7 +26,7 @@ async fn main() -> Result<()> {
 	color_eyre::install()?;
 
 	match Args::parse().command {
-		Command::Run(args) => run_radar(args).await,
-		Command::Validate(args) => validate_command(&args.cursor),
+		Command::Run(args) => self::runtime::run_radar(args).await,
+		Command::Validate(args) => self::validation::validate_command(&args.cursor),
 	}
 }

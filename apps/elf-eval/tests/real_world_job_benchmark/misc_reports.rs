@@ -1,9 +1,17 @@
-use super::*;
+use std::{
+	env, fs,
+	process::{self, Command},
+};
+
+use color_eyre::Result;
+
+use crate::support;
 
 #[test]
 fn mem0_delete_audit_probe_requires_explicit_delete_history_event() -> Result<()> {
-	let script =
-		fs::read_to_string(workspace_root()?.join("scripts").join("live-baseline-benchmark.sh"))?;
+	let script = fs::read_to_string(
+		support::workspace_root()?.join("scripts").join("live-baseline-benchmark.sh"),
+	)?;
 
 	assert!(script.contains("def history_has_event"));
 	assert!(script.contains("str(entry.get(\"event\", \"\")).upper() == expected"));
@@ -29,7 +37,7 @@ fn mem0_delete_audit_probe_requires_explicit_delete_history_event() -> Result<()
 
 #[test]
 fn knowledge_json_report_renders_markdown_metrics() -> Result<()> {
-	let report = run_json_report_from(knowledge_fixture_dir())?;
+	let report = support::run_json_report_from(support::knowledge_fixture_dir())?;
 	let temp_dir = env::temp_dir().join(format!("elf-real-world-knowledge-test-{}", process::id()));
 
 	fs::create_dir_all(&temp_dir)?;

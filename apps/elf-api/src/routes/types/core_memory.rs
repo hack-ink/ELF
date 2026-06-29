@@ -1,4 +1,4 @@
-use super::*;
+use crate::routes::types::{Deserialize, Uuid, Value};
 
 #[derive(Clone, Debug, Deserialize)]
 pub(in crate::routes) struct CoreBlockUpsertBody {

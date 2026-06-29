@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use super::super::{
+use crate::{
 	EXTERNAL_ADAPTER_REPORT_SCHEMA, ExternalAdapterSection, ExternalAdapterSummary,
 	ExternalDockerIsolation,
 };

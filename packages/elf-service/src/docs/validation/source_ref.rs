@@ -1,4 +1,7 @@
-use super::*;
+use crate::docs::validation::{
+	Error, Map, OffsetDateTime, Result, Rfc3339, SOURCE_LIBRARY_FIELD_KEYS, SOURCE_LIBRARY_KINDS,
+	SOURCE_LIBRARY_TRUST_LABELS, Value,
+};
 
 pub(in crate::docs) fn extract_source_ref_string(
 	source_ref: &Map<String, Value>,

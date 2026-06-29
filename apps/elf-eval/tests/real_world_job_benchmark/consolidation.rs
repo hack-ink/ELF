@@ -5,11 +5,11 @@ use std::{
 
 use color_eyre::Result;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn consolidation_report_renders_markdown_metrics_and_gaps() -> Result<()> {
-	let report = run_json_report_from(consolidation_fixture_dir())?;
+	let report = support::run_json_report_from(support::consolidation_fixture_dir())?;
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-consolidation-test-{}", process::id()));
 

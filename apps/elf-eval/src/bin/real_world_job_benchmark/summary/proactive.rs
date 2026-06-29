@@ -1,4 +1,4 @@
-use super::*;
+use crate::summary::{self, JobReport, ProactiveBriefSummaryReport};
 
 pub(super) fn proactive_brief_summary_impl(
 	jobs: &[JobReport],
@@ -40,11 +40,14 @@ pub(super) fn proactive_brief_summary_impl(
 			.sum(),
 		evidence_ref_required_count,
 		evidence_ref_suggestion_count,
-		evidence_ref_coverage: ratio(evidence_ref_suggestion_count, evidence_ref_required_count),
+		evidence_ref_coverage: summary::ratio(
+			evidence_ref_suggestion_count,
+			evidence_ref_required_count,
+		),
 		freshness_marker_count,
-		freshness_coverage: ratio(freshness_marker_count, suggestion_count),
+		freshness_coverage: summary::ratio(freshness_marker_count, suggestion_count),
 		action_rationale_count,
-		action_rationale_coverage: ratio(action_rationale_count, suggestion_count),
+		action_rationale_coverage: summary::ratio(action_rationale_count, suggestion_count),
 		recommended_count: proactive_jobs.iter().map(|metrics| metrics.recommended_count).sum(),
 		deferred_count: proactive_jobs.iter().map(|metrics| metrics.deferred_count).sum(),
 		rejected_count: proactive_jobs.iter().map(|metrics| metrics.rejected_count).sum(),

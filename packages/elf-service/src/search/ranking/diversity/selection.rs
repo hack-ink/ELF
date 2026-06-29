@@ -4,10 +4,8 @@ use uuid::Uuid;
 
 use crate::search::{
 	DiversityDecision, ScoredChunk,
-	ranking::{policy::ResolvedDiversityPolicy, retrieval},
+	ranking::{diversity::similarity, policy::ResolvedDiversityPolicy, retrieval},
 };
-
-use super::similarity::nearest_selected_similarity;
 
 #[derive(Clone, Copy)]
 struct DiversityPick {
@@ -18,7 +16,6 @@ struct DiversityPick {
 	missing_embedding: bool,
 	retrieval_rank: u32,
 }
-
 impl DiversityPick {
 	fn better_than(self, other: &Self) -> bool {
 		self.mmr_score > other.mmr_score
@@ -152,7 +149,12 @@ fn select_diverse_results_enabled(
 	for candidate_idx in remaining_indices {
 		let note_id = candidates[candidate_idx].item.note.note_id;
 		let (similarity, nearest_note_id, missing_embedding) =
-			nearest_selected_similarity(note_id, &candidates, &selected_indices, note_vectors);
+			similarity::nearest_selected_similarity(
+				note_id,
+				&candidates,
+				&selected_indices,
+				note_vectors,
+			);
 		let skipped_reason =
 			if similarity.map(|value| value > policy.sim_threshold).unwrap_or(false) {
 				"similarity_threshold"
@@ -199,7 +201,12 @@ fn pick_next_candidate(
 	for (remaining_pos, candidate_idx) in remaining_indices.iter().copied().enumerate() {
 		let note_id = candidates[candidate_idx].item.note.note_id;
 		let (similarity, nearest_note_id, missing_embedding) =
-			nearest_selected_similarity(note_id, candidates, selected_indices, note_vectors);
+			similarity::nearest_selected_similarity(
+				note_id,
+				candidates,
+				selected_indices,
+				note_vectors,
+			);
 		let redundancy = similarity.unwrap_or(0.0);
 		let mmr_score = policy.mmr_lambda * relevance_by_idx[candidate_idx]
 			- (1.0 - policy.mmr_lambda) * redundancy;

@@ -1,43 +1,57 @@
-use super::*;
+use axum::{
+	body::{self, Body},
+	http::{Request, StatusCode},
+};
+use tower::util::ServiceExt as _;
+
+use elf_api::routes::{self, SCALAR_DOCS_PATH};
 
 #[tokio::test]
 async fn openapi_json_route_serves_generated_contract() {
-	let spec = contract_json().await;
+	let spec = crate::contract_json().await;
 
 	assert_eq!(spec["info"]["title"], "ELF API");
 	assert!(spec.get("request_id").is_none());
 
-	assert_openapi_method(&spec, "/health", "get");
-	assert_openapi_method(&spec, "/v2/notes/ingest", "post");
-	assert_openapi_method(&spec, "/v2/events/ingest", "post");
-	assert_openapi_method(&spec, "/v2/core-blocks", "get");
-	assert_openapi_method(&spec, "/v2/entity-memory", "get");
-	assert_openapi_method(&spec, "/v2/docs/search/l0", "post");
-	assert_openapi_method(&spec, "/v2/work-journal/entries", "post");
-	assert_openapi_method(&spec, "/v2/work-journal/entries/{entry_id}", "get");
-	assert_openapi_method(&spec, "/v2/work-journal/readback", "post");
-	assert_openapi_method(&spec, "/v2/searches/{search_id}/notes", "post");
-	assert_openapi_method(&spec, "/v2/admin/core-blocks", "post");
-	assert_openapi_method(&spec, "/v2/admin/core-blocks/{block_id}/attachments", "post");
-	assert_openapi_method(&spec, "/v2/admin/core-blocks/attachments/{attachment_id}", "delete");
-	assert_openapi_method(&spec, "/v2/admin/docs/{doc_id}", "get");
-	assert_openapi_method(&spec, "/v2/admin/docs/search/l0", "post");
-	assert_openapi_method(&spec, "/v2/admin/docs/excerpts", "post");
-	assert_openapi_method(&spec, "/v2/admin/searches/raw", "post");
-	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "get");
-	assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "put");
-	assert_openapi_method(&spec, "/v2/admin/consolidation/runs", "post");
-	assert_openapi_method(&spec, "/v2/admin/consolidation/runs", "get");
-	assert_openapi_method(&spec, "/v2/admin/consolidation/runs/{run_id}", "get");
-	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals", "get");
-	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}", "get");
-	assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}/review", "post");
-	assert_openapi_method(&spec, "/v2/admin/notes/{note_id}/corrections", "post");
-	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/rebuild", "post");
-	assert_openapi_method(&spec, "/v2/admin/knowledge/pages", "get");
-	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/search", "post");
-	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/{page_id}", "get");
-	assert_openapi_method(&spec, "/v2/admin/knowledge/pages/{page_id}/lint", "post");
+	crate::assert_openapi_method(&spec, "/health", "get");
+	crate::assert_openapi_method(&spec, "/v2/notes/ingest", "post");
+	crate::assert_openapi_method(&spec, "/v2/events/ingest", "post");
+	crate::assert_openapi_method(&spec, "/v2/core-blocks", "get");
+	crate::assert_openapi_method(&spec, "/v2/entity-memory", "get");
+	crate::assert_openapi_method(&spec, "/v2/docs/search/l0", "post");
+	crate::assert_openapi_method(&spec, "/v2/work-journal/entries", "post");
+	crate::assert_openapi_method(&spec, "/v2/work-journal/entries/{entry_id}", "get");
+	crate::assert_openapi_method(&spec, "/v2/work-journal/readback", "post");
+	crate::assert_openapi_method(&spec, "/v2/searches/{search_id}/notes", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/core-blocks", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/core-blocks/{block_id}/attachments", "post");
+	crate::assert_openapi_method(
+		&spec,
+		"/v2/admin/core-blocks/attachments/{attachment_id}",
+		"delete",
+	);
+	crate::assert_openapi_method(&spec, "/v2/admin/docs/{doc_id}", "get");
+	crate::assert_openapi_method(&spec, "/v2/admin/docs/search/l0", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/docs/excerpts", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/searches/raw", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "get");
+	crate::assert_openapi_method(&spec, "/v2/admin/events/ingestion-profiles/default", "put");
+	crate::assert_openapi_method(&spec, "/v2/admin/consolidation/runs", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/consolidation/runs", "get");
+	crate::assert_openapi_method(&spec, "/v2/admin/consolidation/runs/{run_id}", "get");
+	crate::assert_openapi_method(&spec, "/v2/admin/consolidation/proposals", "get");
+	crate::assert_openapi_method(&spec, "/v2/admin/consolidation/proposals/{proposal_id}", "get");
+	crate::assert_openapi_method(
+		&spec,
+		"/v2/admin/consolidation/proposals/{proposal_id}/review",
+		"post",
+	);
+	crate::assert_openapi_method(&spec, "/v2/admin/notes/{note_id}/corrections", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/knowledge/pages/rebuild", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/knowledge/pages", "get");
+	crate::assert_openapi_method(&spec, "/v2/admin/knowledge/pages/search", "post");
+	crate::assert_openapi_method(&spec, "/v2/admin/knowledge/pages/{page_id}", "get");
+	crate::assert_openapi_method(&spec, "/v2/admin/knowledge/pages/{page_id}/lint", "post");
 }
 
 #[tokio::test]
@@ -71,7 +85,7 @@ async fn scalar_docs_route_serves_api_reference_html() {
 
 #[tokio::test]
 async fn openapi_includes_default_ingestion_profile_get_put_contract() {
-	let spec = contract_json().await;
+	let spec = crate::contract_json().await;
 	let default_path = &spec["paths"]["/v2/admin/events/ingestion-profiles/default"];
 	let get_schema_ref =
 		default_path["get"]["responses"]["200"]["content"]["application/json"]["schema"]["$ref"]

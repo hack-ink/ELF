@@ -1,4 +1,9 @@
-use super::*;
+use crate::scoreboard::{
+	self, BTreeSet, JobReport, RealWorldJob, ReportSummary, SCOREBOARD_RETRIEVAL_K,
+	ScoreboardAnswerSafetyMetrics, ScoreboardCoverageMetrics, ScoreboardLifecycleMetrics,
+	ScoreboardMetrics, ScoreboardOperationalMetrics, ScoreboardRankedMetrics,
+	ScoreboardRetrievalMetrics, ScoreboardRow, TypedStatus, common,
+};
 
 pub(super) fn elf_scoreboard_row(
 	raw_jobs: &[RealWorldJob],
@@ -99,8 +104,12 @@ fn scoreboard_retrieval_metrics(
 	ScoreboardRetrievalMetrics {
 		k: SCOREBOARD_RETRIEVAL_K,
 		metric_basis: "produced_evidence_order".to_string(),
-		recall_at_k: Some(ratio_or(relevant_at_k, summary.expected_evidence_total, 1.0)),
-		precision_at_k: Some(ratio_or(relevant_at_k, precision_denominator_at_k, 1.0)),
+		recall_at_k: Some(scoreboard::ratio_or(
+			relevant_at_k,
+			summary.expected_evidence_total,
+			1.0,
+		)),
+		precision_at_k: Some(scoreboard::ratio_or(relevant_at_k, precision_denominator_at_k, 1.0)),
 		mrr: Some(common::scoreboard_mean_metric(reciprocal_rank_sum, ranked_job_count)),
 		ndcg: Some(common::scoreboard_mean_metric(ndcg_sum, ranked_job_count)),
 		expected_evidence_recall: Some(summary.expected_evidence_recall),
@@ -186,20 +195,28 @@ fn scoreboard_lifecycle_metrics(
 		.count();
 
 	ScoreboardLifecycleMetrics {
-		stale_suppression: Some(ratio_or(
+		stale_suppression: Some(scoreboard::ratio_or(
 			stale_check_count.saturating_sub(stale_failure_count),
 			stale_check_count,
 			1.0,
 		)),
 		stale_suppressed_count: stale_check_count.saturating_sub(stale_failure_count),
 		stale_check_count,
-		update_correctness: Some(ratio_or(update_correct_count, update_check_count, 1.0)),
+		update_correctness: Some(scoreboard::ratio_or(
+			update_correct_count,
+			update_check_count,
+			1.0,
+		)),
 		update_correct_count,
 		update_check_count,
-		delete_correctness: Some(ratio_or(delete_correct_count, delete_check_count, 1.0)),
+		delete_correctness: Some(scoreboard::ratio_or(
+			delete_correct_count,
+			delete_check_count,
+			1.0,
+		)),
 		delete_correct_count,
 		delete_check_count,
-		rollback_history_readback_rate: Some(ratio_or(
+		rollback_history_readback_rate: Some(scoreboard::ratio_or(
 			rollback_history_readback_count,
 			rollback_history_check_count,
 			1.0,
@@ -230,9 +247,12 @@ fn scoreboard_lifecycle_correct_count(
 
 fn scoreboard_answer_safety_metrics(summary: &ReportSummary) -> ScoreboardAnswerSafetyMetrics {
 	ScoreboardAnswerSafetyMetrics {
-		unsupported_claim_rate: Some(ratio(summary.unsupported_claim_count, summary.job_count)),
+		unsupported_claim_rate: Some(scoreboard::ratio(
+			summary.unsupported_claim_count,
+			summary.job_count,
+		)),
 		unsupported_claim_count: summary.unsupported_claim_count,
-		stale_answer_rate: Some(ratio(summary.stale_answer_count, summary.job_count)),
+		stale_answer_rate: Some(scoreboard::ratio(summary.stale_answer_count, summary.job_count)),
 		stale_answer_count: summary.stale_answer_count,
 		hallucinated_evidence_rate: Some(summary.irrelevant_context_ratio),
 		redaction_leak_count: summary.redaction_leak_count,

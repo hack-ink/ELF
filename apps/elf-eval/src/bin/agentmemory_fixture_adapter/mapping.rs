@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use super::{
+use crate::{
 	DEFAULT_CONFIDENCE, DEFAULT_IMPORTANCE, FIXTURE_RESOLVER,
 	types::{
 		AgentmemoryMemory, AgentmemoryObservation, AgentmemoryRetrievalCase, AgentmemorySession,
 		BaselineQuery, DocCandidate, DocsPutCandidate, ElfNoteCandidate, FixtureContext,
 		NoteCandidate,
 	},
-	util::{clean_string, map_note_type, observation_timestamp, score_or_default, stable_uuid},
+	util::{self, map_note_type},
 };
 
 pub(super) fn doc_candidate(
@@ -23,10 +23,10 @@ pub(super) fn doc_candidate(
 		return Err("empty_text");
 	}
 
-	let Some(ts) = observation_timestamp(session, observation, ctx) else {
+	let Some(ts) = util::observation_timestamp(session, observation, ctx) else {
 		return Err("missing_or_invalid_timestamp");
 	};
-	let candidate_id = stable_uuid(
+	let candidate_id = util::stable_uuid(
 		"observation",
 		&[
 			ctx.fixture_id.as_str(),
@@ -34,8 +34,8 @@ pub(super) fn doc_candidate(
 			observation.observation_id.as_str(),
 		],
 	);
-	let role = clean_string(observation.role.as_deref())
-		.or_else(|| clean_string(observation.kind.as_deref()))
+	let role = util::clean_string(observation.role.as_deref())
+		.or_else(|| util::clean_string(observation.kind.as_deref()))
 		.unwrap_or_else(|| "observation".to_string());
 	let title = format!("agentmemory observation {}", observation.observation_id);
 	let source_ref = serde_json::json!({
@@ -47,9 +47,9 @@ pub(super) fn doc_candidate(
 		"message_id": observation.observation_id,
 		"agentmemory_fixture_id": ctx.fixture_id,
 		"agentmemory_source_system": ctx.source_system,
-		"agentmemory_observation_kind": clean_string(observation.kind.as_deref()),
-		"agent": clean_string(session.agent.as_deref()),
-		"project": clean_string(session.project.as_deref()),
+		"agentmemory_observation_kind": util::clean_string(observation.kind.as_deref()),
+		"agent": util::clean_string(session.agent.as_deref()),
+		"project": util::clean_string(session.project.as_deref()),
 	});
 
 	Ok(DocCandidate {
@@ -85,13 +85,13 @@ pub(super) fn note_candidate(
 	let Some(note_type) = memory.kind.as_deref().and_then(map_note_type) else {
 		return Err("unsupported_memory_kind");
 	};
-	let Some(importance) = score_or_default(memory.importance, DEFAULT_IMPORTANCE) else {
+	let Some(importance) = util::score_or_default(memory.importance, DEFAULT_IMPORTANCE) else {
 		return Err("invalid_importance");
 	};
-	let Some(confidence) = score_or_default(memory.confidence, DEFAULT_CONFIDENCE) else {
+	let Some(confidence) = util::score_or_default(memory.confidence, DEFAULT_CONFIDENCE) else {
 		return Err("invalid_confidence");
 	};
-	let candidate_id = stable_uuid(
+	let candidate_id = util::stable_uuid(
 		"memory",
 		&[ctx.fixture_id.as_str(), session.session_id.as_str(), memory.memory_id.as_str()],
 	);
@@ -105,7 +105,7 @@ pub(super) fn note_candidate(
 		source_observation_ids: memory.source_observation_ids.clone(),
 		notes_ingest_item: ElfNoteCandidate {
 			note_type: note_type.to_string(),
-			key: clean_string(memory.key.as_deref()),
+			key: util::clean_string(memory.key.as_deref()),
 			text: memory.text.clone(),
 			importance,
 			confidence,
@@ -113,6 +113,40 @@ pub(super) fn note_candidate(
 			source_ref,
 		},
 		source_metadata: memory.metadata.clone(),
+	})
+}
+
+pub(super) fn baseline_query(
+	session: &AgentmemorySession,
+	case: &AgentmemoryRetrievalCase,
+	memory_map: &HashMap<String, NoteCandidate>,
+) -> Option<BaselineQuery> {
+	if case.query.trim().is_empty() || case.expected_memory_ids.is_empty() {
+		return None;
+	}
+
+	let expected: Vec<&NoteCandidate> =
+		case.expected_memory_ids.iter().filter_map(|id| memory_map.get(id)).collect();
+
+	if expected.is_empty() {
+		return None;
+	}
+
+	Some(BaselineQuery {
+		query_id: case.query_id.clone(),
+		session_id: session.session_id.clone(),
+		query: case.query.clone(),
+		expected_source_memory_ids: expected
+			.iter()
+			.map(|candidate| candidate.source_memory_id.clone())
+			.collect(),
+		expected_candidate_ids: expected.iter().map(|candidate| candidate.candidate_id).collect(),
+		expected_keys: expected
+			.iter()
+			.filter_map(|candidate| candidate.notes_ingest_item.key.clone())
+			.collect(),
+		agentmemory_results: case.agentmemory_results.clone(),
+		source_metadata: case.metadata.clone(),
 	})
 }
 
@@ -148,39 +182,5 @@ fn note_source_ref(
 			"project": session.project,
 			"origin_kind": memory.kind,
 		},
-	})
-}
-
-pub(super) fn baseline_query(
-	session: &AgentmemorySession,
-	case: &AgentmemoryRetrievalCase,
-	memory_map: &HashMap<String, NoteCandidate>,
-) -> Option<BaselineQuery> {
-	if case.query.trim().is_empty() || case.expected_memory_ids.is_empty() {
-		return None;
-	}
-
-	let expected: Vec<&NoteCandidate> =
-		case.expected_memory_ids.iter().filter_map(|id| memory_map.get(id)).collect();
-
-	if expected.is_empty() {
-		return None;
-	}
-
-	Some(BaselineQuery {
-		query_id: case.query_id.clone(),
-		session_id: session.session_id.clone(),
-		query: case.query.clone(),
-		expected_source_memory_ids: expected
-			.iter()
-			.map(|candidate| candidate.source_memory_id.clone())
-			.collect(),
-		expected_candidate_ids: expected.iter().map(|candidate| candidate.candidate_id).collect(),
-		expected_keys: expected
-			.iter()
-			.filter_map(|candidate| candidate.notes_ingest_item.key.clone())
-			.collect(),
-		agentmemory_results: case.agentmemory_results.clone(),
-		source_metadata: case.metadata.clone(),
 	})
 }

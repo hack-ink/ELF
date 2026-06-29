@@ -3,9 +3,8 @@ use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use elf_storage::models::MemoryNote;
-
 use crate::Result;
+use elf_storage::models::MemoryNote;
 
 pub(crate) struct InsertVersionArgs<'a> {
 	pub(crate) note_id: Uuid,

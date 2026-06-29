@@ -1,4 +1,4 @@
-use super::*;
+use crate::writegate::{Config, NoteInput, RejectCode, english_gate};
 
 /// Validates note content and metadata against ELF write-gate rules.
 pub fn writegate(note: &NoteInput, cfg: &Config) -> Result<(), RejectCode> {
@@ -20,7 +20,7 @@ pub fn writegate(note: &NoteInput, cfg: &Config) -> Result<(), RejectCode> {
 	if !scope_write_allowed(cfg, &note.scope) {
 		return Err(RejectCode::RejectScopeDenied);
 	}
-	if contains_secrets(&note.text) {
+	if crate::writegate::contains_secrets(&note.text) {
 		return Err(RejectCode::RejectSecret);
 	}
 

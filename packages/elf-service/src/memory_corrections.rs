@@ -2,8 +2,9 @@
 
 mod service;
 mod storage;
-#[cfg(test)] mod tests;
 mod types;
 mod validation;
 
 pub use types::{MemoryCorrectionAction, MemoryCorrectionRequest, MemoryCorrectionResponse};
+
+#[cfg(test)] mod tests;

@@ -1,4 +1,4 @@
-use super::*;
+use crate::routes::types::{Serialize, ToSchema};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub(in crate::routes) struct ErrorBody {

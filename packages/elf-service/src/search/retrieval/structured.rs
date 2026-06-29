@@ -1,4 +1,8 @@
-use super::super::*;
+use crate::search::{
+	self, BestChunkForNoteRow, ElfService, FieldHit, HashMap, ORG_PROJECT_ID, Result,
+	StructuredFieldHitArgs, StructuredFieldHitRow, StructuredFieldRetrievalArgs,
+	StructuredFieldRetrievalResult, Uuid,
+};
 
 impl ElfService {
 	pub(in crate::search::retrieval) async fn retrieve_structured_field_candidates(
@@ -41,7 +45,8 @@ impl ElfService {
 				non_private_scopes: non_private_scopes.as_slice(),
 			})
 			.await?;
-		let (ordered_note_ids, structured_matches_out) = build_structured_field_matches(rows);
+		let (ordered_note_ids, structured_matches_out) =
+			search::build_structured_field_matches(rows);
 
 		if ordered_note_ids.is_empty() {
 			return Ok(StructuredFieldRetrievalResult {
@@ -57,7 +62,7 @@ impl ElfService {
 				vec_text.as_str(),
 			)
 			.await?;
-		let structured_candidates = build_structured_field_candidates(
+		let structured_candidates = search::build_structured_field_candidates(
 			candidate_k,
 			ordered_note_ids,
 			best_by_note,

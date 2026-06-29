@@ -1,5 +1,22 @@
 //! Graph entity, predicate, and fact storage helpers.
 
+mod entity;
+mod fact;
+mod predicate;
+
+pub use self::{
+	entity::{resolve_entity_by_surface, upsert_entity, upsert_entity_alias},
+	fact::{
+		fetch_active_facts_for_subject, insert_fact_with_evidence,
+		supersede_conflicting_active_facts, upsert_fact_with_evidence,
+	},
+	predicate::{
+		add_predicate_alias, get_predicate_by_id, list_predicate_aliases,
+		list_predicates_by_scope_keys, resolve_or_register_predicate,
+		resolve_predicate_no_register, update_predicate, update_predicate_guarded,
+	},
+};
+
 use sqlx::PgConnection;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -8,12 +25,6 @@ use crate::{
 	Error, Result,
 	models::{GraphEntity, GraphFact},
 };
-
-mod entity;
-mod fact;
-mod predicate;
-
-pub use self::{entity::*, fact::*, predicate::*};
 
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
 const GRAPH_PREDICATE_SCOPE_PROJECT_PREFIX: &str = "__project__:";

@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::{
+	self, Error, KnowledgeDeltaMemoryCandidate, KnowledgePageRebuildRequest,
+	KnowledgePageSourceRef, KnowledgePageWatchRebuildItem, KnowledgeSourceKind, OffsetDateTime,
+	Result, Uuid, Value,
+};
 
 #[derive(Clone, Debug)]
 pub(super) struct SourceSnapshot {
@@ -49,12 +53,12 @@ pub(super) struct SourceIds {
 impl SourceIds {
 	pub(super) fn from_request(req: &KnowledgePageRebuildRequest) -> Result<Self> {
 		let ids = Self {
-			doc_ids: sorted_unique(&req.doc_ids),
-			doc_chunk_ids: sorted_unique(&req.doc_chunk_ids),
-			note_ids: sorted_unique(&req.note_ids),
-			event_ids: sorted_unique(&req.event_ids),
-			relation_ids: sorted_unique(&req.relation_ids),
-			proposal_ids: sorted_unique(&req.proposal_ids),
+			doc_ids: knowledge::sorted_unique(&req.doc_ids),
+			doc_chunk_ids: knowledge::sorted_unique(&req.doc_chunk_ids),
+			note_ids: knowledge::sorted_unique(&req.note_ids),
+			event_ids: knowledge::sorted_unique(&req.event_ids),
+			relation_ids: knowledge::sorted_unique(&req.relation_ids),
+			proposal_ids: knowledge::sorted_unique(&req.proposal_ids),
 		};
 
 		ids.validate_non_empty()?;
@@ -87,12 +91,12 @@ impl SourceIds {
 		}
 
 		Ok(Self {
-			doc_ids: sorted_unique(&doc_ids),
-			doc_chunk_ids: sorted_unique(&doc_chunk_ids),
-			note_ids: sorted_unique(&note_ids),
-			event_ids: sorted_unique(&event_ids),
-			relation_ids: sorted_unique(&relation_ids),
-			proposal_ids: sorted_unique(&proposal_ids),
+			doc_ids: knowledge::sorted_unique(&doc_ids),
+			doc_chunk_ids: knowledge::sorted_unique(&doc_chunk_ids),
+			note_ids: knowledge::sorted_unique(&note_ids),
+			event_ids: knowledge::sorted_unique(&event_ids),
+			relation_ids: knowledge::sorted_unique(&relation_ids),
+			proposal_ids: knowledge::sorted_unique(&proposal_ids),
 		})
 	}
 

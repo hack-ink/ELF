@@ -1,4 +1,11 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, DOC_STATUSES, DocsDeleteRequest, DocsDeleteResponse,
+	DocsExcerptResponse, DocsExcerptsGetBody, DocsExcerptsGetRequest, DocsGetRequest,
+	DocsGetResponse, DocsPutBody, DocsPutRequest, DocsPutResponse, DocsSearchL0Body,
+	DocsSearchL0Request, DocsSearchL0Response, ErrorBody, Extension, HeaderMap, Json,
+	JsonRejection, MAX_QUERY_CHARS, Path, RequestContext, SecurityAuthRole, State, StatusCode,
+	Uuid,
+};
 
 #[utoipa::path(
 	post,
@@ -24,12 +31,20 @@ pub(super) async fn docs_put(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let role = role.map(|Extension(role)| role);
 
 	if payload.scope.trim() == "org_shared" {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 
 	let response = state
@@ -100,7 +115,7 @@ pub(super) async fn docs_get_inner(
 	doc_id: Uuid,
 ) -> Result<Json<DocsGetResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let response = state
 		.service
 		.docs_get(DocsGetRequest {
@@ -198,11 +213,16 @@ pub(super) async fn docs_search_l0_inner(
 	payload: Result<Json<DocsSearchL0Body>, JsonRejection>,
 ) -> Result<Json<DocsSearchL0Response>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(mut payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let status = payload.status.as_deref().map(str::trim).filter(|status| !status.is_empty());
 
@@ -210,7 +230,7 @@ pub(super) async fn docs_search_l0_inner(
 		let status = status.to_lowercase();
 
 		if !DOC_STATUSES.contains(&status.as_str()) {
-			return Err(json_error(
+			return Err(routes::json_error(
 				StatusCode::BAD_REQUEST,
 				"INVALID_REQUEST",
 				"status must be one of: active|deleted.",
@@ -221,16 +241,17 @@ pub(super) async fn docs_search_l0_inner(
 		payload.status = Some(status);
 	}
 
-	let updated_after = parse_optional_rfc3339(payload.updated_after.as_ref(), "$.updated_after")?;
+	let updated_after =
+		routes::parse_optional_rfc3339(payload.updated_after.as_ref(), "$.updated_after")?;
 	let updated_before =
-		parse_optional_rfc3339(payload.updated_before.as_ref(), "$.updated_before")?;
-	let ts_gte = parse_optional_rfc3339(payload.ts_gte.as_ref(), "$.ts_gte")?;
-	let ts_lte = parse_optional_rfc3339(payload.ts_lte.as_ref(), "$.ts_lte")?;
+		routes::parse_optional_rfc3339(payload.updated_before.as_ref(), "$.updated_before")?;
+	let ts_gte = routes::parse_optional_rfc3339(payload.ts_gte.as_ref(), "$.ts_gte")?;
+	let ts_lte = routes::parse_optional_rfc3339(payload.ts_lte.as_ref(), "$.ts_lte")?;
 
 	if let (Some(ts_gte), Some(ts_lte)) = (ts_gte, ts_lte)
 		&& ts_gte >= ts_lte
 	{
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"ts_gte must be earlier than ts_lte.",
@@ -240,7 +261,7 @@ pub(super) async fn docs_search_l0_inner(
 	if let (Some(updated_after), Some(updated_before)) = (updated_after, updated_before)
 		&& updated_after >= updated_before
 	{
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"updated_after must be earlier than updated_before.",
@@ -249,7 +270,7 @@ pub(super) async fn docs_search_l0_inner(
 	}
 
 	if payload.query.chars().count() > MAX_QUERY_CHARS {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Query is too long.",
@@ -336,11 +357,16 @@ pub(super) async fn docs_excerpts_get_inner(
 	payload: Result<Json<DocsExcerptsGetBody>, JsonRejection>,
 ) -> Result<Json<DocsExcerptResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

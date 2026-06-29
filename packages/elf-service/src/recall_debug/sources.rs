@@ -1,4 +1,6 @@
-use super::*;
+use crate::recall_debug::{
+	HashSet, MemoryNote, NoteDebugSourceRow, OffsetDateTime, SharedSpaceGrantKey, Uuid,
+};
 
 pub(super) fn note_debug_source_pair(note: MemoryNote) -> (Uuid, NoteDebugSourceRow) {
 	(

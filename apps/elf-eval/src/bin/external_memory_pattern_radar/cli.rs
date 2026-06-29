@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use super::{DEFAULT_CURSOR, DEFAULT_SUMMARY, types::RadarMode};
+use crate::{DEFAULT_CURSOR, DEFAULT_SUMMARY, types::RadarMode};
 
 #[derive(Debug, Parser)]
 #[command(

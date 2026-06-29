@@ -1,4 +1,6 @@
-use super::*;
+use crate::consolidation::{
+	ConsolidationInputRef, ConsolidationValidationError, Deserialize, Serialize,
+};
 
 /// Confidence or honesty marker severity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]

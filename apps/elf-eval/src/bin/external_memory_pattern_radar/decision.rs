@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use super::types::{
+use crate::types::{
 	DuplicateSearchEvidence, DuplicateSearchResult, ElfVerdict, IssueAction, IssueDecision,
 	ProjectObservation, RadarDecision, RadarMode, RadarProject, RunSummary,
 };
@@ -92,6 +92,25 @@ pub(super) fn decide_project(
 	}
 }
 
+pub(super) fn summarize_decisions(decisions: &[RadarDecision]) -> RunSummary {
+	let mut summary = RunSummary { project_count: decisions.len(), ..RunSummary::default() };
+
+	for decision in decisions {
+		match decision.elf_verdict {
+			ElfVerdict::Covered => summary.covered_count += 1,
+			ElfVerdict::Reject => summary.rejected_count += 1,
+			ElfVerdict::Gap => summary.gap_count += 1,
+		}
+		match decision.issue_decision.action {
+			IssueAction::NoIssue => summary.no_issue_count += 1,
+			IssueAction::Defer => summary.defer_count += 1,
+			IssueAction::CreateIssue => summary.create_issue_count += 1,
+		}
+	}
+
+	summary
+}
+
 fn source_links(project: &RadarProject, observed: &ProjectObservation) -> Vec<String> {
 	let mut links = BTreeSet::new();
 
@@ -129,23 +148,4 @@ fn metadata_delta(prior: Option<&ProjectObservation>, observed: &ProjectObservat
 		previous_release,
 		observed_release
 	)
-}
-
-pub(super) fn summarize_decisions(decisions: &[RadarDecision]) -> RunSummary {
-	let mut summary = RunSummary { project_count: decisions.len(), ..RunSummary::default() };
-
-	for decision in decisions {
-		match decision.elf_verdict {
-			ElfVerdict::Covered => summary.covered_count += 1,
-			ElfVerdict::Reject => summary.rejected_count += 1,
-			ElfVerdict::Gap => summary.gap_count += 1,
-		}
-		match decision.issue_decision.action {
-			IssueAction::NoIssue => summary.no_issue_count += 1,
-			IssueAction::Defer => summary.defer_count += 1,
-			IssueAction::CreateIssue => summary.create_issue_count += 1,
-		}
-	}
-
-	summary
 }

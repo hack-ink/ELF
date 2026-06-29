@@ -2,24 +2,21 @@ use sqlx::{Postgres, Transaction};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use super::{
-	promotion::{
-		create_promoted_memory_note, promoted_memory_target_ref, update_promoted_memory_note,
-	},
-	types::{
-		ConsolidationProposalGetRequest, ConsolidationProposalInput, ConsolidationProposalResponse,
-		ConsolidationProposalReviewEventResponse, ConsolidationProposalReviewRequest,
-		ConsolidationProposalsListRequest, ConsolidationProposalsListResponse,
-		ConsolidationRunCreateRequest, ConsolidationRunCreateResponse, ConsolidationRunGetRequest,
-		ConsolidationRunResponse, ConsolidationRunsListRequest, ConsolidationRunsListResponse,
-		empty_object,
-	},
-	validation::{
-		bounded_limit, review_steps, terminal_time, to_value, validate_context, validate_job_kind,
-		validate_object, validation_error,
+use crate::{
+	ElfService, Error, Result,
+	consolidation::{
+		promotion::{self},
+		types::{
+			self, ConsolidationProposalGetRequest, ConsolidationProposalInput,
+			ConsolidationProposalResponse, ConsolidationProposalReviewEventResponse,
+			ConsolidationProposalReviewRequest, ConsolidationProposalsListRequest,
+			ConsolidationProposalsListResponse, ConsolidationRunCreateRequest,
+			ConsolidationRunCreateResponse, ConsolidationRunGetRequest, ConsolidationRunResponse,
+			ConsolidationRunsListRequest, ConsolidationRunsListResponse,
+		},
+		validation::{self, validation_error},
 	},
 };
-use crate::{ElfService, Error, Result};
 use elf_domain::consolidation::{
 	self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationJobPayload, ConsolidationReviewAction,
 	ConsolidationReviewState, ConsolidationRunState,
@@ -38,12 +35,14 @@ impl ElfService {
 		&self,
 		req: ConsolidationRunCreateRequest,
 	) -> Result<ConsolidationRunCreateResponse> {
-		validate_context(req.tenant_id.as_str(), req.project_id.as_str(), req.agent_id.as_str())?;
-		validate_job_kind(req.job_kind.as_str())?;
-
+		validation::validate_context(
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			req.agent_id.as_str(),
+		)?;
+		validation::validate_job_kind(req.job_kind.as_str())?;
 		consolidation::validate_source_refs(&req.input_refs).map_err(validation_error)?;
-
-		validate_object("source_snapshot", &req.source_snapshot)?;
+		validation::validate_object("source_snapshot", &req.source_snapshot)?;
 
 		req.lineage.validate().map_err(validation_error)?;
 
@@ -68,15 +67,15 @@ impl ElfService {
 			contract_schema: CONSOLIDATION_CONTRACT_SCHEMA_V1.to_string(),
 			job_kind: req.job_kind.clone(),
 			status: run_state.as_str().to_string(),
-			input_refs: to_value(&req.input_refs)?,
+			input_refs: validation::to_value(&req.input_refs)?,
 			source_snapshot: req.source_snapshot,
-			lineage: to_value(&req.lineage)?,
-			error: empty_object(),
+			lineage: validation::to_value(&req.lineage)?,
+			error: types::empty_object(),
 			created_at: now,
 			updated_at: now,
-			completed_at: terminal_time(run_state, now),
+			completed_at: validation::terminal_time(run_state, now),
 		};
-		let payload_value = to_value(&payload)?;
+		let payload_value = validation::to_value(&payload)?;
 		let mut tx = self.db.pool.begin().await?;
 
 		elf_storage::consolidation::insert_consolidation_run(&mut *tx, &run).await?;
@@ -126,7 +125,7 @@ impl ElfService {
 		&self,
 		req: ConsolidationRunsListRequest,
 	) -> Result<ConsolidationRunsListResponse> {
-		let limit = bounded_limit(req.limit);
+		let limit = validation::bounded_limit(req.limit);
 		let rows = elf_storage::consolidation::list_consolidation_runs(
 			&self.db.pool,
 			req.tenant_id.as_str(),
@@ -173,7 +172,7 @@ impl ElfService {
 		&self,
 		req: ConsolidationProposalsListRequest,
 	) -> Result<ConsolidationProposalsListResponse> {
-		let limit = bounded_limit(req.limit);
+		let limit = validation::bounded_limit(req.limit);
 		let review_state = req.review_state.map(ConsolidationReviewState::as_str);
 		let rows = elf_storage::consolidation::list_consolidation_proposals(
 			&self.db.pool,
@@ -194,7 +193,7 @@ impl ElfService {
 		&self,
 		req: ConsolidationProposalReviewRequest,
 	) -> Result<ConsolidationProposalResponse> {
-		validate_context(
+		validation::validate_context(
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
 			req.reviewer_agent_id.as_str(),
@@ -218,7 +217,7 @@ impl ElfService {
 					message: "stored proposal review_state is invalid".to_string(),
 				}
 			})?;
-		let steps = review_steps(current, req.review_action)?;
+		let steps = validation::review_steps(current, req.review_action)?;
 		let mut last_state = current;
 		let mut updated = existing;
 
@@ -303,7 +302,7 @@ impl ElfService {
 	) -> Result<ConsolidationProposal> {
 		let note_id = match proposal.apply_intent.as_str() {
 			"create_derived_note" =>
-				create_promoted_memory_note(
+				promotion::create_promoted_memory_note(
 					tx,
 					&proposal,
 					reviewer_agent_id,
@@ -313,7 +312,7 @@ impl ElfService {
 				)
 				.await?,
 			"update_derived_note" =>
-				update_promoted_memory_note(
+				promotion::update_promoted_memory_note(
 					tx,
 					&proposal,
 					reviewer_agent_id,
@@ -324,7 +323,7 @@ impl ElfService {
 				.await?,
 			_ => return Ok(proposal),
 		};
-		let target_ref = promoted_memory_target_ref(note_id, now);
+		let target_ref = promotion::promoted_memory_target_ref(note_id, now);
 
 		elf_storage::consolidation::update_consolidation_proposal_target_ref(
 			&mut **tx,

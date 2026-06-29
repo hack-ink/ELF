@@ -1,4 +1,8 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, DreamingReviewQueueQuery, DreamingReviewQueueRequest,
+	DreamingReviewQueueResponse, ErrorBody, HeaderMap, Json, Query, QueryRejection, RequestContext,
+	State, StatusCode,
+};
 
 #[utoipa::path(
 	get,
@@ -26,7 +30,7 @@ pub(super) async fn dreaming_review_queue(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),

@@ -1,4 +1,4 @@
-use super::*;
+use crate::work_journal::validation::{self, Config, Error, Result};
 
 pub(super) fn validate_write_context(
 	cfg: &Config,
@@ -17,9 +17,9 @@ pub(super) fn validate_write_context(
 		});
 	}
 
-	validate_identifier(tenant_id, "$.tenant_id")?;
-	validate_identifier(project_id, "$.project_id")?;
-	validate_identifier(agent_id, "$.agent_id")?;
+	validation::validate_identifier(tenant_id, "$.tenant_id")?;
+	validation::validate_identifier(project_id, "$.project_id")?;
+	validation::validate_identifier(agent_id, "$.agent_id")?;
 
 	if !cfg.scopes.allowed.iter().any(|allowed| allowed == scope.trim()) {
 		return Err(Error::ScopeDenied { message: "scope is not allowed.".to_string() });
@@ -47,10 +47,10 @@ pub(in crate::work_journal) fn validate_read_context(
 		});
 	}
 
-	validate_identifier(tenant_id, "$.tenant_id")?;
-	validate_identifier(project_id, "$.project_id")?;
-	validate_identifier(agent_id, "$.agent_id")?;
-	validate_identifier(read_profile, "$.read_profile")?;
+	validation::validate_identifier(tenant_id, "$.tenant_id")?;
+	validation::validate_identifier(project_id, "$.project_id")?;
+	validation::validate_identifier(agent_id, "$.agent_id")?;
+	validation::validate_identifier(read_profile, "$.read_profile")?;
 
 	Ok(())
 }

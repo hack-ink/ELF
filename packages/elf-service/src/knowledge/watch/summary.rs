@@ -1,4 +1,7 @@
-use super::*;
+use crate::knowledge::watch::{
+	KnowledgePageProposalRunSummary, KnowledgePageWatchRebuildItem,
+	KnowledgePageWatchRebuildSummary,
+};
 
 pub(in crate::knowledge) fn watch_rebuild_summary(
 	changed_source_count: usize,

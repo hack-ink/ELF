@@ -1,4 +1,7 @@
-use super::*;
+use crate::knowledge::api::{
+	self, KnowledgePage, KnowledgePageLintFinding, KnowledgePageSection, KnowledgePageSourceRef,
+	OffsetDateTime, Serialize, Uuid, Value,
+};
 
 /// Response returned after rebuilding a derived knowledge page.
 #[derive(Clone, Debug, Serialize)]
@@ -73,7 +76,7 @@ impl From<KnowledgePage> for KnowledgePageSummary {
 			rebuild_source_hash: page.rebuild_source_hash,
 			content_hash: page.content_hash,
 			source_coverage: page.source_coverage,
-			previous_version_diff: previous_version_diff_from_metadata(&page.rebuild_metadata),
+			previous_version_diff: api::previous_version_diff_from_metadata(&page.rebuild_metadata),
 			rebuild_metadata: page.rebuild_metadata,
 			created_at: page.created_at,
 			updated_at: page.updated_at,
@@ -253,7 +256,7 @@ pub struct KnowledgePageLintFindingResponse {
 impl From<KnowledgePageLintFinding> for KnowledgePageLintFindingResponse {
 	fn from(finding: KnowledgePageLintFinding) -> Self {
 		let repair_guidance =
-			repair_guidance_for_finding_type(finding.finding_type.as_str()).to_string();
+			api::repair_guidance_for_finding_type(finding.finding_type.as_str()).to_string();
 
 		Self {
 			finding_id: finding.finding_id,

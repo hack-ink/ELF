@@ -1,4 +1,4 @@
-use super::*;
+use crate::work_journal::validation::{self, Error, MAX_SIDE_LIST_ITEMS, Result, Value};
 
 pub(in crate::work_journal) fn validate_source_refs(source_refs: &[Value]) -> Result<Value> {
 	if source_refs.is_empty() {
@@ -25,7 +25,7 @@ pub(in crate::work_journal) fn validate_source_refs(source_refs: &[Value]) -> Re
 
 	let value = Value::Array(source_refs.to_vec());
 
-	validate_json_strings(&value, "$.source_refs")?;
+	validation::validate_json_strings(&value, "$.source_refs")?;
 
 	Ok(value)
 }

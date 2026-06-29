@@ -167,7 +167,7 @@ pub use self::{
 	},
 };
 
-pub(crate) use self::{
+use self::{
 	history::{InsertVersionArgs, enqueue_outbox_tx, insert_version, note_snapshot},
 	update_resolution::{
 		ResolveUpdateArgs, UpdateDecision, UpdateDecisionMetadata, resolve_update,

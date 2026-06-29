@@ -1,5 +1,3 @@
-use super::*;
-
 #[path = "model/cli.rs"] mod cli;
 #[path = "model/consolidation.rs"] mod consolidation;
 #[path = "model/live.rs"] mod live;
@@ -7,12 +5,37 @@ use super::*;
 #[path = "model/providers.rs"] mod providers;
 #[path = "model/runtime.rs"] mod runtime;
 
-pub(super) use cli::*;
-pub(super) use consolidation::*;
-pub(super) use live::*;
-pub(super) use materialization::*;
-pub(super) use providers::*;
-pub(super) use runtime::*;
+pub(super) use self::{
+	cli::{Args, CommandArgs, ElfArgs, LightragArgs, QmdArgs},
+	consolidation::{
+		LiveConsolidationFixture, LiveConsolidationProposal, PreparedConsolidationRun,
+	},
+	live::{
+		LiveCaptureAction, LiveCapturePolicy, LiveExpectedClaim, LiveJob, LiveMemoryEvolution,
+		LoadedJob,
+	},
+	materialization::{
+		AdapterKind, AdapterResponseOutput, AnswerOutput, CaptureMaterializationEvidence,
+		CaptureRuntimeEvidence, CaptureRuntimeEvidenceItem, CaptureRuntimeSourceRefEvidence,
+		CommandEvidence, ConsolidationMaterializationEvidence, CorpusText, CostOutput,
+		DreamingReadbackMaterializationEvidence, DreamingReadbackOutput, IngestedCorpus,
+		KnowledgeMaterializationEvidence, MaterializationEvidence, MaterializationStatus,
+		MaterializedJob, MaterializedJobEvidence, MaterializedJobInput, MaterializedOutput,
+		OperatorDebugMaterializationEvidence, SelectedEvidenceText, SourceMappingEvidence,
+		SuiteMaterializationSelection, SuiteMaterializationSelectionInput,
+		TemporalReconciliationMaterializationEvidence, TemporalReconciliationSelection,
+		TraceExplainabilityOutput, TraceStageOutput,
+	},
+	providers::{DeterministicEmbedding, NoopExtractor, TokenOverlapRerank},
+	runtime::{BaselineRuntime, LightragSource},
+};
+
+use crate::{
+	BoxFuture, ConsolidationInputRef, ConsolidationProposalInput, Deserialize, EmbeddingProvider,
+	EmbeddingProviderConfig, ExtractorProvider, HashMap, LlmProviderConfig, Map, Parser, Path,
+	PathBuf, ProviderConfig, RerankProvider, Serialize, Subcommand, Uuid, ValueEnum, embed_text,
+	serde_json, terms,
+};
 
 pub(super) const JOB_SCHEMA: &str = "elf.real_world_job/v1";
 pub(super) const EVIDENCE_SCHEMA: &str = "elf.real_world_live_adapter_materialization/v1";

@@ -9,39 +9,32 @@ use sqlx::PgExecutor;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use super::types::{
-	HitItem, NewSearchSession, SESSION_ABSOLUTE_TTL_HOURS, SESSION_SLIDING_TTL_HOURS,
-	SearchSession, SearchSessionItemRecord, SearchSessionMode, SearchSessionRow,
+use crate::{
+	Error, Result,
+	progressive_search::types::{
+		HitItem, NewSearchSession, SESSION_ABSOLUTE_TTL_HOURS, SESSION_SLIDING_TTL_HOURS,
+		SearchSession, SearchSessionItemRecord, SearchSessionMode, SearchSessionRow,
+	},
 };
 use elf_domain::english_gate;
-
-fn hash_query(query: &str) -> String {
-	let mut hasher = DefaultHasher::new();
-
-	Hash::hash(query, &mut hasher);
-
-	format!("{:x}", hasher.finish())
-}
 
 pub(super) async fn store_search_session<'e, E>(
 	executor: E,
 	session: NewSearchSession<'_>,
-) -> crate::Result<()>
+) -> Result<()>
 where
 	E: PgExecutor<'e>,
 {
-	let items_json = serde_json::to_value(session.items).map_err(|err| crate::Error::Storage {
+	let items_json = serde_json::to_value(session.items).map_err(|err| Error::Storage {
 		message: format!("Failed to encode search session items: {err}"),
 	})?;
 	let query_plan_json =
-		session.query_plan.map(serde_json::to_value).transpose().map_err(|err| {
-			crate::Error::Storage {
-				message: format!("Failed to encode search session query plan: {err}"),
-			}
+		session.query_plan.map(serde_json::to_value).transpose().map_err(|err| Error::Storage {
+			message: format!("Failed to encode search session query plan: {err}"),
 		})?;
 	let trajectory_summary_json =
 		session.trajectory_summary.map(serde_json::to_value).transpose().map_err(|err| {
-			crate::Error::Storage {
+			Error::Storage {
 				message: format!("Failed to encode search session trajectory summary: {err}"),
 			}
 		})?;
@@ -88,7 +81,7 @@ pub(super) async fn load_search_session<'e, E>(
 	executor: E,
 	search_session_id: Uuid,
 	now: OffsetDateTime,
-) -> crate::Result<SearchSession>
+) -> Result<SearchSession>
 where
 	E: PgExecutor<'e>,
 {
@@ -115,34 +108,28 @@ WHERE search_session_id = $1",
 	.fetch_optional(executor)
 	.await?;
 	let Some(row) = row else {
-		return Err(crate::Error::InvalidRequest {
-			message: "Unknown search_session_id.".to_string(),
-		});
+		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
 	};
 	let expires_at: OffsetDateTime = row.expires_at;
 
 	if expires_at <= now {
-		return Err(crate::Error::InvalidRequest {
-			message: "Search session expired.".to_string(),
-		});
+		return Err(Error::InvalidRequest { message: "Search session expired.".to_string() });
 	}
 
 	let items: Vec<SearchSessionItemRecord> = serde_json::from_value(row.items).map_err(|err| {
-		crate::Error::Storage { message: format!("Failed to decode search session items: {err}") }
+		Error::Storage { message: format!("Failed to decode search session items: {err}") }
 	})?;
 	let mode = SearchSessionMode::from_str(row.mode.as_str())?;
 	let query_plan = match row.query_plan {
-		Some(value) =>
-			Some(serde_json::from_value(value).map_err(|err| crate::Error::Storage {
-				message: format!("Failed to decode search session query_plan: {err}"),
-			})?),
+		Some(value) => Some(serde_json::from_value(value).map_err(|err| Error::Storage {
+			message: format!("Failed to decode search session query_plan: {err}"),
+		})?),
 		None => None,
 	};
 	let trajectory_summary = match row.trajectory_summary {
-		Some(value) =>
-			Some(serde_json::from_value(value).map_err(|err| crate::Error::Storage {
-				message: format!("Failed to decode search session trajectory summary: {err}"),
-			})?),
+		Some(value) => Some(serde_json::from_value(value).map_err(|err| Error::Storage {
+			message: format!("Failed to decode search session trajectory summary: {err}"),
+		})?),
 		None => None,
 	};
 
@@ -167,7 +154,7 @@ pub(super) async fn touch_search_session<'e, E>(
 	executor: E,
 	session: &SearchSession,
 	now: OffsetDateTime,
-) -> crate::Result<OffsetDateTime>
+) -> Result<OffsetDateTime>
 where
 	E: PgExecutor<'e>,
 {
@@ -199,12 +186,12 @@ pub(super) async fn record_detail_hits<'e, E>(
 	query: &str,
 	items: &[HitItem],
 	now: OffsetDateTime,
-) -> crate::Result<()>
+) -> Result<()>
 where
 	E: PgExecutor<'e>,
 {
 	if !english_gate::is_english_natural_language(query) {
-		return Err(crate::Error::NonEnglishInput { field: "$.query".to_string() });
+		return Err(Error::NonEnglishInput { field: "$.query".to_string() });
 	}
 
 	let query_hash = hash_query(query);
@@ -215,7 +202,7 @@ where
 	let mut final_scores = Vec::with_capacity(items.len());
 
 	for item in items {
-		let rank = i32::try_from(item.rank).map_err(|_| crate::Error::InvalidRequest {
+		let rank = i32::try_from(item.rank).map_err(|_| Error::InvalidRequest {
 			message: "Search session rank is out of range.".to_string(),
 		})?;
 
@@ -275,4 +262,12 @@ FROM hits",
 	.await?;
 
 	Ok(())
+}
+
+fn hash_query(query: &str) -> String {
+	let mut hasher = DefaultHasher::new();
+
+	Hash::hash(query, &mut hasher);
+
+	format!("{:x}", hasher.finish())
 }

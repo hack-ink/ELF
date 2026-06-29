@@ -1,13 +1,17 @@
-use super::*;
+use crate::docs::service::{
+	self, DocDocument, DocsPutRequest, DocsPutResponse, ElfService, Error, ORG_PROJECT_ID,
+	OffsetDateTime, Result, SourceCaptureSummaryInput, ValidatedDocsPut, access, doc_outbox, docs,
+};
 
 impl ElfService {
 	/// Validates, chunks, stores, and enqueues a document for indexing.
 	pub async fn docs_put(&self, req: DocsPutRequest) -> Result<DocsPutResponse> {
-		let ValidatedDocsPut { doc_type, content, write_policy_audit } = validate_docs_put(&req)?;
+		let ValidatedDocsPut { doc_type, content, write_policy_audit } =
+			service::validate_docs_put(&req)?;
 		let now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
-		let chunking_profile = resolve_doc_chunking_profile(doc_type);
-		let tokenizer = load_tokenizer(&self.cfg)?;
+		let chunking_profile = service::resolve_doc_chunking_profile(doc_type);
+		let tokenizer = service::load_tokenizer(&self.cfg)?;
 		let tenant_id = req.tenant_id.clone();
 		let project_id = req.project_id.clone();
 		let agent_id = req.agent_id.clone();
@@ -22,7 +26,7 @@ impl ElfService {
 		let content_bytes = content.len();
 		let content_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
 		let raw_content_hash = blake3::hash(req.content.as_bytes()).to_hex().to_string();
-		let doc_id = source_record_id_for(
+		let doc_id = service::source_record_id_for(
 			tenant_id.as_str(),
 			effective_project_id,
 			agent_id.as_str(),
@@ -31,7 +35,7 @@ impl ElfService {
 			source_ref_map,
 			content_hash.as_str(),
 		);
-		let mut chunks = split_tokens_by_offsets(
+		let mut chunks = service::split_tokens_by_offsets(
 			content.as_str(),
 			chunking_profile.max_tokens,
 			chunking_profile.overlap_tokens,
@@ -40,11 +44,11 @@ impl ElfService {
 		)?;
 
 		for (chunk_index, chunk) in chunks.iter_mut().enumerate() {
-			chunk.chunk_id = doc_chunk_id_for(doc_id, chunk_index as i32);
+			chunk.chunk_id = service::doc_chunk_id_for(doc_id, chunk_index as i32);
 		}
 
-		let chunk_rows = build_doc_chunk_rows(doc_id, &chunks, now);
-		let source_capture = build_source_capture_summary(SourceCaptureSummaryInput {
+		let chunk_rows = service::build_doc_chunk_rows(doc_id, &chunks, now);
+		let source_capture = service::build_source_capture_summary(SourceCaptureSummaryInput {
 			doc_id,
 			source_ref: source_ref_map,
 			doc_type,
@@ -56,7 +60,8 @@ impl ElfService {
 			chunks: &chunk_rows,
 			write_policy_audit: write_policy_audit.as_ref(),
 		})?;
-		let normalized_source_ref = normalize_source_ref_for_capture(source_ref, &source_capture)?;
+		let normalized_source_ref =
+			service::normalize_source_ref_for_capture(source_ref, &source_capture)?;
 		let doc_row = DocDocument {
 			doc_id,
 			tenant_id: tenant_id.clone(),

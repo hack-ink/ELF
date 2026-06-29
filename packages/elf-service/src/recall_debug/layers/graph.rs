@@ -1,4 +1,7 @@
-use super::*;
+use crate::recall_debug::layers::{
+	self, ElfService, GraphReportRequest, RecallDebugLayer, RecallDebugPanelRequest,
+	RecallDebugRow, Result,
+};
 
 impl ElfService {
 	pub(super) async fn recall_graph_layer(
@@ -7,7 +10,7 @@ impl ElfService {
 		limit: u32,
 	) -> Result<RecallDebugLayer> {
 		let Some(subject) = req.graph_subject.clone() else {
-			return Ok(not_requested_layer(
+			return Ok(layers::not_requested_layer(
 				"graph_facts",
 				"Supply graph_subject to show graph fact candidates and temporal status.",
 			));
@@ -27,7 +30,8 @@ impl ElfService {
 			})
 			.await?;
 		let subject_anchor = response.subject.canonical.clone();
-		let replay_command = graph_replay_command(&subject_anchor, req.graph_predicate.as_ref());
+		let replay_command =
+			layers::graph_replay_command(&subject_anchor, req.graph_predicate.as_ref());
 		let rows = response
 			.facts
 			.into_iter()
@@ -42,7 +46,7 @@ impl ElfService {
 				}),
 				selection_state: "available".to_string(),
 				authority_layer: "graph_fact".to_string(),
-				freshness_state: graph_temporal_status(fact.temporal_status),
+				freshness_state: layers::graph_temporal_status(fact.temporal_status),
 				source_refs: serde_json::json!({
 					"evidence_note_ids": fact.evidence_note_ids,
 					"supersedes_fact_ids": fact.supersedes_fact_ids,
@@ -64,7 +68,7 @@ impl ElfService {
 			})
 			.collect();
 
-		Ok(layer_from_rows_with_artifacts(
+		Ok(layers::layer_from_rows_with_artifacts(
 			"graph_facts",
 			"pass",
 			Some(subject_anchor),

@@ -1,4 +1,9 @@
-use super::*;
+use crate::worker::{
+	self, BM25_MODEL, BM25_VECTOR_NAME, ChunkRecord, Condition, DENSE_VECTOR_NAME, Db,
+	DeletePointsBuilder, Document, Error, Filter, HashMap, IndexingOutboxEntry, MemoryNote,
+	NoteFieldRow, OffsetDateTime, Payload, PgExecutor, PointStruct, Result, ToString,
+	UpsertPointsBuilder, Uuid, Value, Vector, WorkerState, embedding, queries,
+};
 
 pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
 	let note = fetch_note(&state.db, job.note_id).await?;
@@ -13,7 +18,7 @@ pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry
 	};
 	let now = OffsetDateTime::now_utc();
 
-	if !note_is_active(&note, now) {
+	if !worker::note_is_active(&note, now) {
 		tracing::info!(
 			outbox_id = %job.outbox_id,
 			note_id = %job.note_id,
@@ -30,7 +35,7 @@ pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry
 		return Err(Error::Validation("Chunking produced no chunks.".to_string()));
 	}
 
-	let records = build_chunk_records(note.note_id, &chunks)?;
+	let records = worker::build_chunk_records(note.note_id, &chunks)?;
 	let chunk_texts: Vec<String> = records.iter().map(|record| record.text.clone()).collect();
 	let field_texts: Vec<String> = fields.iter().map(|field| field.text.clone()).collect();
 	let mut embed_inputs = Vec::with_capacity(chunk_texts.len() + field_texts.len());
@@ -53,7 +58,7 @@ pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry
 	let (chunk_vectors, field_vectors) = vectors.split_at(records.len());
 
 	for vector in chunk_vectors.iter().chain(field_vectors.iter()) {
-		validate_vector_dim(vector, state.qdrant.vector_dim)?;
+		worker::validate_vector_dim(vector, state.qdrant.vector_dim)?;
 	}
 
 	{
@@ -75,7 +80,7 @@ pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry
 			.await?;
 		}
 		for (record, vector) in records.iter().zip(chunk_vectors.iter()) {
-			let vec_text = format_vector_text(vector);
+			let vec_text = worker::format_vector_text(vector);
 
 			queries::insert_note_chunk_embedding(
 				&mut *tx,
@@ -87,10 +92,11 @@ pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry
 			.await?;
 		}
 
-		let pooled = mean_pool(chunk_vectors)
+		let pooled = worker::mean_pool(chunk_vectors)
 			.ok_or_else(|| Error::Message("Cannot pool empty chunk vectors.".to_string()))?;
 
-		validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
+		worker::validate_vector_dim(&pooled, state.qdrant.vector_dim)?;
+
 		insert_embedding_tx(
 			&mut *tx,
 			note.note_id,
@@ -160,7 +166,7 @@ pub(super) async fn insert_embedding_tx<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	let vec_text = format_vector_text(vec);
+	let vec_text = worker::format_vector_text(vec);
 
 	sqlx::query(
 		"\
@@ -197,7 +203,7 @@ pub(super) async fn insert_note_field_embedding_tx<'e, E>(
 where
 	E: PgExecutor<'e>,
 {
-	let vec_text = format_vector_text(vec);
+	let vec_text = worker::format_vector_text(vec);
 
 	sqlx::query(
 		"\
@@ -232,7 +238,7 @@ pub(super) async fn delete_qdrant_note_points(state: &WorkerState, note_id: Uuid
 	match state.qdrant.client.delete_points(delete).await {
 		Ok(_) => {},
 		Err(err) =>
-			if is_not_found_error(&err) {
+			if worker::is_not_found_error(&err) {
 				tracing::info!(note_id = %note_id, "Qdrant points missing during delete.");
 			} else {
 				return Err(err.into());
@@ -271,11 +277,11 @@ pub(super) async fn upsert_qdrant_chunks(
 			None => payload.insert("key", Value::Null),
 		}
 
-		payload.insert("updated_at", Value::String(format_timestamp(note.updated_at)?));
+		payload.insert("updated_at", Value::String(worker::format_timestamp(note.updated_at)?));
 		payload.insert(
 			"expires_at",
 			match note.expires_at {
-				Some(ts) => Value::String(format_timestamp(ts)?),
+				Some(ts) => Value::String(worker::format_timestamp(ts)?),
 				None => Value::Null,
 			},
 		);

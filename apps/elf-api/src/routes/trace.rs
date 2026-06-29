@@ -1,4 +1,10 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, ErrorBody, HeaderMap, Json, Path, Query, QueryRejection,
+	RequestContext, SearchExplainRequest, SearchExplainResponse, SearchTrajectoryResponse, State,
+	StatusCode, TraceBundleGetQuery, TraceBundleGetRequest, TraceBundleResponse, TraceGetRequest,
+	TraceGetResponse, TraceRecentListQuery, TraceRecentListRequest, TraceRecentListResponse,
+	TraceTrajectoryGetRequest, Uuid,
+};
 
 #[utoipa::path(
 	get,
@@ -63,7 +69,7 @@ pub(super) async fn trace_recent_list(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -71,13 +77,15 @@ pub(super) async fn trace_recent_list(
 		)
 	})?;
 	let cursor_created_at =
-		parse_optional_rfc3339(query.cursor_created_at.as_ref(), "$.cursor_created_at")?;
+		routes::parse_optional_rfc3339(query.cursor_created_at.as_ref(), "$.cursor_created_at")?;
 	let cursor_trace_id = query.cursor_trace_id;
-	let created_after = parse_optional_rfc3339(query.created_after.as_ref(), "$.created_after")?;
-	let created_before = parse_optional_rfc3339(query.created_before.as_ref(), "$.created_before")?;
+	let created_after =
+		routes::parse_optional_rfc3339(query.created_after.as_ref(), "$.created_after")?;
+	let created_before =
+		routes::parse_optional_rfc3339(query.created_before.as_ref(), "$.created_before")?;
 
 	if cursor_created_at.is_some() != cursor_trace_id.is_some() {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"cursor_created_at and cursor_trace_id must be both set or both omitted.".to_string(),
@@ -199,7 +207,7 @@ pub(super) async fn trace_bundle_get(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),

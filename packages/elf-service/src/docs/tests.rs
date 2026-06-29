@@ -7,7 +7,8 @@ use tokenizers::{Tokenizer, models::wordlevel::WordLevel, pre_tokenizers::whites
 use uuid::Uuid;
 
 use crate::docs::{
-	self, DocType, DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request, DocsSparseMode, Error,
+	self, DocSearchRow, DocType, DocsPutRequest, DocsSearchL0Filters, DocsSearchL0Request,
+	DocsSparseMode, Error, SourceCaptureSummaryInput,
 };
 use elf_domain::writegate::{WritePolicy, WritePolicyAudit, WriteRedactionResult, WriteSpan};
 use elf_storage::models::DocChunk;
@@ -814,7 +815,7 @@ fn source_capture_metadata_uses_stable_record_and_span_ids() {
 		chunk_hash: "chunk-content-hash".to_string(),
 		created_at: now,
 	};
-	let capture = super::build_source_capture_summary(super::SourceCaptureSummaryInput {
+	let capture = super::build_source_capture_summary(SourceCaptureSummaryInput {
 		doc_id,
 		source_ref,
 		doc_type: DocType::Knowledge,
@@ -877,7 +878,7 @@ fn normalized_source_ref_records_policy_span_reasons() {
 		source_ref_map,
 		"stored-hash",
 	);
-	let capture = super::build_source_capture_summary(super::SourceCaptureSummaryInput {
+	let capture = super::build_source_capture_summary(SourceCaptureSummaryInput {
 		doc_id,
 		source_ref: source_ref_map,
 		doc_type: DocType::Knowledge,
@@ -966,7 +967,7 @@ fn validate_docs_put_rejects_incomplete_source_library_metadata() {
 fn docs_l0_pointer_carries_hashes_and_position_locator() {
 	let now = OffsetDateTime::parse("2026-02-25T12:00:00Z", &Rfc3339)
 		.expect("Expected test timestamp to parse.");
-	let row = super::DocSearchRow {
+	let row = DocSearchRow {
 		chunk_id: Uuid::parse_str("11111111-1111-4111-8111-111111111111")
 			.expect("Expected chunk UUID."),
 		doc_id: Uuid::parse_str("22222222-2222-4222-8222-222222222222")
@@ -1018,7 +1019,7 @@ fn validate_docs_put_applies_write_policy_and_includes_audit() {
 		content: "Hello sk-abcdefghijklmnopqrstuvwxyz!".to_string(),
 	})
 	.expect("Expected valid write policy transformation.");
-	let expected_audit = elf_domain::writegate::WritePolicyAudit {
+	let expected_audit = WritePolicyAudit {
 		exclusions: vec![WriteSpan { start: 6, end: 35 }],
 		..Default::default()
 	};

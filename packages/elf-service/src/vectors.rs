@@ -1,6 +1,5 @@
-use elf_config::Config;
-
 use crate::{Error, Result};
+use elf_config::Config;
 
 pub(crate) fn embedding_version(cfg: &Config) -> String {
 	format!(

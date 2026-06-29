@@ -6,11 +6,11 @@ use std::{
 use color_eyre::Result;
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn work_continuity_fixtures_score_required_metrics() -> Result<()> {
-	let report = run_json_report_from(work_continuity_fixture_dir())?;
+	let report = support::run_json_report_from(support::work_continuity_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(8));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(8));
@@ -18,8 +18,8 @@ fn work_continuity_fixtures_score_required_metrics() -> Result<()> {
 
 	assert_work_continuity_summary_counts(&report);
 
-	let suites = array_at(&report, "/suites")?;
-	let work_continuity = find_by_field(suites, "/suite_id", "work_continuity")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let work_continuity = support::find_by_field(suites, "/suite_id", "work_continuity")?;
 
 	assert_eq!(work_continuity.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(work_continuity.pointer("/encoded_job_count").and_then(Value::as_u64), Some(8));
@@ -87,7 +87,7 @@ fn assert_work_continuity_summary_f64(report: &Value, field: &str, expected: f64
 
 #[test]
 fn work_continuity_markdown_renders_required_metrics() -> Result<()> {
-	let report = run_json_report_from(work_continuity_fixture_dir())?;
+	let report = support::run_json_report_from(support::work_continuity_fixture_dir())?;
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-work-continuity-test-{}", process::id()));
 
@@ -289,10 +289,10 @@ fn run_work_continuity_mutation(
 	output_name: &str,
 	mutate: impl FnOnce(&mut Value),
 ) -> Result<Value> {
-	let fixture_path = work_continuity_fixture_dir().join(fixture_name);
+	let fixture_path = support::work_continuity_fixture_dir().join(fixture_name);
 	let temp_dir =
 		env::temp_dir().join(format!("elf-work-continuity-{output_name}-{}", process::id()));
-	let mut fixture = load_json(&fixture_path)?;
+	let mut fixture = support::load_json(&fixture_path)?;
 
 	mutate(&mut fixture);
 
@@ -303,13 +303,13 @@ fn run_work_continuity_mutation(
 	fs::create_dir_all(&temp_dir)?;
 	fs::write(temp_dir.join(output_name), serde_json::to_vec_pretty(&fixture)?)?;
 
-	run_json_report_from(temp_dir)
+	support::run_json_report_from(temp_dir)
 }
 
 fn single_work_continuity_job<'a>(report: &'a Value, job_id: &str) -> Result<&'a Value> {
-	let jobs = array_at(report, "/jobs")?;
+	let jobs = support::array_at(report, "/jobs")?;
 
-	find_by_field(jobs, "/job_id", job_id)
+	support::find_by_field(jobs, "/job_id", job_id)
 }
 
 fn assert_work_continuity_wrong_result(job: &Value, metric_name: &str, expected: u64) {

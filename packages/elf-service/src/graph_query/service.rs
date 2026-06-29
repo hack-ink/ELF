@@ -1,19 +1,32 @@
-use super::*;
+use crate::{
+	access,
+	graph_query::{
+		self, ElfService, GraphQueryEntity, GraphQueryPredicate, GraphQueryRequest,
+		GraphQueryResponse, GraphQueryRowsFetchParams, OffsetDateTime, Result,
+	},
+	search,
+};
 
 impl ElfService {
 	/// Resolves a subject and returns active graph facts visible to the caller.
 	pub async fn graph_query(&self, req: GraphQueryRequest) -> Result<GraphQueryResponse> {
-		let prepared = validate_graph_query_request(req)?;
+		let prepared = graph_query::validate_graph_query_request(req)?;
 		let allowed_scopes =
 			search::resolve_read_profile_scopes(&self.cfg, prepared.read_profile.as_str())?;
-		let effective_scopes =
-			resolve_effective_scopes(&allowed_scopes, prepared.requested_scopes.as_slice())?;
+		let effective_scopes = graph_query::resolve_effective_scopes(
+			&allowed_scopes,
+			prepared.requested_scopes.as_slice(),
+		)?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope.trim() == "org_shared");
 		let mut conn = self.db.pool.acquire().await?;
-		let subject =
-			resolve_subject(&mut conn, &prepared.tenant_id, &prepared.project_id, prepared.subject)
-				.await?;
-		let predicate = resolve_predicate(
+		let subject = graph_query::resolve_subject(
+			&mut conn,
+			&prepared.tenant_id,
+			&prepared.project_id,
+			prepared.subject,
+		)
+		.await?;
+		let predicate = graph_query::resolve_predicate(
 			&mut conn,
 			&prepared.tenant_id,
 			&prepared.project_id,
@@ -34,7 +47,7 @@ impl ElfService {
 			.collect();
 		let predicate_id = predicate.as_ref().map(|predicate| predicate.id);
 		let read_at = OffsetDateTime::now_utc();
-		let rows = fetch_graph_query_rows(
+		let rows = graph_query::fetch_graph_query_rows(
 			&mut conn,
 			GraphQueryRowsFetchParams {
 				tenant_id: prepared.tenant_id.as_str(),
@@ -49,11 +62,11 @@ impl ElfService {
 			},
 		)
 		.await?;
-		let facts = graph_query_facts_from_rows(rows, read_at);
+		let facts = graph_query::graph_query_facts_from_rows(rows, read_at);
 		let queried_rows = facts.len();
-		let (facts, truncated) = truncate_graph_query_facts(facts, prepared.limit);
+		let (facts, truncated) = graph_query::truncate_graph_query_facts(facts, prepared.limit);
 		let explain = if prepared.explain {
-			Some(build_graph_query_explain(
+			Some(graph_query::build_graph_query_explain(
 				prepared.as_of,
 				&allowed_scopes,
 				&effective_scopes,

@@ -1,41 +1,13 @@
-use super::{common::push_if_selected, *};
-
-fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<serde_json::Value> {
-	loaded
-		.job
-		.expected_answer
-		.must_include
-		.iter()
-		.filter_map(|claim| {
-			let claim_id = claim.claim_id()?;
-			let allowed =
-				evidence_link_ids(loaded.job.expected_answer.evidence_links.get(claim_id)?);
-			let produced = evidence_ids
-				.iter()
-				.filter(|evidence_id| allowed.iter().any(|allowed_id| allowed_id == *evidence_id))
-				.cloned()
-				.collect::<Vec<_>>();
-
-			if produced.is_empty() {
-				return None;
-			}
-
-			Some(serde_json::json!({
-				"claim_id": claim_id,
-				"text": claim.text(),
-				"evidence_ids": produced,
-				"confidence": "derived_from_live_retrieval"
-			}))
-		})
-		.collect()
-}
+use crate::evidence_selection::{
+	self, BTreeSet, LiveExpectedClaim, LiveMemoryEvolution, LoadedJob, common, serde_json,
+};
 
 pub(super) fn answer_claims_impl(
 	loaded: &LoadedJob,
 	evidence_ids: &[String],
 ) -> Vec<serde_json::Value> {
 	if loaded.job.memory_evolution.is_some() {
-		let claims = temporal_reconciliation_claims(loaded, evidence_ids);
+		let claims = evidence_selection::temporal_reconciliation_claims(loaded, evidence_ids);
 
 		if !claims.is_empty() {
 			return claims;
@@ -97,6 +69,36 @@ pub(super) fn temporal_reconciliation_claims_impl(
 	claims
 }
 
+fn evidence_linked_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<serde_json::Value> {
+	loaded
+		.job
+		.expected_answer
+		.must_include
+		.iter()
+		.filter_map(|claim| {
+			let claim_id = claim.claim_id()?;
+			let allowed =
+				evidence_link_ids(loaded.job.expected_answer.evidence_links.get(claim_id)?);
+			let produced = evidence_ids
+				.iter()
+				.filter(|evidence_id| allowed.iter().any(|allowed_id| allowed_id == *evidence_id))
+				.cloned()
+				.collect::<Vec<_>>();
+
+			if produced.is_empty() {
+				return None;
+			}
+
+			Some(serde_json::json!({
+				"claim_id": claim_id,
+				"text": claim.text(),
+				"evidence_ids": produced,
+				"confidence": "derived_from_live_retrieval"
+			}))
+		})
+		.collect()
+}
+
 fn temporal_claim_evidence(
 	evolution: &LiveMemoryEvolution,
 	claim_id: &str,
@@ -109,11 +111,11 @@ fn temporal_claim_evidence(
 			continue;
 		}
 
-		push_if_selected(&mut evidence, conflict.current_evidence_id.as_str(), selected);
-		push_if_selected(&mut evidence, conflict.historical_evidence_id.as_str(), selected);
+		common::push_if_selected(&mut evidence, conflict.current_evidence_id.as_str(), selected);
+		common::push_if_selected(&mut evidence, conflict.historical_evidence_id.as_str(), selected);
 
 		if let Some(rationale_id) = &conflict.resolved_by_evidence_id {
-			push_if_selected(&mut evidence, rationale_id.as_str(), selected);
+			common::push_if_selected(&mut evidence, rationale_id.as_str(), selected);
 		}
 	}
 

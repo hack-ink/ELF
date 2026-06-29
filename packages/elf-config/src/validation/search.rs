@@ -11,6 +11,40 @@ pub(super) fn validate(cfg: &Config) -> Result<()> {
 	Ok(())
 }
 
+pub(super) fn validate_graph_context(cfg: &Config) -> Result<()> {
+	if !cfg.search.graph_context.enabled {
+		return Ok(());
+	}
+
+	let ctx = &cfg.search.graph_context;
+
+	if ctx.max_facts_per_item == 0 {
+		return Err(Error::Validation {
+			message: "search.graph_context.max_facts_per_item must be greater than zero."
+				.to_string(),
+		});
+	}
+	if ctx.max_facts_per_item > 1_000 {
+		return Err(Error::Validation {
+			message: "search.graph_context.max_facts_per_item must be 1,000 or less.".to_string(),
+		});
+	}
+	if ctx.max_evidence_notes_per_fact == 0 {
+		return Err(Error::Validation {
+			message: "search.graph_context.max_evidence_notes_per_fact must be greater than zero."
+				.to_string(),
+		});
+	}
+	if ctx.max_evidence_notes_per_fact > 1_000 {
+		return Err(Error::Validation {
+			message: "search.graph_context.max_evidence_notes_per_fact must be 1,000 or less."
+				.to_string(),
+		});
+	}
+
+	Ok(())
+}
+
 fn validate_expansion(cfg: &Config) -> Result<()> {
 	let expansion_mode = cfg.search.expansion.mode.as_str();
 
@@ -150,40 +184,6 @@ fn validate_recursive(cfg: &Config) -> Result<()> {
 			message:
 				"search.recursive.max_total_nodes must be at least search.recursive.max_nodes_per_scope."
 					.to_string(),
-		});
-	}
-
-	Ok(())
-}
-
-pub(super) fn validate_graph_context(cfg: &Config) -> Result<()> {
-	if !cfg.search.graph_context.enabled {
-		return Ok(());
-	}
-
-	let ctx = &cfg.search.graph_context;
-
-	if ctx.max_facts_per_item == 0 {
-		return Err(Error::Validation {
-			message: "search.graph_context.max_facts_per_item must be greater than zero."
-				.to_string(),
-		});
-	}
-	if ctx.max_facts_per_item > 1_000 {
-		return Err(Error::Validation {
-			message: "search.graph_context.max_facts_per_item must be 1,000 or less.".to_string(),
-		});
-	}
-	if ctx.max_evidence_notes_per_fact == 0 {
-		return Err(Error::Validation {
-			message: "search.graph_context.max_evidence_notes_per_fact must be greater than zero."
-				.to_string(),
-		});
-	}
-	if ctx.max_evidence_notes_per_fact > 1_000 {
-		return Err(Error::Validation {
-			message: "search.graph_context.max_evidence_notes_per_fact must be 1,000 or less."
-				.to_string(),
 		});
 	}
 

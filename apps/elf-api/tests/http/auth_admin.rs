@@ -1,12 +1,24 @@
-use super::*;
+use axum::{
+	Router,
+	body::{self, Body},
+	http::{Request, StatusCode},
+};
+use serde_json::Value;
+use tower::util::ServiceExt as _;
+use uuid::Uuid;
+
+use crate::{TEST_AGENT_A, TEST_PROJECT_ID, TEST_TENANT_ID};
+use elf_api::{routes, state::AppState};
+use elf_config::{SecurityAuthKey, SecurityAuthRole};
+use elf_testkit::TestDatabase;
 
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn static_keys_requires_bearer_header() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "static_keys".to_string();
 	config.security.auth_keys = vec![SecurityAuthKey {
@@ -61,8 +73,8 @@ async fn static_keys_requires_bearer_header() {
 
 async fn static_keys_admin_required_for_org_shared_writes_fixture()
 -> Option<(TestDatabase, Router, Uuid)> {
-	let (test_db, qdrant_url, collection) = test_env().await?;
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let (test_db, qdrant_url, collection) = crate::test_env().await?;
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "static_keys".to_string();
 	config.security.auth_keys = vec![
@@ -90,7 +102,7 @@ async fn static_keys_admin_required_for_org_shared_writes_fixture()
 	let app = routes::router(state.clone());
 	let note_id = Uuid::new_v4();
 
-	insert_note(
+	crate::insert_note(
 		&state,
 		note_id,
 		"agent_private",
@@ -122,7 +134,7 @@ async fn static_keys_admin_required_for_org_shared_writes_ingest_checks(app: &Ro
 		}]
 	})
 	.to_string();
-	let user_ingest = post_with_authorization_and_json_body(
+	let user_ingest = crate::post_with_authorization_and_json_body(
 		app,
 		"/v2/notes/ingest",
 		"Bearer user-token",
@@ -134,7 +146,7 @@ async fn static_keys_admin_required_for_org_shared_writes_ingest_checks(app: &Ro
 
 	assert_eq!(user_ingest.status(), StatusCode::FORBIDDEN);
 
-	let admin_ingest = post_with_authorization_and_json_body(
+	let admin_ingest = crate::post_with_authorization_and_json_body(
 		app,
 		"/v2/notes/ingest",
 		"Bearer admin-token",
@@ -149,7 +161,7 @@ async fn static_keys_admin_required_for_org_shared_writes_ingest_checks(app: &Ro
 	let admin_ingest_body = body::to_bytes(admin_ingest.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read notes ingest response body.");
-	let admin_ingest_json: serde_json::Value =
+	let admin_ingest_json: Value =
 		serde_json::from_slice(&admin_ingest_body).expect("Failed to parse response.");
 
 	assert_eq!(admin_ingest_json["error_code"], "NON_ENGLISH_INPUT");
@@ -160,7 +172,7 @@ async fn static_keys_admin_required_for_org_shared_writes_publish_checks(
 	note_id: Uuid,
 ) {
 	let publish_payload = serde_json::json!({ "space": "org_shared" }).to_string();
-	let user_publish = post_with_authorization_and_json_body(
+	let user_publish = crate::post_with_authorization_and_json_body(
 		app,
 		&format!("/v2/notes/{note_id}/publish"),
 		"Bearer user-token",
@@ -172,7 +184,7 @@ async fn static_keys_admin_required_for_org_shared_writes_publish_checks(
 
 	assert_eq!(user_publish.status(), StatusCode::FORBIDDEN);
 
-	let admin_publish = post_with_authorization_and_json_body(
+	let admin_publish = crate::post_with_authorization_and_json_body(
 		app,
 		&format!("/v2/notes/{note_id}/publish"),
 		"Bearer admin-token",
@@ -187,7 +199,7 @@ async fn static_keys_admin_required_for_org_shared_writes_publish_checks(
 
 async fn static_keys_admin_required_for_org_shared_writes_grant_checks(app: &Router) {
 	let grant_upsert_payload = serde_json::json!({ "grantee_kind": "project" }).to_string();
-	let user_grant_upsert = post_with_authorization_and_json_body(
+	let user_grant_upsert = crate::post_with_authorization_and_json_body(
 		app,
 		"/v2/spaces/org_shared/grants",
 		"Bearer user-token",
@@ -199,7 +211,7 @@ async fn static_keys_admin_required_for_org_shared_writes_grant_checks(app: &Rou
 
 	assert_eq!(user_grant_upsert.status(), StatusCode::FORBIDDEN);
 
-	let admin_grant_upsert = post_with_authorization_and_json_body(
+	let admin_grant_upsert = crate::post_with_authorization_and_json_body(
 		app,
 		"/v2/spaces/org_shared/grants",
 		"Bearer admin-token",
@@ -212,7 +224,7 @@ async fn static_keys_admin_required_for_org_shared_writes_grant_checks(app: &Rou
 	assert_eq!(admin_grant_upsert.status(), StatusCode::OK);
 
 	let grant_revoke_payload = serde_json::json!({ "grantee_kind": "project" }).to_string();
-	let user_grant_revoke = post_with_authorization_and_json_body(
+	let user_grant_revoke = crate::post_with_authorization_and_json_body(
 		app,
 		"/v2/spaces/org_shared/grants/revoke",
 		"Bearer user-token",
@@ -224,7 +236,7 @@ async fn static_keys_admin_required_for_org_shared_writes_grant_checks(app: &Rou
 
 	assert_eq!(user_grant_revoke.status(), StatusCode::FORBIDDEN);
 
-	let admin_grant_revoke = post_with_authorization_and_json_body(
+	let admin_grant_revoke = crate::post_with_authorization_and_json_body(
 		app,
 		"/v2/spaces/org_shared/grants/revoke",
 		"Bearer admin-token",
@@ -254,8 +266,8 @@ async fn static_keys_admin_required_for_org_shared_writes() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn static_keys_org_shared_ingest_requires_admin() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else { return };
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else { return };
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "static_keys".to_string();
 	config.security.auth_keys = vec![
@@ -330,8 +342,8 @@ async fn static_keys_org_shared_ingest_requires_admin() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn static_keys_org_shared_events_ingest_requires_admin() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else { return };
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else { return };
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "static_keys".to_string();
 	config.security.auth_keys = vec![
@@ -402,8 +414,8 @@ async fn static_keys_org_shared_events_ingest_requires_admin() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn static_keys_org_shared_publish_requires_admin() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else { return };
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else { return };
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "static_keys".to_string();
 	config.security.auth_keys = vec![
@@ -468,8 +480,8 @@ async fn static_keys_org_shared_publish_requires_admin() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn static_keys_org_shared_grants_require_admin() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else { return };
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else { return };
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "static_keys".to_string();
 	config.security.auth_keys = vec![
@@ -533,10 +545,10 @@ async fn static_keys_org_shared_grants_require_admin() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn admin_note_provenance_includes_request_id_on_success() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "off".to_string();
 
@@ -545,7 +557,7 @@ async fn admin_note_provenance_includes_request_id_on_success() {
 	let note_id = Uuid::new_v4();
 	let request_id = Uuid::new_v4();
 
-	insert_note(
+	crate::insert_note(
 		&state,
 		note_id,
 		"agent_private",
@@ -580,7 +592,7 @@ async fn admin_note_provenance_includes_request_id_on_success() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read provenance response body.");
-	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["schema"], "elf.note_provenance_bundle/v1");
 	assert_eq!(json["request_id"], request_id.to_string());
@@ -591,10 +603,10 @@ async fn admin_note_provenance_includes_request_id_on_success() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn admin_note_history_includes_request_id_on_success() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "off".to_string();
 
@@ -603,8 +615,14 @@ async fn admin_note_history_includes_request_id_on_success() {
 	let note_id = Uuid::new_v4();
 	let request_id = Uuid::new_v4();
 
-	insert_note(&state, note_id, "agent_private", TEST_AGENT_A, "History integration test note.")
-		.await;
+	crate::insert_note(
+		&state,
+		note_id,
+		"agent_private",
+		TEST_AGENT_A,
+		"History integration test note.",
+	)
+	.await;
 
 	let response = app
 		.oneshot(
@@ -632,7 +650,7 @@ async fn admin_note_history_includes_request_id_on_success() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read history response body.");
-	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["schema"], "elf.memory_history/v1");
 	assert_eq!(json["request_id"], request_id.to_string());
@@ -643,10 +661,10 @@ async fn admin_note_history_includes_request_id_on_success() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn admin_note_provenance_rejects_invalid_request_id_header() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "off".to_string();
 
@@ -676,7 +694,7 @@ async fn admin_note_provenance_rejects_invalid_request_id_header() {
 	let body = body::to_bytes(response.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read provenance response body.");
-	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "INVALID_REQUEST");
 	assert_eq!(json["fields"][0], "$.headers.X-ELF-Request-Id");
@@ -688,10 +706,10 @@ async fn admin_note_provenance_rejects_invalid_request_id_header() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn global_graph_predicate_write_requires_super_admin() {
-	let Some((test_db, qdrant_url, collection)) = test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
 		return;
 	};
-	let mut config = test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let mut config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 
 	config.security.auth_mode = "static_keys".to_string();
 	config.security.auth_keys = vec![
@@ -760,7 +778,7 @@ async fn global_graph_predicate_write_requires_super_admin() {
 	let body = body::to_bytes(response_admin.into_body(), usize::MAX)
 		.await
 		.expect("Failed to read response body.");
-	let json: serde_json::Value = serde_json::from_slice(&body).expect("Failed to parse response.");
+	let json: Value = serde_json::from_slice(&body).expect("Failed to parse response.");
 
 	assert_eq!(json["error_code"], "SCOPE_DENIED");
 

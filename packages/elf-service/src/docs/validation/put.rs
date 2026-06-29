@@ -1,10 +1,8 @@
-use super::{
-	non_english::find_non_english_path,
-	source_ref::{
-		extract_source_ref_string, validate_doc_source_ref_requirements,
-		validate_source_library_metadata,
-	},
-	*,
+use crate::docs::validation::{
+	DEFAULT_DOC_MAX_BYTES, DocType, DocsPutRequest, Error, OffsetDateTime, Result, Rfc3339,
+	ValidatedDocsPut, english_gate, non_english,
+	source_ref::{self},
+	writegate,
 };
 
 pub(in crate::docs) fn validate_docs_put(req: &DocsPutRequest) -> Result<ValidatedDocsPut> {
@@ -21,11 +19,14 @@ pub(in crate::docs) fn validate_docs_put(req: &DocsPutRequest) -> Result<Validat
 	let source_ref = req.source_ref.as_object().ok_or_else(|| Error::InvalidRequest {
 		message: "source_ref must be a JSON object.".to_string(),
 	})?;
-	let source_ref_doc_type =
-		extract_source_ref_string(source_ref, "doc_type", "$.source_ref[\"doc_type\"]")?;
+	let source_ref_doc_type = source_ref::extract_source_ref_string(
+		source_ref,
+		"doc_type",
+		"$.source_ref[\"doc_type\"]",
+	)?;
 	let source_ref_doc_type = DocType::parse(&source_ref_doc_type)?;
 	let source_ref_schema =
-		extract_source_ref_string(source_ref, "schema", "$.source_ref[\"schema\"]")?;
+		source_ref::extract_source_ref_string(source_ref, "schema", "$.source_ref[\"schema\"]")?;
 
 	if source_ref_schema != "doc_source_ref/v1" {
 		return Err(Error::InvalidRequest {
@@ -33,7 +34,7 @@ pub(in crate::docs) fn validate_docs_put(req: &DocsPutRequest) -> Result<Validat
 		});
 	}
 
-	let ts = extract_source_ref_string(source_ref, "ts", "$.source_ref[\"ts\"]")?;
+	let ts = source_ref::extract_source_ref_string(source_ref, "ts", "$.source_ref[\"ts\"]")?;
 
 	OffsetDateTime::parse(ts.as_str(), &Rfc3339).map_err(|_| Error::InvalidRequest {
 		message: "$.source_ref[\"ts\"] must be an RFC3339 datetime string.".to_string(),
@@ -53,8 +54,8 @@ pub(in crate::docs) fn validate_docs_put(req: &DocsPutRequest) -> Result<Validat
 		source_ref_doc_type
 	};
 
-	validate_doc_source_ref_requirements(source_ref_doc_type.as_str(), source_ref)?;
-	validate_source_library_metadata(source_ref_doc_type.as_str(), source_ref)?;
+	source_ref::validate_doc_source_ref_requirements(source_ref_doc_type.as_str(), source_ref)?;
+	source_ref::validate_source_library_metadata(source_ref_doc_type.as_str(), source_ref)?;
 
 	let write_policy =
 		writegate::apply_write_policy(req.content.as_str(), req.write_policy.as_ref()).map_err(
@@ -76,7 +77,7 @@ pub(in crate::docs) fn validate_docs_put(req: &DocsPutRequest) -> Result<Validat
 		return Err(Error::InvalidRequest { message: "content contains secrets.".to_string() });
 	}
 
-	if let Some(found) = find_non_english_path(&req.source_ref, "$.source_ref") {
+	if let Some(found) = non_english::find_non_english_path(&req.source_ref, "$.source_ref") {
 		return Err(Error::NonEnglishInput { field: found });
 	}
 

@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use super::{super::value::FilterValue, FilterExpr};
+use crate::search::filter::{expr::FilterExpr, value::FilterValue};
 
 impl FilterExpr {
 	pub(in crate::search::filter) fn to_value(&self) -> Value {

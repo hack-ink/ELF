@@ -9,7 +9,7 @@ use color_eyre::{Result, eyre};
 
 use crate::{
 	args::{BackfillArgs, BenchmarkArgs, BenchmarkCommand, BenchmarkReportArgs, BenchmarkRunArgs},
-	json::write_json,
+	json,
 };
 
 pub(crate) fn run_backfill(args: BackfillArgs) -> Result<()> {
@@ -105,7 +105,7 @@ fn run_cargo_make(
 			"command": command,
 		});
 
-		return write_json(&output, pretty);
+		return json::write_json(&output, pretty);
 	}
 
 	let output = Command::new("cargo").arg("make").arg(task).envs(env.iter()).output()?;
@@ -122,7 +122,7 @@ fn run_cargo_make(
 		"success": output.status.success(),
 	});
 
-	write_json(&summary, pretty)?;
+	json::write_json(&summary, pretty)?;
 
 	if output.status.success() {
 		Ok(())

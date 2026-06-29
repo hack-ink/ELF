@@ -2,10 +2,9 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use serde_json::Value;
 
+use crate::{Error, Result};
 use elf_config::{EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
 use elf_providers::{embedding, extractor, rerank};
-
-use crate::{Error, Result};
 
 /// Boxed future type used by provider traits.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -60,7 +59,6 @@ pub struct Providers {
 	/// Structured extraction provider implementation.
 	pub extractor: Arc<dyn ExtractorProvider>,
 }
-
 impl Providers {
 	/// Builds a provider bundle from explicit provider implementations.
 	pub fn new(
@@ -81,7 +79,6 @@ impl Default for Providers {
 }
 
 struct DefaultProviders;
-
 impl EmbeddingProvider for DefaultProviders {
 	fn embed<'a>(
 		&'a self,

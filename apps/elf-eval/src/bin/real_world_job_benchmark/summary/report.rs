@@ -1,4 +1,8 @@
-use super::{super::formatting::trace_failure_stage, *};
+use crate::{
+	EvolutionSummary, FollowUpReport, JobReport, RealWorldJob, ReportSummary, SuiteReport,
+	TypedStatus, formatting,
+	summary::{self},
+};
 
 pub(super) fn report_summary_impl(jobs: &[JobReport], suites: &[SuiteReport]) -> ReportSummary {
 	let job_refs = jobs.iter().collect::<Vec<_>>();
@@ -38,12 +42,12 @@ pub(super) fn report_summary_impl(jobs: &[JobReport], suites: &[SuiteReport]) ->
 			.iter()
 			.map(|job| job.retrieval_quality.expected_evidence_matched)
 			.sum(),
-		expected_evidence_recall: expected_evidence_recall_for_jobs(&job_refs),
+		expected_evidence_recall: summary::expected_evidence_recall_for_jobs(&job_refs),
 		irrelevant_context_count: jobs
 			.iter()
 			.map(|job| job.retrieval_quality.irrelevant_context_count)
 			.sum(),
-		irrelevant_context_ratio: irrelevant_context_ratio_for_jobs(&job_refs),
+		irrelevant_context_ratio: summary::irrelevant_context_ratio_for_jobs(&job_refs),
 		trace_explainability_count: jobs
 			.iter()
 			.filter(|job| job.trace_explainability.is_some())
@@ -52,25 +56,25 @@ pub(super) fn report_summary_impl(jobs: &[JobReport], suites: &[SuiteReport]) ->
 			.iter()
 			.filter(|job| {
 				job.status == TypedStatus::WrongResult
-					&& trace_failure_stage(job.trace_explainability.as_ref()).is_some()
+					&& formatting::trace_failure_stage(job.trace_explainability.as_ref()).is_some()
 			})
 			.count(),
-		mean_score: mean_score(jobs),
-		mean_latency_ms: mean_latency(jobs),
-		total_cost: total_cost(jobs),
+		mean_score: summary::mean_score(jobs),
+		mean_latency_ms: summary::mean_latency(jobs),
+		total_cost: summary::total_cost(jobs),
 		evidence_required_count,
 		evidence_covered_count,
-		evidence_coverage: ratio(evidence_covered_count, evidence_required_count),
+		evidence_coverage: summary::ratio(evidence_covered_count, evidence_required_count),
 		source_ref_required_count,
 		source_ref_covered_count,
-		source_ref_coverage: ratio(source_ref_covered_count, source_ref_required_count),
+		source_ref_coverage: summary::ratio(source_ref_covered_count, source_ref_required_count),
 		quote_required_count,
 		quote_covered_count,
-		quote_coverage: ratio(quote_covered_count, quote_required_count),
+		quote_coverage: summary::ratio(quote_covered_count, quote_required_count),
 		stale_retrieval_count: jobs.iter().map(|job| job.stale_retrieval_count).sum(),
 		scope_check_count,
 		scope_correct_count,
-		scope_correctness: ratio(scope_correct_count, scope_check_count),
+		scope_correctness: summary::ratio(scope_correct_count, scope_check_count),
 		scope_violation_count: jobs.iter().map(|job| job.scope_violation_count).sum(),
 		redaction_leak_count: jobs.iter().map(|job| job.redaction_leak_count).sum(),
 		qdrant_rebuild_case_count: jobs.iter().filter(|job| job.qdrant_rebuild_case).count(),
@@ -94,12 +98,12 @@ pub(super) fn report_summary_impl(jobs: &[JobReport], suites: &[SuiteReport]) ->
 			.filter_map(|job| job.operator_debug.as_ref())
 			.map(|debug| debug.ux_gaps.len())
 			.sum(),
-		consolidation: consolidation_summary(jobs),
-		memory_summary: memory_summary_summary(jobs),
-		proactive_brief: proactive_brief_summary(jobs),
-		scheduled_memory: scheduled_memory_summary(jobs),
-		work_continuity: work_continuity_summary(jobs),
-		knowledge: knowledge_summary(jobs),
+		consolidation: summary::consolidation_summary(jobs),
+		memory_summary: summary::memory_summary_summary(jobs),
+		proactive_brief: summary::proactive_brief_summary(jobs),
+		scheduled_memory: summary::scheduled_memory_summary(jobs),
+		work_continuity: summary::work_continuity_summary(jobs),
+		knowledge: summary::knowledge_summary(jobs),
 		..ReportSummary::default()
 	};
 

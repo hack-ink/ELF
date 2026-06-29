@@ -1,7 +1,6 @@
 //! Source-adjacent Work Journal capture and readback APIs.
 
 mod service;
-#[cfg(test)] mod tests;
 mod types;
 mod validation;
 
@@ -10,3 +9,5 @@ pub use types::{
 	WorkJournalEntryFamily, WorkJournalEntryGetRequest, WorkJournalEntryResponse,
 	WorkJournalSessionReadbackRequest, WorkJournalSessionReadbackResponse, WorkJournalWhereStopped,
 };
+
+#[cfg(test)] mod tests;

@@ -1,4 +1,8 @@
-use super::*;
+use crate::docs::{
+	self, BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, DocSearchRow, DocsSparseMode, Document,
+	Error, Filter, Fusion, HashMap, ORG_PROJECT_ID, PgExecutor, PrefetchQueryBuilder, Qdrant,
+	Query, QueryPointsBuilder, Result, ScoredPoint, Uuid,
+};
 
 pub(super) async fn run_doc_fusion_query(
 	client: &Qdrant,
@@ -9,7 +13,7 @@ pub(super) async fn run_doc_fusion_query(
 	sparse_mode: DocsSparseMode,
 	candidate_k: u32,
 ) -> Result<Vec<ScoredPoint>> {
-	let sparse_enabled = docs_search_sparse_enabled(sparse_mode, query_text);
+	let sparse_enabled = docs::docs_search_sparse_enabled(sparse_mode, query_text);
 	let dense_prefetch = PrefetchQueryBuilder::default()
 		.query(Query::new_nearest(vector.to_vec()))
 		.using(DENSE_VECTOR_NAME)

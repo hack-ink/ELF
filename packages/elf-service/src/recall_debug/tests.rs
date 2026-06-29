@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
+use serde_json::Value;
 use time::OffsetDateTime;
 
 use crate::{
@@ -273,7 +274,7 @@ fn compact_replay_source_refs(
 	])
 }
 
-fn assert_compact_replay_artifact(artifact: &serde_json::Value) {
+fn assert_compact_replay_artifact(artifact: &Value) {
 	assert_eq!(
 		artifact.pointer("/schema").and_then(serde_json::Value::as_str),
 		Some("elf.recall_debug.compact_replay/v1")

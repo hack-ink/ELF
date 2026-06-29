@@ -1,15 +1,15 @@
 use color_eyre::Result;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
-use super::{
+use crate::{
 	RUN_SCHEMA,
 	cli::RunArgs,
-	decision::{decide_project, summarize_decisions},
-	github::{github_client, observe_project},
-	io::{read_cursor, write_json, write_text},
-	render::render_summary,
+	decision::{self},
+	github::{self},
+	io::{self},
+	render,
 	types::RadarRun,
-	validation::validate_cursor,
+	validation,
 };
 
 pub(super) async fn run_radar(args: RunArgs) -> Result<()> {
@@ -17,20 +17,21 @@ pub(super) async fn run_radar(args: RunArgs) -> Result<()> {
 	let generated_at = format_rfc3339(now)?;
 	let run_id =
 		args.run_id.unwrap_or_else(|| format!("external-memory-pattern-radar-{}", now.date()));
-	let client = github_client(&args.github_token_env)?;
-	let mut cursor = read_cursor(&args.cursor)?;
+	let client = github::github_client(&args.github_token_env)?;
+	let mut cursor = io::read_cursor(&args.cursor)?;
 	let mut decisions = Vec::with_capacity(cursor.projects.len());
 
 	for project in &mut cursor.projects {
 		let prior = project.last_seen.clone();
-		let observed = observe_project(project, args.mode, client.as_ref(), &generated_at).await?;
+		let observed =
+			github::observe_project(project, args.mode, client.as_ref(), &generated_at).await?;
 
-		decisions.push(decide_project(project, prior.as_ref(), &observed, args.mode));
+		decisions.push(decision::decide_project(project, prior.as_ref(), &observed, args.mode));
 
 		project.last_seen = Some(observed);
 	}
 
-	let summary = summarize_decisions(&decisions);
+	let summary = decision::summarize_decisions(&decisions);
 
 	cursor.generated_at = generated_at.clone();
 	cursor.last_run = Some(RadarRun {
@@ -42,12 +43,12 @@ pub(super) async fn run_radar(args: RunArgs) -> Result<()> {
 		decisions,
 	});
 
-	validate_cursor(&cursor)?;
+	validation::validate_cursor(&cursor)?;
 
 	let out_cursor = args.out_cursor.unwrap_or(args.cursor);
 
-	write_json(&out_cursor, &cursor)?;
-	write_text(&args.summary, &render_summary(&cursor)?)?;
+	io::write_json(&out_cursor, &cursor)?;
+	io::write_text(&args.summary, &render::render_summary(&cursor)?)?;
 
 	Ok(())
 }

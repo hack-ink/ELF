@@ -1,6 +1,6 @@
 use color_eyre::{Result, eyre};
 
-use super::types::RadarCursor;
+use crate::types::RadarCursor;
 
 pub(super) fn render_summary(cursor: &RadarCursor) -> Result<String> {
 	let run = cursor.last_run.as_ref().ok_or_else(|| eyre::eyre!("cursor has no last_run"))?;

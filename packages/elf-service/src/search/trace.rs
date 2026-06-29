@@ -1,4 +1,18 @@
-use super::*;
+use crate::{
+	Error,
+	search::{
+		self, DEFAULT_BOUNDED_CANDIDATES_LIMIT, DEFAULT_BOUNDED_STAGE_ITEMS_LIMIT,
+		DEFAULT_FULL_CANDIDATES_LIMIT, DEFAULT_FULL_STAGE_ITEMS_LIMIT, DEFAULT_RECENT_TRACES_LIMIT,
+		ElfService, MAX_RECENT_TRACES_LIMIT, MAX_TRACE_BUNDLE_CANDIDATES_LIMIT,
+		MAX_TRACE_BUNDLE_ITEMS_LIMIT, OffsetDateTime, RECENT_TRACES_SCHEMA_V1, RecentTraceHeader,
+		Result, SearchExplain, SearchExplainItem, SearchExplainRequest, SearchExplainResponse,
+		SearchExplainTraceRow, SearchRecentTraceRow, SearchTrace, SearchTraceItemRow,
+		SearchTraceRow, SearchTrajectoryResponse, TRACE_BUNDLE_SCHEMA_V1, TraceBundleGetRequest,
+		TraceBundleMode, TraceBundleResponse, TraceCandidateSnapshotRow, TraceGetRequest,
+		TraceGetResponse, TraceRecentCursor, TraceRecentListRequest, TraceRecentListResponse,
+		TraceTrajectoryGetRequest, ranking,
+	},
+};
 
 impl ElfService {
 	/// Loads the explain payload for one result handle.
@@ -7,7 +21,7 @@ impl ElfService {
 		let project_id = req.project_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
@@ -45,7 +59,7 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "Unknown result_handle or trace not yet persisted.".to_string(),
 			});
 		};
@@ -78,7 +92,7 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 			rank: row.rank as u32,
 			explain,
 		};
-		let trajectory = load_item_trajectory(
+		let trajectory = search::load_item_trajectory(
 			&self.db.pool,
 			row.trace_id,
 			row.item_id,
@@ -96,12 +110,10 @@ WHERE i.item_id = $1 AND t.tenant_id = $2 AND t.project_id = $3",
 		let project_id = req.project_id.trim();
 
 		if req.agent_id.trim().is_empty() {
-			return Err(crate::Error::InvalidRequest {
-				message: "agent_id is required.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
 		}
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
@@ -132,7 +144,7 @@ WHERE trace_id = $1 AND tenant_id = $2 AND project_id = $3",
 		.fetch_optional(&self.db.pool)
 		.await?;
 		let Some(row) = row else {
-			return Err(crate::Error::InvalidRequest { message: "Unknown trace_id.".to_string() });
+			return Err(Error::InvalidRequest { message: "Unknown trace_id.".to_string() });
 		};
 		let expanded_queries: Vec<String> =
 			ranking::decode_json(row.expanded_queries, "expanded_queries")?;
@@ -184,7 +196,8 @@ ORDER BY rank ASC",
 			});
 		}
 
-		let trajectory_summary = load_trace_trajectory_summary(&self.db.pool, req.trace_id).await?;
+		let trajectory_summary =
+			search::load_trace_trajectory_summary(&self.db.pool, req.trace_id).await?;
 
 		Ok(TraceGetResponse { trace, items, trajectory_summary })
 	}
@@ -202,8 +215,8 @@ ORDER BY rank ASC",
 				trace_id: req.trace_id,
 			})
 			.await?;
-		let stages = load_trace_trajectory_stages(&self.db.pool, req.trace_id).await?;
-		let trajectory = build_trajectory_summary_from_stages(stages.as_slice());
+		let stages = search::load_trace_trajectory_stages(&self.db.pool, req.trace_id).await?;
+		let trajectory = search::build_trajectory_summary_from_stages(stages.as_slice());
 
 		Ok(SearchTrajectoryResponse { trace: base.trace, trajectory, stages })
 	}
@@ -223,23 +236,21 @@ ORDER BY rank ASC",
 		let limit = req.limit.unwrap_or(DEFAULT_RECENT_TRACES_LIMIT);
 
 		if cursor_created_at.is_some() != cursor_trace_id.is_some() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "cursor_created_at and cursor_trace_id must be both set or both omitted."
 					.to_string(),
 			});
 		}
 		if caller_agent_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
-				message: "agent_id is required.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
 		}
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
 		if limit == 0 || limit > MAX_RECENT_TRACES_LIMIT {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: format!("limit must be between 1 and {MAX_RECENT_TRACES_LIMIT}."),
 			});
 		}
@@ -247,7 +258,7 @@ ORDER BY rank ASC",
 		if let (Some(created_after), Some(created_before)) = (req.created_after, req.created_before)
 			&& created_after >= created_before
 		{
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "created_after must be before created_before.".to_string(),
 			});
 		}
@@ -332,12 +343,10 @@ LIMIT $9
 		let project_id = req.project_id.trim();
 
 		if req.agent_id.trim().is_empty() {
-			return Err(crate::Error::InvalidRequest {
-				message: "agent_id is required.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "agent_id is required.".to_string() });
 		}
 		if tenant_id.is_empty() || project_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id and project_id are required.".to_string(),
 			});
 		}
@@ -366,7 +375,7 @@ LIMIT $9
 			.candidates_limit
 			.unwrap_or(default_candidates_limit)
 			.min(MAX_TRACE_BUNDLE_CANDIDATES_LIMIT);
-		let mut stages = load_trace_trajectory_stages(&self.db.pool, req.trace_id).await?;
+		let mut stages = search::load_trace_trajectory_stages(&self.db.pool, req.trace_id).await?;
 
 		for stage in stages.iter_mut() {
 			stage.items.truncate(stage_items_limit as usize);

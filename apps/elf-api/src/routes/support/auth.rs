@@ -1,7 +1,11 @@
-use super::{
-	super::*,
-	errors::{ApiError, json_error},
-	request_id::{parse_request_id_from_headers, with_request_id},
+use crate::routes::{
+	AppState, Body, HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
+	HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID, HeaderMap, IntoResponse, Next, Request, Response,
+	SecurityAuthKey, SecurityAuthRole, State, StatusCode, Uuid,
+	support::{
+		errors::{self, ApiError},
+		request_id,
+	},
 };
 
 pub(in super::super) fn trusted_token_id(headers: &HeaderMap) -> Option<String> {
@@ -36,11 +40,21 @@ pub(in super::super) fn resolve_auth_key<'a>(
 	auth_keys: &'a [SecurityAuthKey],
 ) -> Result<&'a SecurityAuthKey, ApiError> {
 	let token = bearer_token(headers).ok_or_else(|| {
-		json_error(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Authentication required.", None)
+		errors::json_error(
+			StatusCode::UNAUTHORIZED,
+			"UNAUTHORIZED",
+			"Authentication required.",
+			None,
+		)
 	})?;
 
 	auth_keys.iter().find(|key| key.token == token).ok_or_else(|| {
-		json_error(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", "Authentication required.", None)
+		errors::json_error(
+			StatusCode::UNAUTHORIZED,
+			"UNAUTHORIZED",
+			"Authentication required.",
+			None,
+		)
 	})
 }
 
@@ -50,7 +64,7 @@ pub(in super::super) fn set_context_header(
 	value: &str,
 ) -> Result<(), ApiError> {
 	let header_value = value.parse().map_err(|_| {
-		json_error(
+		errors::json_error(
 			StatusCode::INTERNAL_SERVER_ERROR,
 			"INTERNAL_ERROR",
 			format!("Invalid configured auth context for {name}."),
@@ -68,7 +82,12 @@ pub(in super::super) fn apply_auth_key_context(
 	key: &SecurityAuthKey,
 ) -> Result<(), ApiError> {
 	let agent_id = key.agent_id.as_deref().ok_or_else(|| {
-		json_error(StatusCode::FORBIDDEN, "FORBIDDEN", "Token is not scoped to an agent_id.", None)
+		errors::json_error(
+			StatusCode::FORBIDDEN,
+			"FORBIDDEN",
+			"Token is not scoped to an agent_id.",
+			None,
+		)
 	})?;
 
 	set_context_header(headers, HEADER_TENANT_ID, key.tenant_id.as_str())?;
@@ -91,7 +110,7 @@ pub(in super::super) fn require_admin_for_org_shared_writes(
 		return Ok(());
 	}
 
-	Err(json_error(StatusCode::FORBIDDEN, "FORBIDDEN", "Admin token required.", None))
+	Err(errors::json_error(StatusCode::FORBIDDEN, "FORBIDDEN", "Admin token required.", None))
 }
 
 pub(in super::super) async fn api_auth_middleware(
@@ -100,9 +119,9 @@ pub(in super::super) async fn api_auth_middleware(
 	next: Next,
 ) -> Response {
 	let security = &state.service.cfg.security;
-	let request_id = match parse_request_id_from_headers(req.headers()) {
+	let request_id = match request_id::parse_request_id_from_headers(req.headers()) {
 		Ok(request_id) => request_id,
-		Err(err) => return with_request_id(err.into_response(), Uuid::new_v4()).await,
+		Err(err) => return request_id::with_request_id(err.into_response(), Uuid::new_v4()).await,
 	};
 	let mut req = req;
 
@@ -113,18 +132,19 @@ pub(in super::super) async fn api_auth_middleware(
 		"static_keys" => {
 			let key = match resolve_auth_key(req.headers(), &security.auth_keys) {
 				Ok(key) => key,
-				Err(err) => return with_request_id(err.into_response(), request_id).await,
+				Err(err) =>
+					return request_id::with_request_id(err.into_response(), request_id).await,
 			};
 
 			req.extensions_mut().insert(key.role);
 
 			if let Err(err) = apply_auth_key_context(req.headers_mut(), key) {
-				return with_request_id(err.into_response(), request_id).await;
+				return request_id::with_request_id(err.into_response(), request_id).await;
 			}
 
 			next.run(req).await
 		},
-		_ => json_error(
+		_ => errors::json_error(
 			StatusCode::INTERNAL_SERVER_ERROR,
 			"INTERNAL_ERROR",
 			"Invalid security.auth_mode configuration.",
@@ -133,7 +153,7 @@ pub(in super::super) async fn api_auth_middleware(
 		.into_response(),
 	};
 
-	with_request_id(response, request_id).await
+	request_id::with_request_id(response, request_id).await
 }
 
 pub(in super::super) async fn admin_auth_middleware(
@@ -142,9 +162,9 @@ pub(in super::super) async fn admin_auth_middleware(
 	next: Next,
 ) -> Response {
 	let security = &state.service.cfg.security;
-	let request_id = match parse_request_id_from_headers(req.headers()) {
+	let request_id = match request_id::parse_request_id_from_headers(req.headers()) {
 		Ok(request_id) => request_id,
-		Err(err) => return with_request_id(err.into_response(), Uuid::new_v4()).await,
+		Err(err) => return request_id::with_request_id(err.into_response(), Uuid::new_v4()).await,
 	};
 	let mut req = req;
 
@@ -155,27 +175,33 @@ pub(in super::super) async fn admin_auth_middleware(
 		"static_keys" => {
 			let key = match resolve_auth_key(req.headers(), &security.auth_keys) {
 				Ok(key) => key,
-				Err(err) => return with_request_id(err.into_response(), request_id).await,
+				Err(err) =>
+					return request_id::with_request_id(err.into_response(), request_id).await,
 			};
 
 			req.extensions_mut().insert(key.role);
 
 			if !matches!(key.role, SecurityAuthRole::Admin | SecurityAuthRole::SuperAdmin) {
-				return with_request_id(
-					json_error(StatusCode::FORBIDDEN, "FORBIDDEN", "Admin token required.", None)
-						.into_response(),
+				return request_id::with_request_id(
+					errors::json_error(
+						StatusCode::FORBIDDEN,
+						"FORBIDDEN",
+						"Admin token required.",
+						None,
+					)
+					.into_response(),
 					request_id,
 				)
 				.await;
 			}
 
 			if let Err(err) = apply_auth_key_context(req.headers_mut(), key) {
-				return with_request_id(err.into_response(), request_id).await;
+				return request_id::with_request_id(err.into_response(), request_id).await;
 			}
 
 			next.run(req).await
 		},
-		_ => json_error(
+		_ => errors::json_error(
 			StatusCode::INTERNAL_SERVER_ERROR,
 			"INTERNAL_ERROR",
 			"Invalid security.auth_mode configuration.",
@@ -184,5 +210,5 @@ pub(in super::super) async fn admin_auth_middleware(
 		.into_response(),
 	};
 
-	with_request_id(response, request_id).await
+	request_id::with_request_id(response, request_id).await
 }

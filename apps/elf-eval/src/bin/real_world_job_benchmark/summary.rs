@@ -1,5 +1,3 @@
-use super::*;
-
 #[path = "summary/consolidation.rs"] mod consolidation;
 #[path = "summary/knowledge.rs"] mod knowledge;
 #[path = "summary/memory.rs"] mod memory;
@@ -9,6 +7,13 @@ use super::*;
 #[path = "summary/scheduled.rs"] mod scheduled;
 #[path = "summary/suites.rs"] mod suites;
 #[path = "summary/work.rs"] mod work;
+
+use crate::{
+	ConsolidationSummaryReport, CostReport, EvolutionSummary, FollowUpReport, JobReport,
+	KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport, RealWorldJob,
+	ReportSummary, ScheduledMemorySummaryReport, SuiteReport, TypedStatus,
+	WorkContinuitySummaryReport,
+};
 
 pub(super) fn suite_reports(jobs: &[JobReport]) -> Vec<SuiteReport> {
 	suites::suite_reports_impl(jobs)

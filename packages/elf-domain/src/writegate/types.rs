@@ -1,4 +1,4 @@
-use super::*;
+use crate::writegate::{Deserialize, Serialize};
 
 /// Reasons a note can be rejected by the write gate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -1,9 +1,17 @@
-use super::*;
+use crate::{
+	access, graph_query,
+	graph_report::{
+		self, ELF_GRAPH_REPORT_SCHEMA_V1, ElfService, GraphReportEntity, GraphReportExplain,
+		GraphReportPredicate, GraphReportRequest, GraphReportResponse, GraphReportRowsFetchParams,
+		Result,
+	},
+	search,
+};
 
 impl ElfService {
 	/// Builds a source-backed graph report for one subject entity.
 	pub async fn graph_report(&self, req: GraphReportRequest) -> Result<GraphReportResponse> {
-		let prepared = validate_graph_report_request(req)?;
+		let prepared = graph_report::validate_graph_report_request(req)?;
 		let allowed_scopes =
 			search::resolve_read_profile_scopes(&self.cfg, prepared.read_profile.as_str())?;
 		let effective_scopes = graph_query::resolve_effective_scopes(
@@ -12,10 +20,14 @@ impl ElfService {
 		)?;
 		let org_shared_allowed = allowed_scopes.iter().any(|scope| scope.trim() == "org_shared");
 		let mut conn = self.db.pool.acquire().await?;
-		let subject =
-			resolve_subject(&mut conn, &prepared.tenant_id, &prepared.project_id, prepared.subject)
-				.await?;
-		let predicate = resolve_predicate(
+		let subject = graph_report::resolve_subject(
+			&mut conn,
+			&prepared.tenant_id,
+			&prepared.project_id,
+			prepared.subject,
+		)
+		.await?;
+		let predicate = graph_report::resolve_predicate(
 			&mut conn,
 			&prepared.tenant_id,
 			&prepared.project_id,
@@ -35,7 +47,7 @@ impl ElfService {
 			.map(|item| format!("{}:{}", item.scope, item.space_owner_agent_id))
 			.collect();
 		let predicate_id = predicate.as_ref().map(|predicate| predicate.id);
-		let rows = fetch_graph_report_rows(
+		let rows = graph_report::fetch_graph_report_rows(
 			&mut conn,
 			GraphReportRowsFetchParams {
 				tenant_id: prepared.tenant_id.as_str(),
@@ -50,10 +62,10 @@ impl ElfService {
 		)
 		.await?;
 		let queried_rows = rows.len();
-		let (rows, truncated) = truncate_report_rows(rows, prepared.limit);
-		let facts = build_report_facts(rows, prepared.as_of);
-		let summary = summarize_report_facts(&facts);
-		let topic_map = build_topic_map(&subject, &facts);
+		let (rows, truncated) = graph_report::truncate_report_rows(rows, prepared.limit);
+		let facts = graph_report::build_report_facts(rows, prepared.as_of);
+		let summary = graph_report::summarize_report_facts(&facts);
+		let topic_map = graph_report::build_topic_map(&subject, &facts);
 		let explain = if prepared.explain {
 			Some(GraphReportExplain {
 				schema: ELF_GRAPH_REPORT_SCHEMA_V1.to_string(),

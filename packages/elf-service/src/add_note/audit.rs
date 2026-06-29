@@ -1,9 +1,9 @@
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use super::types::{AddNoteContext, AddNoteInput};
 use crate::{
 	NoteOp, Result,
+	add_note::types::{AddNoteContext, AddNoteInput},
 	ingest_audit::{self, IngestAuditArgs},
 	structured_fields::StructuredFields,
 };

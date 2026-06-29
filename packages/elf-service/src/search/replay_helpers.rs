@@ -1,4 +1,12 @@
-use super::*;
+use crate::{
+	ranking_explain_v2,
+	search::{
+		Config, DiversityDecision, HashMap, NormalizationKind, Ordering, ResolvedBlendPolicy,
+		ResolvedDiversityPolicy, SEARCH_RANKING_EXPLAIN_SCHEMA_V2, ScoreCandidateCtx, ScoredReplay,
+		SearchExplain, SearchMatchExplain, SearchRankingExplain, TraceReplayCandidate,
+		TraceReplayItem, TraceTermsArgs, Uuid, ranking,
+	},
+};
 
 pub(super) fn score_replay_candidate(
 	ctx: &ScoreCandidateCtx<'_, '_>,

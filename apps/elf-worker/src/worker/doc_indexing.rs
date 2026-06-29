@@ -1,4 +1,9 @@
-use super::*;
+use crate::worker::{
+	self, BM25_MODEL, BM25_VECTOR_NAME, Condition, DENSE_VECTOR_NAME, Db, DeletePointsBuilder,
+	DocChunkIndexRow, DocIndexingOutboxEntry, Document, Error, Filter, HashMap, Payload,
+	PointStruct, Result, ToString, UpsertPointsBuilder, Uuid, Value, Vector, WorkerState, docs,
+	embedding, slice,
+};
 
 pub(super) async fn fetch_doc_chunk_index_row(
 	db: &Db,
@@ -70,10 +75,10 @@ pub(super) async fn handle_doc_upsert(
 		.first()
 		.ok_or_else(|| Error::Validation("Embedding provider returned no vectors.".to_string()))?;
 
-	validate_vector_dim(vector, state.docs_qdrant.vector_dim)?;
+	worker::validate_vector_dim(vector, state.docs_qdrant.vector_dim)?;
 
 	{
-		let vec_text = format_vector_text(vector);
+		let vec_text = worker::format_vector_text(vector);
 		let mut tx = state.db.pool.begin().await?;
 
 		docs::insert_doc_chunk_embedding(
@@ -113,7 +118,7 @@ pub(super) async fn upsert_qdrant_doc_chunk(
 	vec: &[f32],
 ) -> Result<()> {
 	let (doc_ts, thread_id, domain, repo) =
-		project_doc_ref_fields(&row.source_ref, row.created_at, row.doc_type.as_str())?;
+		worker::project_doc_ref_fields(&row.source_ref, row.created_at, row.doc_type.as_str())?;
 	let mut payload = Payload::new();
 
 	payload.insert("doc_id", row.doc_id.to_string());
@@ -128,7 +133,7 @@ pub(super) async fn upsert_qdrant_doc_chunk(
 	payload.insert("doc_type", row.doc_type.clone());
 	payload.insert("status", row.status.clone());
 
-	let updated_at = format_timestamp(row.updated_at)?;
+	let updated_at = worker::format_timestamp(row.updated_at)?;
 
 	payload.insert("updated_at", Value::String(updated_at));
 	payload.insert("doc_ts", Value::String(doc_ts));

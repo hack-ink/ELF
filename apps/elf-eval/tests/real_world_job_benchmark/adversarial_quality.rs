@@ -1,4 +1,9 @@
-use super::*;
+use std::{env, fs, path::Path, process};
+
+use color_eyre::Result;
+use serde_json::Value;
+
+use crate::support;
 
 #[test]
 fn adversarial_quality_fixture_catches_unsupported_and_stale_regressions() -> Result<()> {
@@ -14,10 +19,11 @@ fn adversarial_quality_fixture_catches_unsupported_and_stale_regressions() -> Re
 }
 
 fn assert_stale_regression_is_wrong_result(temp_dir: &Path) -> Result<()> {
-	let stale_fixture = adversarial_quality_fixture_dir().join("stale_fact_current_answer.json");
-	let mut stale = load_json(&stale_fixture)?;
+	let stale_fixture =
+		support::adversarial_quality_fixture_dir().join("stale_fact_current_answer.json");
+	let mut stale = support::load_json(&stale_fixture)?;
 
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut stale,
 		"/corpus/adapter_response/answer/content",
 		Value::String(
@@ -25,12 +31,12 @@ fn assert_stale_regression_is_wrong_result(temp_dir: &Path) -> Result<()> {
 				.to_string(),
 		),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut stale,
 		"/corpus/adapter_response/answer/evidence_ids",
 		serde_json::json!(["stale-ops-runbook-v1"]),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut stale,
 		"/corpus/adapter_response/answer/claims",
 		serde_json::json!([
@@ -42,13 +48,15 @@ fn assert_stale_regression_is_wrong_result(temp_dir: &Path) -> Result<()> {
 			}
 		]),
 	)?;
-
 	fs::write(temp_dir.join("stale_regression.json"), serde_json::to_vec_pretty(&stale)?)?;
 
-	let stale_report = run_json_report_from(temp_dir.to_path_buf())?;
-	let stale_jobs = array_at(&stale_report, "/jobs")?;
-	let stale_job =
-		find_by_field(stale_jobs, "/job_id", "adversarial-quality-stale-fact-current-answer-001")?;
+	let stale_report = support::run_json_report_from(temp_dir.to_path_buf())?;
+	let stale_jobs = support::array_at(&stale_report, "/jobs")?;
+	let stale_job = support::find_by_field(
+		stale_jobs,
+		"/job_id",
+		"adversarial-quality-stale-fact-current-answer-001",
+	)?;
 
 	assert_eq!(stale_job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(stale_job.pointer("/stale_answer_count").and_then(Value::as_u64), Some(1));
@@ -68,12 +76,12 @@ fn assert_stale_regression_is_wrong_result(temp_dir: &Path) -> Result<()> {
 		stale_report.pointer("/scoreboard/typed_non_pass_count").and_then(Value::as_u64),
 		Some(241)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&stale_report,
 		"/scoreboard/typed_non_pass_states_present",
 		"wrong_result"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&stale_report,
 		"/scoreboard/job_typed_non_pass_states_present",
 		"wrong_result"
@@ -86,10 +94,10 @@ fn assert_stale_regression_is_wrong_result(temp_dir: &Path) -> Result<()> {
 
 fn assert_unsupported_regression_is_unsupported_claim(temp_dir: &Path) -> Result<()> {
 	let unsupported_fixture =
-		adversarial_quality_fixture_dir().join("unsupported_claim_refusal.json");
-	let mut unsupported = load_json(&unsupported_fixture)?;
+		support::adversarial_quality_fixture_dir().join("unsupported_claim_refusal.json");
+	let mut unsupported = support::load_json(&unsupported_fixture)?;
 
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut unsupported,
 		"/corpus/adapter_response/answer/content",
 		Value::String(
@@ -97,12 +105,12 @@ fn assert_unsupported_regression_is_unsupported_claim(temp_dir: &Path) -> Result
 				.to_string(),
 		),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut unsupported,
 		"/corpus/adapter_response/answer/evidence_ids",
 		serde_json::json!(["unsupported-production-quality-trap"]),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut unsupported,
 		"/corpus/adapter_response/answer/claims",
 		serde_json::json!([
@@ -114,15 +122,14 @@ fn assert_unsupported_regression_is_unsupported_claim(temp_dir: &Path) -> Result
 			}
 		]),
 	)?;
-
 	fs::write(
 		temp_dir.join("unsupported_regression.json"),
 		serde_json::to_vec_pretty(&unsupported)?,
 	)?;
 
-	let unsupported_report = run_json_report_from(temp_dir.to_path_buf())?;
-	let unsupported_jobs = array_at(&unsupported_report, "/jobs")?;
-	let unsupported_job = find_by_field(
+	let unsupported_report = support::run_json_report_from(temp_dir.to_path_buf())?;
+	let unsupported_jobs = support::array_at(&unsupported_report, "/jobs")?;
+	let unsupported_job = support::find_by_field(
 		unsupported_jobs,
 		"/job_id",
 		"adversarial-quality-unsupported-claim-refusal-001",
@@ -136,12 +143,12 @@ fn assert_unsupported_regression_is_unsupported_claim(temp_dir: &Path) -> Result
 		unsupported_report.pointer("/summary/unsupported_claim").and_then(Value::as_u64),
 		Some(1)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&unsupported_report,
 		"/scoreboard/typed_non_pass_states_present",
 		"unsupported_claim"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&unsupported_report,
 		"/scoreboard/job_typed_non_pass_states_present",
 		"unsupported_claim"
@@ -152,8 +159,8 @@ fn assert_unsupported_regression_is_unsupported_claim(temp_dir: &Path) -> Result
 
 #[test]
 fn adversarial_quality_repeated_fixture_run_is_deterministic() -> Result<()> {
-	let first = run_json_report_from(adversarial_quality_fixture_dir())?;
-	let second = run_json_report_from(adversarial_quality_fixture_dir())?;
+	let first = support::run_json_report_from(support::adversarial_quality_fixture_dir())?;
+	let second = support::run_json_report_from(support::adversarial_quality_fixture_dir())?;
 
 	assert_eq!(first.pointer("/scoreboard"), second.pointer("/scoreboard"));
 	assert_eq!(first.pointer("/summary"), second.pointer("/summary"));

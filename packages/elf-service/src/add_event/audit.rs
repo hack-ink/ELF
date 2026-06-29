@@ -1,9 +1,9 @@
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use super::types::{AddEventContext, ExtractedNote};
 use crate::{
 	NoteOp, Result,
+	add_event::types::{AddEventContext, ExtractedNote},
 	ingest_audit::{self, IngestAuditArgs},
 };
 use elf_config::Config;

@@ -1,4 +1,6 @@
-use super::super::*;
+use crate::search::{
+	ChunkSnippet, Config, HashMap, OffsetDateTime, ResolvedBlendPolicy, SearchCache, Uuid,
+};
 
 pub(in crate::search) struct ScoreSnippetArgs<'a, 'k> {
 	pub(in crate::search) query: &'a str,

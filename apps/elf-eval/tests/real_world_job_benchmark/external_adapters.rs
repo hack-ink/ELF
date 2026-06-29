@@ -7,11 +7,11 @@ use std::{
 use color_eyre::{Result, eyre};
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn real_world_report_includes_external_adapter_coverage_manifest() -> Result<()> {
-	let report = run_json_report_from(real_world_memory_fixture_dir())?;
+	let report = support::run_json_report_from(support::real_world_memory_fixture_dir())?;
 
 	assert_external_adapter_manifest_summary(&report);
 	assert_external_adapter_manifest_records(&report)?;
@@ -38,8 +38,12 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		})
 		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
 
-	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
-	set_json_pointer(adapter, "/scenarios/0/comparison_outcome", serde_json::json!("loss"))?;
+	support::set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+	support::set_json_pointer(
+		adapter,
+		"/scenarios/0/comparison_outcome",
+		serde_json::json!("loss"),
+	)?;
 
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-loss-manifest-test-{}", process::id()));
@@ -53,7 +57,7 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
 		.arg("run")
 		.arg("--fixtures")
-		.arg(fixture_dir())
+		.arg(support::fixture_dir())
 		.arg("--external-adapter-manifest")
 		.arg(&manifest_path)
 		.output()?;
@@ -91,8 +95,8 @@ fn external_adapter_run_summarizes_nonzero_scenario_losses() -> Result<()> {
 		Some(18)
 	);
 
-	let adapters = array_at(&report, "/external_adapters/adapters")?;
-	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
+	let adapters = support::array_at(&report, "/external_adapters/adapters")?;
+	let agentmemory = support::find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
 
 	assert_eq!(
 		agentmemory.pointer("/scenarios/0/elf_position").and_then(Value::as_str),
@@ -347,26 +351,30 @@ fn assert_external_adapter_manifest_scenario_summary(report: &Value) {
 }
 
 fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
-	let adapters = array_at(report, "/external_adapters/adapters")?;
-	let elf = find_by_field(adapters, "/adapter_id", "elf_real_world_memory_fixture")?;
-	let elf_live = find_by_field(adapters, "/adapter_id", "elf_live_real_world")?;
-	let elf_operator_debug = find_by_field(adapters, "/adapter_id", "elf_operator_debug_live")?;
-	let qmd = find_by_field(adapters, "/adapter_id", "qmd_live_baseline")?;
-	let qmd_live = find_by_field(adapters, "/adapter_id", "qmd_live_real_world")?;
-	let qmd_operator_debug = find_by_field(adapters, "/adapter_id", "qmd_operator_debug_live")?;
-	let agentmemory = find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
-	let mem0 = find_by_field(adapters, "/adapter_id", "mem0_openmemory_live_baseline")?;
-	let memsearch = find_by_field(adapters, "/adapter_id", "memsearch_live_baseline")?;
-	let openviking = find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
-	let claude_mem = find_by_field(adapters, "/adapter_id", "claude_mem_live_baseline")?;
-	let ragflow = find_by_field(adapters, "/adapter_id", "ragflow_research_gate")?;
-	let lightrag = find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
-	let graphrag = find_by_field(adapters, "/adapter_id", "graphrag_research_gate")?;
-	let graphiti_zep = find_by_field(adapters, "/adapter_id", "graphiti_zep_research_gate")?;
-	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
-	let qmd_deep = find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
-	let openviking_deep = find_by_field(adapters, "/adapter_id", "openviking_deep_profile_gate")?;
-	let letta = find_by_field(adapters, "/adapter_id", "letta_research_gate")?;
+	let adapters = support::array_at(report, "/external_adapters/adapters")?;
+	let elf = support::find_by_field(adapters, "/adapter_id", "elf_real_world_memory_fixture")?;
+	let elf_live = support::find_by_field(adapters, "/adapter_id", "elf_live_real_world")?;
+	let elf_operator_debug =
+		support::find_by_field(adapters, "/adapter_id", "elf_operator_debug_live")?;
+	let qmd = support::find_by_field(adapters, "/adapter_id", "qmd_live_baseline")?;
+	let qmd_live = support::find_by_field(adapters, "/adapter_id", "qmd_live_real_world")?;
+	let qmd_operator_debug =
+		support::find_by_field(adapters, "/adapter_id", "qmd_operator_debug_live")?;
+	let agentmemory = support::find_by_field(adapters, "/adapter_id", "agentmemory_live_baseline")?;
+	let mem0 = support::find_by_field(adapters, "/adapter_id", "mem0_openmemory_live_baseline")?;
+	let memsearch = support::find_by_field(adapters, "/adapter_id", "memsearch_live_baseline")?;
+	let openviking = support::find_by_field(adapters, "/adapter_id", "openviking_live_baseline")?;
+	let claude_mem = support::find_by_field(adapters, "/adapter_id", "claude_mem_live_baseline")?;
+	let ragflow = support::find_by_field(adapters, "/adapter_id", "ragflow_research_gate")?;
+	let lightrag = support::find_by_field(adapters, "/adapter_id", "lightrag_research_gate")?;
+	let graphrag = support::find_by_field(adapters, "/adapter_id", "graphrag_research_gate")?;
+	let graphiti_zep =
+		support::find_by_field(adapters, "/adapter_id", "graphiti_zep_research_gate")?;
+	let graphify = support::find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
+	let qmd_deep = support::find_by_field(adapters, "/adapter_id", "qmd_deep_profile_gate")?;
+	let openviking_deep =
+		support::find_by_field(adapters, "/adapter_id", "openviking_deep_profile_gate")?;
+	let letta = support::find_by_field(adapters, "/adapter_id", "letta_research_gate")?;
 
 	assert_elf_fixture_adapter_record(elf)?;
 
@@ -498,8 +506,8 @@ fn assert_letta_core_archival_gate(adapter: &Value) -> Result<()> {
 			&& setup.contains("typed artifact")
 	));
 
-	let suites = array_at(adapter, "/suites")?;
-	let core_suite = find_by_field(suites, "/suite_id", "core_archival_memory")?;
+	let suites = support::array_at(adapter, "/suites")?;
+	let core_suite = support::find_by_field(suites, "/suite_id", "core_archival_memory")?;
 
 	assert_eq!(core_suite.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(
@@ -508,14 +516,19 @@ fn assert_letta_core_archival_gate(adapter: &Value) -> Result<()> {
 	);
 	assert_eq!(adapter.pointer("/capabilities/2/status").and_then(Value::as_str), Some("blocked"));
 
-	let scenarios = array_at(adapter, "/scenarios")?;
-	let attachment = find_by_field(scenarios, "/scenario_id", "core_block_attachment_readback")?;
-	let scope = find_by_field(scenarios, "/scenario_id", "core_block_scope_readback")?;
-	let provenance = find_by_field(scenarios, "/scenario_id", "core_block_provenance_readback")?;
-	let stale = find_by_field(scenarios, "/scenario_id", "stale_core_detection")?;
-	let fallback = find_by_field(scenarios, "/scenario_id", "archival_fallback_readback")?;
-	let decision =
-		find_by_field(scenarios, "/scenario_id", "core_archival_project_decision_recovery")?;
+	let scenarios = support::array_at(adapter, "/scenarios")?;
+	let attachment =
+		support::find_by_field(scenarios, "/scenario_id", "core_block_attachment_readback")?;
+	let scope = support::find_by_field(scenarios, "/scenario_id", "core_block_scope_readback")?;
+	let provenance =
+		support::find_by_field(scenarios, "/scenario_id", "core_block_provenance_readback")?;
+	let stale = support::find_by_field(scenarios, "/scenario_id", "stale_core_detection")?;
+	let fallback = support::find_by_field(scenarios, "/scenario_id", "archival_fallback_readback")?;
+	let decision = support::find_by_field(
+		scenarios,
+		"/scenario_id",
+		"core_archival_project_decision_recovery",
+	)?;
 
 	assert_eq!(scenarios.len(), 6);
 
@@ -557,10 +570,10 @@ fn assert_elf_fixture_adapter_record(adapter: &Value) -> Result<()> {
 			&& evidence.contains("context_trajectory")
 	}));
 
-	let suites = array_at(adapter, "/suites")?;
-	let core_archival = find_by_field(suites, "/suite_id", "core_archival_memory")?;
-	let scheduled = find_by_field(suites, "/suite_id", "scheduled_memory")?;
-	let context_trajectory = find_by_field(suites, "/suite_id", "context_trajectory")?;
+	let suites = support::array_at(adapter, "/suites")?;
+	let core_archival = support::find_by_field(suites, "/suite_id", "core_archival_memory")?;
+	let scheduled = support::find_by_field(suites, "/suite_id", "scheduled_memory")?;
+	let context_trajectory = support::find_by_field(suites, "/suite_id", "context_trajectory")?;
 
 	assert_eq!(core_archival.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert!(core_archival.pointer("/evidence").and_then(Value::as_str).is_some_and(|evidence| {
@@ -639,15 +652,26 @@ fn assert_operator_debug_live_adapter_records(elf: &Value, qmd: &Value) -> Resul
 	);
 	assert_eq!(elf.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
 
-	let elf_scenarios = array_at(elf, "/scenarios")?;
-	let elf_trace = find_by_field(elf_scenarios, "/scenario_id", "operator_debug_trace_hydration")?;
-	let elf_replay = find_by_field(elf_scenarios, "/scenario_id", "operator_debug_replay_command")?;
-	let elf_candidate =
-		find_by_field(elf_scenarios, "/scenario_id", "operator_debug_candidate_drop_visibility")?;
-	let elf_repair =
-		find_by_field(elf_scenarios, "/scenario_id", "operator_debug_repair_action_clarity")?;
-	let elf_selected =
-		find_by_field(elf_scenarios, "/scenario_id", "operator_debug_selected_but_not_narrated")?;
+	let elf_scenarios = support::array_at(elf, "/scenarios")?;
+	let elf_trace =
+		support::find_by_field(elf_scenarios, "/scenario_id", "operator_debug_trace_hydration")?;
+	let elf_replay =
+		support::find_by_field(elf_scenarios, "/scenario_id", "operator_debug_replay_command")?;
+	let elf_candidate = support::find_by_field(
+		elf_scenarios,
+		"/scenario_id",
+		"operator_debug_candidate_drop_visibility",
+	)?;
+	let elf_repair = support::find_by_field(
+		elf_scenarios,
+		"/scenario_id",
+		"operator_debug_repair_action_clarity",
+	)?;
+	let elf_selected = support::find_by_field(
+		elf_scenarios,
+		"/scenario_id",
+		"operator_debug_selected_but_not_narrated",
+	)?;
 
 	assert_eq!(elf_scenarios.len(), 5);
 	assert_eq!(elf_trace.pointer("/status").and_then(Value::as_str), Some("pass"));
@@ -656,6 +680,20 @@ fn assert_operator_debug_live_adapter_records(elf: &Value, qmd: &Value) -> Resul
 	assert_eq!(elf_candidate.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
 	assert_eq!(elf_repair.pointer("/comparison_outcome").and_then(Value::as_str), Some("tie"));
 	assert_eq!(elf_selected.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
+
+	assert_operator_debug_qmd_adapter_record(qmd)?;
+
+	assert!(support::array_at(elf, "/notes")?.iter().any(|note| {
+		note.as_str().is_some_and(|text| text.contains("narrow operator-debug live slice"))
+	}));
+	assert!(support::array_at(qmd, "/notes")?.iter().any(|note| {
+		note.as_str().is_some_and(|text| text.contains("narrow operator-debug live slice"))
+	}));
+
+	Ok(())
+}
+
+fn assert_operator_debug_qmd_adapter_record(qmd: &Value) -> Result<()> {
 	assert_eq!(qmd.pointer("/evidence_class").and_then(Value::as_str), Some("live_real_world"));
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(
@@ -680,15 +718,26 @@ fn assert_operator_debug_live_adapter_records(elf: &Value, qmd: &Value) -> Resul
 	assert_eq!(qmd.pointer("/capabilities/3/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(qmd.pointer("/capabilities/4/status").and_then(Value::as_str), Some("not_encoded"));
 
-	let qmd_scenarios = array_at(qmd, "/scenarios")?;
-	let qmd_trace = find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_trace_hydration")?;
-	let qmd_replay = find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_replay_command")?;
-	let qmd_candidate =
-		find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_candidate_drop_visibility")?;
-	let qmd_repair =
-		find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_repair_action_clarity")?;
-	let qmd_selected =
-		find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_selected_but_not_narrated")?;
+	let qmd_scenarios = support::array_at(qmd, "/scenarios")?;
+	let qmd_trace =
+		support::find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_trace_hydration")?;
+	let qmd_replay =
+		support::find_by_field(qmd_scenarios, "/scenario_id", "operator_debug_replay_command")?;
+	let qmd_candidate = support::find_by_field(
+		qmd_scenarios,
+		"/scenario_id",
+		"operator_debug_candidate_drop_visibility",
+	)?;
+	let qmd_repair = support::find_by_field(
+		qmd_scenarios,
+		"/scenario_id",
+		"operator_debug_repair_action_clarity",
+	)?;
+	let qmd_selected = support::find_by_field(
+		qmd_scenarios,
+		"/scenario_id",
+		"operator_debug_selected_but_not_narrated",
+	)?;
 
 	assert_eq!(qmd_scenarios.len(), 5);
 	assert_eq!(qmd_trace.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
@@ -701,12 +750,6 @@ fn assert_operator_debug_live_adapter_records(elf: &Value, qmd: &Value) -> Resul
 	assert_eq!(qmd_repair.pointer("/comparison_outcome").and_then(Value::as_str), Some("tie"));
 	assert_eq!(qmd_selected.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(qmd_selected.pointer("/comparison_outcome").and_then(Value::as_str), Some("win"));
-	assert!(array_at(elf, "/notes")?.iter().any(|note| {
-		note.as_str().is_some_and(|text| text.contains("narrow operator-debug live slice"))
-	}));
-	assert!(array_at(qmd, "/notes")?.iter().any(|note| {
-		note.as_str().is_some_and(|text| text.contains("narrow operator-debug live slice"))
-	}));
 
 	Ok(())
 }
@@ -951,11 +994,11 @@ fn assert_graphify_adapter(adapter: &Value) -> Result<()> {
 		)
 	);
 
-	let capabilities = array_at(adapter, "/capabilities")?;
-	let quality = find_by_field(capabilities, "/capability", "quality_or_scale_claim")?;
+	let capabilities = support::array_at(adapter, "/capabilities")?;
+	let quality = support::find_by_field(capabilities, "/capability", "quality_or_scale_claim")?;
 
 	assert_eq!(quality.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
-	assert!(array_at(adapter, "/notes")?.iter().any(|note| {
+	assert!(support::array_at(adapter, "/notes")?.iter().any(|note| {
 		note.as_str().is_some_and(|text| text.contains("tiny smoke") && text.contains("non-pass"))
 	}));
 
@@ -969,21 +1012,33 @@ fn assert_graph_rag_representative_scenarios(
 	graphiti_zep: &Value,
 	graphify: &Value,
 ) -> Result<()> {
-	let ragflow_scenarios = array_at(ragflow, "/scenarios")?;
-	let lightrag_scenarios = array_at(lightrag, "/scenarios")?;
-	let graphrag_scenarios = array_at(graphrag, "/scenarios")?;
-	let graphiti_scenarios = array_at(graphiti_zep, "/scenarios")?;
-	let graphify_scenarios = array_at(graphify, "/scenarios")?;
-	let ragflow_chunk =
-		find_by_field(ragflow_scenarios, "/scenario_id", "reference_chunk_citation_mapping")?;
-	let lightrag_context =
-		find_by_field(lightrag_scenarios, "/scenario_id", "context_source_reference_mapping")?;
-	let graphrag_tables =
-		find_by_field(graphrag_scenarios, "/scenario_id", "output_table_citation_mapping")?;
-	let graphiti_temporal =
-		find_by_field(graphiti_scenarios, "/scenario_id", "temporal_validity_window_mapping")?;
+	let ragflow_scenarios = support::array_at(ragflow, "/scenarios")?;
+	let lightrag_scenarios = support::array_at(lightrag, "/scenarios")?;
+	let graphrag_scenarios = support::array_at(graphrag, "/scenarios")?;
+	let graphiti_scenarios = support::array_at(graphiti_zep, "/scenarios")?;
+	let graphify_scenarios = support::array_at(graphify, "/scenarios")?;
+	let ragflow_chunk = support::find_by_field(
+		ragflow_scenarios,
+		"/scenario_id",
+		"reference_chunk_citation_mapping",
+	)?;
+	let lightrag_context = support::find_by_field(
+		lightrag_scenarios,
+		"/scenario_id",
+		"context_source_reference_mapping",
+	)?;
+	let graphrag_tables = support::find_by_field(
+		graphrag_scenarios,
+		"/scenario_id",
+		"output_table_citation_mapping",
+	)?;
+	let graphiti_temporal = support::find_by_field(
+		graphiti_scenarios,
+		"/scenario_id",
+		"temporal_validity_window_mapping",
+	)?;
 	let graphify_lint =
-		find_by_field(graphify_scenarios, "/scenario_id", "graph_report_navigation_lint")?;
+		support::find_by_field(graphify_scenarios, "/scenario_id", "graph_report_navigation_lint")?;
 
 	assert_eq!(
 		ragflow_chunk.pointer("/comparison_outcome").and_then(Value::as_str),
@@ -1056,7 +1111,7 @@ fn assert_graph_rag_representative_scenarios(
 
 fn assert_adapter_matrix_rows(scenarios: &[Value], expected: &[(&str, &str, &str)]) -> Result<()> {
 	for (scenario_id, status, outcome) in expected {
-		let row = find_by_field(scenarios, "/scenario_id", scenario_id)?;
+		let row = support::find_by_field(scenarios, "/scenario_id", scenario_id)?;
 
 		assert_eq!(row.pointer("/status").and_then(Value::as_str), Some(*status));
 		assert_eq!(row.pointer("/comparison_outcome").and_then(Value::as_str), Some(*outcome));
@@ -1154,7 +1209,7 @@ fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
 	let output = Command::new(env!("CARGO_BIN_EXE_real_world_job_benchmark"))
 		.arg("run")
 		.arg("--fixtures")
-		.arg(fixture_dir())
+		.arg(support::fixture_dir())
 		.arg("--out")
 		.arg(&report_path)
 		.arg("--external-adapter-manifest")
@@ -1168,10 +1223,10 @@ fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
 	);
 
 	let report: Value = serde_json::from_slice(&fs::read(&report_path)?)?;
-	let adapters = array_at(&report, "/external_adapters/adapters")?;
-	let graphify = find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
-	let suites = array_at(graphify, "/suites")?;
-	let retrieval = find_by_field(suites, "/suite_id", "retrieval")?;
+	let adapters = support::array_at(&report, "/external_adapters/adapters")?;
+	let graphify = support::find_by_field(adapters, "/adapter_id", "graphify_docker_smoke")?;
+	let suites = support::array_at(graphify, "/suites")?;
+	let retrieval = support::find_by_field(suites, "/suite_id", "retrieval")?;
 
 	assert_eq!(retrieval.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert!(
@@ -1186,7 +1241,7 @@ fn graphify_generated_manifest_keeps_retrieval_unscored() -> Result<()> {
 
 #[test]
 fn graph_rag_representative_fixtures_report_typed_non_pass_states() -> Result<()> {
-	let report = run_json_report_from(graph_rag_external_fixture_dir())?;
+	let report = support::run_json_report_from(support::graph_rag_external_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(0));
@@ -1214,12 +1269,15 @@ fn graph_rag_representative_fixtures_report_typed_non_pass_states() -> Result<()
 		Some(1)
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
-	let ragflow = find_by_field(jobs, "/job_id", "graph-rag-ragflow-reference-chunks-001")?;
-	let lightrag = find_by_field(jobs, "/job_id", "graph-rag-lightrag-context-sources-001")?;
-	let graphrag = find_by_field(jobs, "/job_id", "graph-rag-graphrag-output-tables-001")?;
-	let graphiti = find_by_field(jobs, "/job_id", "graph-rag-graphiti-temporal-validity-001")?;
-	let graphify = find_by_field(jobs, "/job_id", "graph-rag-graphify-graph-report-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let ragflow =
+		support::find_by_field(jobs, "/job_id", "graph-rag-ragflow-reference-chunks-001")?;
+	let lightrag =
+		support::find_by_field(jobs, "/job_id", "graph-rag-lightrag-context-sources-001")?;
+	let graphrag = support::find_by_field(jobs, "/job_id", "graph-rag-graphrag-output-tables-001")?;
+	let graphiti =
+		support::find_by_field(jobs, "/job_id", "graph-rag-graphiti-temporal-validity-001")?;
+	let graphify = support::find_by_field(jobs, "/job_id", "graph-rag-graphify-graph-report-001")?;
 
 	assert_eq!(ragflow.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(lightrag.pointer("/status").and_then(Value::as_str), Some("incomplete"));
@@ -1242,26 +1300,38 @@ fn graph_rag_representative_fixtures_report_typed_non_pass_states() -> Result<()
 		graphiti.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("graphiti.provider_boundary")
 	);
-	assert!(array_contains_str(graphiti, "/produced_evidence", "graphiti-current-fact-contract")?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
+		graphiti,
+		"/produced_evidence",
+		"graphiti-current-fact-contract"
+	)?);
+	assert!(support::array_contains_str(
 		graphiti,
 		"/produced_evidence",
 		"graphiti-historical-fact-contract"
 	)?);
-	assert!(array_contains_str(graphiti, "/produced_evidence", "graphiti-provider-boundary")?);
-	assert!(array_contains_str(graphify, "/produced_evidence", "graphify-source-location-output")?);
+	assert!(support::array_contains_str(
+		graphiti,
+		"/produced_evidence",
+		"graphiti-provider-boundary"
+	)?);
+	assert!(support::array_contains_str(
+		graphify,
+		"/produced_evidence",
+		"graphify-source-location-output"
+	)?);
 
 	Ok(())
 }
 
 #[test]
 fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_outcomes() -> Result<()> {
-	let output = run_external_manifest_with_letta_attachment_mutation(
+	let output = support::run_external_manifest_with_letta_attachment_mutation(
 		"invalid-scenario-outcome-test",
 		|scenario| {
-			set_json_pointer(scenario, "/status", serde_json::json!("not_encoded"))?;
+			support::set_json_pointer(scenario, "/status", serde_json::json!("not_encoded"))?;
 
-			set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("win"))
+			support::set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("win"))
 		},
 	)?;
 
@@ -1275,13 +1345,17 @@ fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_outcomes() -> 
 
 #[test]
 fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_positions() -> Result<()> {
-	let output = run_external_manifest_with_letta_attachment_mutation(
+	let output = support::run_external_manifest_with_letta_attachment_mutation(
 		"invalid-scenario-position-test",
 		|scenario| {
-			set_json_pointer(scenario, "/status", serde_json::json!("not_encoded"))?;
-			set_json_pointer(scenario, "/elf_position", serde_json::json!("wins"))?;
+			support::set_json_pointer(scenario, "/status", serde_json::json!("not_encoded"))?;
+			support::set_json_pointer(scenario, "/elf_position", serde_json::json!("wins"))?;
 
-			set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("not_tested"))
+			support::set_json_pointer(
+				scenario,
+				"/comparison_outcome",
+				serde_json::json!("not_tested"),
+			)
 		},
 	)?;
 
@@ -1295,7 +1369,7 @@ fn external_adapter_manifest_rejects_unmeasured_win_loss_scenario_positions() ->
 
 #[test]
 fn external_adapter_manifest_rejects_blocked_status_without_blocked_outcome() -> Result<()> {
-	let output = run_external_manifest_scenario_mutation(
+	let output = support::run_external_manifest_scenario_mutation(
 		"invalid-blocked-scenario-outcome-test",
 		"letta_research_gate",
 		"stale_core_detection",
@@ -1320,13 +1394,13 @@ fn external_adapter_manifest_rejects_blocked_status_without_blocked_outcome() ->
 
 #[test]
 fn external_adapter_manifest_rejects_conflicting_scenario_position_and_outcome() -> Result<()> {
-	let output = run_external_manifest_with_letta_attachment_mutation(
+	let output = support::run_external_manifest_with_letta_attachment_mutation(
 		"invalid-scenario-position-outcome-test",
 		|scenario| {
-			set_json_pointer(scenario, "/status", serde_json::json!("pass"))?;
-			set_json_pointer(scenario, "/elf_position", serde_json::json!("ties"))?;
+			support::set_json_pointer(scenario, "/status", serde_json::json!("pass"))?;
+			support::set_json_pointer(scenario, "/elf_position", serde_json::json!("ties"))?;
 
-			set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("loss"))
+			support::set_json_pointer(scenario, "/comparison_outcome", serde_json::json!("loss"))
 		},
 	)?;
 
@@ -1337,24 +1411,24 @@ fn external_adapter_manifest_rejects_conflicting_scenario_position_and_outcome()
 }
 
 fn assert_live_sweep_record(adapter: &Value, production_ops_status: &str) -> Result<()> {
-	let suites = array_at(adapter, "/suites")?;
-	let capabilities = array_at(adapter, "/capabilities")?;
+	let suites = support::array_at(adapter, "/suites")?;
+	let capabilities = support::array_at(adapter, "/capabilities")?;
 	let adapter_id = adapter.pointer("/adapter_id").and_then(Value::as_str).unwrap_or_default();
-	let targeted = find_by_field(capabilities, "/capability", "targeted_live_pass")?;
-	let full_pass = find_by_field(capabilities, "/capability", "full_suite_live_pass")?;
-	let work_resume = find_by_field(suites, "/suite_id", "work_resume")?;
-	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
-	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
-	let consolidation = find_by_field(suites, "/suite_id", "consolidation")?;
-	let knowledge = find_by_field(suites, "/suite_id", "knowledge_compilation")?;
-	let operator_debug = find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
-	let capture = find_by_field(suites, "/suite_id", "capture_integration")?;
-	let personalization = find_by_field(suites, "/suite_id", "personalization")?;
-	let core_archival = find_by_field(suites, "/suite_id", "core_archival_memory")?;
-	let context_trajectory = find_by_field(suites, "/suite_id", "context_trajectory")?;
-	let trust_sot = find_by_field(suites, "/suite_id", "trust_source_of_truth")?;
-	let retrieval = find_by_field(suites, "/suite_id", "retrieval")?;
-	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
+	let targeted = support::find_by_field(capabilities, "/capability", "targeted_live_pass")?;
+	let full_pass = support::find_by_field(capabilities, "/capability", "full_suite_live_pass")?;
+	let work_resume = support::find_by_field(suites, "/suite_id", "work_resume")?;
+	let memory_evolution = support::find_by_field(suites, "/suite_id", "memory_evolution")?;
+	let production_ops = support::find_by_field(suites, "/suite_id", "production_ops")?;
+	let consolidation = support::find_by_field(suites, "/suite_id", "consolidation")?;
+	let knowledge = support::find_by_field(suites, "/suite_id", "knowledge_compilation")?;
+	let operator_debug = support::find_by_field(suites, "/suite_id", "operator_debugging_ux")?;
+	let capture = support::find_by_field(suites, "/suite_id", "capture_integration")?;
+	let personalization = support::find_by_field(suites, "/suite_id", "personalization")?;
+	let core_archival = support::find_by_field(suites, "/suite_id", "core_archival_memory")?;
+	let context_trajectory = support::find_by_field(suites, "/suite_id", "context_trajectory")?;
+	let trust_sot = support::find_by_field(suites, "/suite_id", "trust_source_of_truth")?;
+	let retrieval = support::find_by_field(suites, "/suite_id", "retrieval")?;
+	let project_decisions = support::find_by_field(suites, "/suite_id", "project_decisions")?;
 
 	assert_eq!(suites.len(), 13);
 	assert_eq!(targeted.pointer("/status").and_then(Value::as_str), Some("pass"));

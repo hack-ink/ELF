@@ -1,4 +1,4 @@
-use super::*;
+use crate::docs::{ByteChunk, Config, Error, Result, Tokenizer, Uuid};
 
 pub(super) fn load_tokenizer(cfg: &Config) -> Result<Tokenizer> {
 	let tokenizer_repo = cfg.chunking.tokenizer_repo.trim();

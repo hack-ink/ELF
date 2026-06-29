@@ -1,4 +1,11 @@
-use super::super::*;
+use crate::{
+	Error,
+	search::{
+		BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, Document, ElfService, Filter, Fusion,
+		PrefetchQueryBuilder, Query, QueryEmbedding, QueryPointsBuilder, Result, ScoredPoint,
+		english_gate, ranking, slice,
+	},
+};
 
 impl ElfService {
 	pub(in crate::search) fn resolve_project_context_description<'a>(
@@ -56,12 +63,12 @@ impl ElfService {
 			.embedding
 			.embed(&self.cfg.providers.embedding, slice::from_ref(&input))
 			.await?;
-		let query_vec = embeddings.into_iter().next().ok_or_else(|| crate::Error::Provider {
+		let query_vec = embeddings.into_iter().next().ok_or_else(|| Error::Provider {
 			message: "Embedding provider returned no vectors.".to_string(),
 		})?;
 
 		if query_vec.len() != self.cfg.storage.qdrant.vector_dim as usize {
-			return Err(crate::Error::Provider {
+			return Err(Error::Provider {
 				message: "Embedding vector dimension mismatch.".to_string(),
 			});
 		}
@@ -99,7 +106,7 @@ impl ElfService {
 				.await?;
 
 			if embedded.len() != extra_queries.len() {
-				return Err(crate::Error::Provider {
+				return Err(Error::Provider {
 					message: "Embedding provider returned mismatched vector count.".to_string(),
 				});
 			}
@@ -111,18 +118,18 @@ impl ElfService {
 		for query in queries {
 			let vector = if baseline_vector.is_some() && query == original_query {
 				baseline_vector
-					.ok_or_else(|| crate::Error::Provider {
+					.ok_or_else(|| Error::Provider {
 						message: "Embedding baseline vector is missing.".to_string(),
 					})?
 					.clone()
 			} else {
-				embedded_iter.next().ok_or_else(|| crate::Error::Provider {
+				embedded_iter.next().ok_or_else(|| Error::Provider {
 					message: "Embedding provider returned no vectors.".to_string(),
 				})?
 			};
 
 			if vector.len() != self.cfg.storage.qdrant.vector_dim as usize {
-				return Err(crate::Error::Provider {
+				return Err(Error::Provider {
 					message: "Embedding vector dimension mismatch.".to_string(),
 				});
 			}
@@ -162,7 +169,7 @@ impl ElfService {
 			.client
 			.query(search)
 			.await
-			.map_err(|err| crate::Error::Qdrant { message: err.to_string() })?;
+			.map_err(|err| Error::Qdrant { message: err.to_string() })?;
 
 		Ok(response.result)
 	}

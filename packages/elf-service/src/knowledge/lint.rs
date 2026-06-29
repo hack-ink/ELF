@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::{
+	ElfService, Error, KnowledgePage, KnowledgePageLintFindingResponse, KnowledgePageLintRequest,
+	KnowledgePageLintResponse, KnowledgePageSourceRef, LintDraft, OffsetDateTime, Result,
+	SourceIds, knowledge,
+};
 
 impl ElfService {
 	/// Lints a derived knowledge page against current source snapshots.
@@ -19,7 +23,7 @@ impl ElfService {
 		let sections = knowledge::list_knowledge_page_sections(&self.db.pool, page.page_id).await?;
 		let mut findings = self.lint_source_refs(&page, &source_refs).await?;
 
-		findings.extend(lint_page_sections(&page, &sections, &source_refs));
+		findings.extend(crate::knowledge::lint_page_sections(&page, &sections, &source_refs));
 
 		let now = OffsetDateTime::now_utc();
 		let mut tx = self.db.pool.begin().await?;
@@ -27,7 +31,7 @@ impl ElfService {
 		knowledge::delete_knowledge_page_lint_findings(&mut *tx, page.page_id).await?;
 
 		for finding in &findings {
-			insert_lint_finding(&mut tx, page.page_id, finding, now).await?;
+			crate::knowledge::insert_lint_finding(&mut tx, page.page_id, finding, now).await?;
 		}
 
 		tx.commit().await?;
@@ -51,15 +55,18 @@ impl ElfService {
 		let mut findings = Vec::new();
 
 		for source_ref in source_refs {
-			let key = current_key(source_ref.source_kind.as_str(), source_ref.source_id);
+			let key = crate::knowledge::current_key(
+				source_ref.source_kind.as_str(),
+				source_ref.source_id,
+			);
 			let Some(snapshot) = current.get(&key) else {
-				findings.push(missing_source_finding(source_ref));
+				findings.push(crate::knowledge::missing_source_finding(source_ref));
 
 				continue;
 			};
 
-			if source_changed(source_ref, snapshot) {
-				findings.push(stale_source_finding(source_ref, snapshot));
+			if crate::knowledge::source_changed(source_ref, snapshot) {
+				findings.push(crate::knowledge::stale_source_finding(source_ref, snapshot));
 			}
 		}
 

@@ -1,7 +1,7 @@
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use super::{
+use crate::{
 	OUTPUT_SCHEMA,
 	types::{AgentmemoryObservation, AgentmemorySession, FixtureContext},
 };
@@ -15,12 +15,6 @@ pub(super) fn observation_timestamp(
 		.into_iter()
 		.flatten()
 		.find_map(normalize_rfc3339)
-}
-
-fn normalize_rfc3339(value: &str) -> Option<String> {
-	OffsetDateTime::parse(value, &Rfc3339)
-		.ok()
-		.and_then(|timestamp| timestamp.format(&Rfc3339).ok())
 }
 
 pub(super) fn map_note_type(kind: &str) -> Option<&'static str> {
@@ -54,4 +48,10 @@ pub(super) fn stable_uuid(kind: &str, parts: &[&str]) -> Uuid {
 	}
 
 	Uuid::new_v5(&Uuid::NAMESPACE_URL, key.as_bytes())
+}
+
+fn normalize_rfc3339(value: &str) -> Option<String> {
+	OffsetDateTime::parse(value, &Rfc3339)
+		.ok()
+		.and_then(|timestamp| timestamp.format(&Rfc3339).ok())
 }

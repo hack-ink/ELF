@@ -1,39 +1,37 @@
-use std::{net::SocketAddr, sync::Arc};
-
-use axum::{
-	Router,
-	body::Body,
-	extract::State,
-	http::{HeaderMap, Request, StatusCode},
-	middleware::{self, Next},
-	response::IntoResponse,
-};
-use color_eyre::Result;
-use reqwest::{Client, RequestBuilder};
-use rmcp::{
-	ErrorData, ServerHandler,
-	handler::server::router::tool::ToolRouter,
-	model::{CallToolResult, JsonObject, ServerCapabilities, ServerInfo},
-	transport::streamable_http_server::{
-		StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
-	},
-};
-use serde_json::Value;
-use tokio::net::TcpListener;
-use uuid::Uuid;
-
-use crate::app::McpAuthState;
-use elf_config::McpContext;
-
 #[path = "server/runtime.rs"] mod runtime;
 #[path = "server/schemas.rs"] mod schemas;
 #[path = "server/state.rs"] mod state;
 #[path = "server/support.rs"] mod support;
 
 pub use runtime::serve_mcp;
-use schemas::*;
+
+use color_eyre::Result;
+use rmcp::{
+	ErrorData,
+	model::{CallToolResult, JsonObject},
+};
+
+use schemas::{
+	admin_ingestion_profile_default_get_schema, admin_ingestion_profile_default_set_schema,
+	admin_ingestion_profile_get_schema, admin_ingestion_profile_versions_list_schema,
+	admin_ingestion_profiles_create_schema, admin_ingestion_profiles_list_schema,
+	admin_memory_history_get_schema, admin_note_provenance_get_schema,
+	admin_trace_bundle_get_schema, admin_trace_get_schema, admin_trace_item_get_schema,
+	admin_traces_recent_list_schema, admin_trajectory_get_schema, core_blocks_get_schema,
+	docs_excerpts_get_schema, docs_get_schema, docs_put_schema, docs_search_l0_schema,
+	dreaming_review_queue_schema, entity_memory_get_schema, events_ingest_schema,
+	graph_query_schema, graph_report_schema, notes_get_schema, notes_ingest_schema,
+	notes_list_schema, notes_patch_schema, notes_publish_schema, notes_unpublish_schema,
+	recall_debug_panel_schema, searches_create_schema, searches_get_schema, searches_notes_schema,
+	searches_timeline_schema, space_grant_revoke_schema, space_grant_upsert_schema,
+	space_grants_list_schema, work_journal_entry_create_schema, work_journal_entry_get_schema,
+	work_journal_session_readback_schema,
+};
 use state::{ElfContextHeaders, ElfMcp, HttpMethod};
-use support::*;
+#[cfg(test)] use support::is_authorized;
+use support::{
+	handle_response, is_admin_path, mcp_auth_middleware, normalize_api_base, params_to_query,
+};
 
 const HEADER_TENANT_ID: &str = "X-ELF-Tenant-Id";
 const HEADER_PROJECT_ID: &str = "X-ELF-Project-Id";
@@ -95,7 +93,7 @@ impl ElfMcp {
 		input_schema = docs_get_schema()
 	)]
 	async fn elf_docs_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let doc_id = take_required_string(&mut params, "doc_id")?;
+		let doc_id = support::take_required_string(&mut params, "doc_id")?;
 		let path = format!("/v2/docs/{doc_id}");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -107,7 +105,7 @@ impl ElfMcp {
 		input_schema = docs_get_schema()
 	)]
 	async fn elf_docs_delete(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let doc_id = take_required_string(&mut params, "doc_id")?;
+		let doc_id = support::take_required_string(&mut params, "doc_id")?;
 		let path = format!("/v2/docs/{doc_id}");
 
 		self.forward(HttpMethod::Delete, &path, JsonObject::new(), None).await
@@ -123,7 +121,7 @@ impl ElfMcp {
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
-		let _ = take_optional_string(&mut params, "read_profile")?;
+		let _ = support::take_optional_string(&mut params, "read_profile")?;
 
 		self.forward(HttpMethod::Post, "/v2/docs/search/l0", params, None).await
 	}
@@ -158,7 +156,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let entry_id = take_required_string(&mut params, "entry_id")?;
+		let entry_id = support::take_required_string(&mut params, "entry_id")?;
 		let path = format!("/v2/work-journal/entries/{entry_id}");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -174,7 +172,7 @@ impl ElfMcp {
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
-		let _ = take_optional_string(&mut params, "read_profile")?;
+		let _ = support::take_optional_string(&mut params, "read_profile")?;
 
 		self.forward(HttpMethod::Post, "/v2/work-journal/readback", params, None).await
 	}
@@ -189,7 +187,7 @@ impl ElfMcp {
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
-		let _ = take_optional_string(&mut params, "read_profile")?;
+		let _ = support::take_optional_string(&mut params, "read_profile")?;
 
 		self.forward(HttpMethod::Get, "/v2/core-blocks", params, None).await
 	}
@@ -204,7 +202,7 @@ impl ElfMcp {
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
-		let _ = take_optional_string(&mut params, "read_profile")?;
+		let _ = support::take_optional_string(&mut params, "read_profile")?;
 
 		self.forward(HttpMethod::Get, "/v2/entity-memory", params, None).await
 	}
@@ -230,7 +228,7 @@ impl ElfMcp {
 		&self,
 		params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		reject_context_override_params(&params)?;
+		support::reject_context_override_params(&params)?;
 
 		self.forward(HttpMethod::Post, "/v2/recall-debug/panel", params, None).await
 	}
@@ -245,7 +243,7 @@ impl ElfMcp {
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		// read_profile is part of the MCP server configuration and is not client-controlled.
-		let _ = take_optional_string(&mut params, "read_profile")?;
+		let _ = support::take_optional_string(&mut params, "read_profile")?;
 
 		self.forward(HttpMethod::Post, "/v2/searches", params, None).await
 	}
@@ -256,7 +254,7 @@ impl ElfMcp {
 		input_schema = searches_get_schema()
 	)]
 	async fn elf_searches_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let search_id = take_required_string(&mut params, "search_id")?;
+		let search_id = support::take_required_string(&mut params, "search_id")?;
 		let path = format!("/v2/searches/{search_id}");
 
 		self.forward(HttpMethod::Get, &path, params, None).await
@@ -271,7 +269,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let search_id = take_required_string(&mut params, "search_id")?;
+		let search_id = support::take_required_string(&mut params, "search_id")?;
 		let path = format!("/v2/searches/{search_id}/timeline");
 
 		self.forward(HttpMethod::Get, &path, params, None).await
@@ -286,7 +284,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let search_id = take_required_string(&mut params, "search_id")?;
+		let search_id = support::take_required_string(&mut params, "search_id")?;
 		let path = format!("/v2/searches/{search_id}/notes");
 
 		self.forward(HttpMethod::Post, &path, params, None).await
@@ -307,7 +305,7 @@ impl ElfMcp {
 		input_schema = notes_get_schema()
 	)]
 	async fn elf_notes_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let note_id = take_required_string(&mut params, "note_id")?;
+		let note_id = support::take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -319,7 +317,7 @@ impl ElfMcp {
 		input_schema = notes_patch_schema()
 	)]
 	async fn elf_notes_patch(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let note_id = take_required_string(&mut params, "note_id")?;
+		let note_id = support::take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}");
 
 		self.forward(HttpMethod::Patch, &path, params, None).await
@@ -331,7 +329,7 @@ impl ElfMcp {
 		input_schema = notes_get_schema()
 	)]
 	async fn elf_notes_delete(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let note_id = take_required_string(&mut params, "note_id")?;
+		let note_id = support::take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}");
 
 		self.forward(HttpMethod::Delete, &path, JsonObject::new(), None).await
@@ -343,7 +341,7 @@ impl ElfMcp {
 		input_schema = notes_publish_schema()
 	)]
 	async fn elf_notes_publish(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let note_id = take_required_string(&mut params, "note_id")?;
+		let note_id = support::take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}/publish");
 
 		self.forward(HttpMethod::Post, &path, params, None).await
@@ -358,7 +356,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let note_id = take_required_string(&mut params, "note_id")?;
+		let note_id = support::take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/notes/{note_id}/unpublish");
 
 		self.forward(HttpMethod::Post, &path, params, None).await
@@ -373,7 +371,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let space = take_required_string(&mut params, "space")?;
+		let space = support::take_required_string(&mut params, "space")?;
 		let path = format!("/v2/spaces/{space}/grants");
 
 		self.forward(HttpMethod::Get, &path, params, None).await
@@ -388,7 +386,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let space = take_required_string(&mut params, "space")?;
+		let space = support::take_required_string(&mut params, "space")?;
 		let path = format!("/v2/spaces/{space}/grants");
 
 		self.forward(HttpMethod::Post, &path, params, None).await
@@ -403,7 +401,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let space = take_required_string(&mut params, "space")?;
+		let space = support::take_required_string(&mut params, "space")?;
 		let path = format!("/v2/spaces/{space}/grants/revoke");
 
 		self.forward(HttpMethod::Post, &path, params, None).await
@@ -430,7 +428,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let trace_id = take_required_string(&mut params, "trace_id")?;
+		let trace_id = support::take_required_string(&mut params, "trace_id")?;
 		let path = format!("/v2/admin/traces/{trace_id}");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -445,7 +443,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let trace_id = take_required_string(&mut params, "trace_id")?;
+		let trace_id = support::take_required_string(&mut params, "trace_id")?;
 		let path = format!("/v2/admin/trajectories/{trace_id}");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -460,7 +458,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let item_id = take_required_string(&mut params, "item_id")?;
+		let item_id = support::take_required_string(&mut params, "item_id")?;
 		let path = format!("/v2/admin/trace-items/{item_id}");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -475,7 +473,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let note_id = take_required_string(&mut params, "note_id")?;
+		let note_id = support::take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/admin/notes/{note_id}/provenance");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -490,7 +488,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let note_id = take_required_string(&mut params, "note_id")?;
+		let note_id = support::take_required_string(&mut params, "note_id")?;
 		let path = format!("/v2/admin/notes/{note_id}/history");
 
 		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
@@ -505,7 +503,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let trace_id = take_required_string(&mut params, "trace_id")?;
+		let trace_id = support::take_required_string(&mut params, "trace_id")?;
 		let path = format!("/v2/admin/traces/{trace_id}/bundle");
 
 		self.forward(HttpMethod::Get, &path, params, None).await
@@ -550,7 +548,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let profile_id = take_required_string(&mut params, "profile_id")?;
+		let profile_id = support::take_required_string(&mut params, "profile_id")?;
 		let path = format!("/v2/admin/events/ingestion-profiles/{profile_id}");
 
 		self.forward(HttpMethod::Get, &path, params, None).await
@@ -565,7 +563,7 @@ impl ElfMcp {
 		&self,
 		mut params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
-		let profile_id = take_required_string(&mut params, "profile_id")?;
+		let profile_id = support::take_required_string(&mut params, "profile_id")?;
 		let path = format!("/v2/admin/events/ingestion-profiles/{profile_id}/versions");
 
 		self.forward(HttpMethod::Get, &path, params, None).await

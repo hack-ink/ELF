@@ -1,4 +1,7 @@
-use super::*;
+use crate::graph_report::{
+	Error, GraphEntity, GraphQueryEntityRef, GraphQueryPredicateRef, PgConnection,
+	ResolvedGraphReportPredicate, ResolvedGraphReportSubject, Result, graph,
+};
 
 pub(super) async fn resolve_subject(
 	conn: &mut PgConnection,

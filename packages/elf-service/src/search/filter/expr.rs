@@ -5,7 +5,7 @@ mod serialize;
 
 pub(super) use field::FilterField;
 
-use super::value::FilterValue;
+use crate::search::filter::value::FilterValue;
 
 #[derive(Clone, Debug)]
 pub(super) enum FilterExpr {
@@ -21,7 +21,6 @@ pub(super) enum FilterExpr {
 	Lt { field: FilterField, value: FilterValue },
 	Lte { field: FilterField, value: FilterValue },
 }
-
 impl Default for FilterExpr {
 	fn default() -> Self {
 		Self::Eq { field: FilterField::Type, value: FilterValue::Null }

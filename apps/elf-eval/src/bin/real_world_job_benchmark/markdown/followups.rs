@@ -1,4 +1,4 @@
-use super::*;
+use crate::markdown::{self, RealWorldReport};
 
 pub(super) fn render_markdown_unsupported_claims(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Unsupported Claims\n\n");
@@ -15,11 +15,11 @@ pub(super) fn render_markdown_unsupported_claims(out: &mut String, report: &Real
 	for claim in &report.unsupported_claims {
 		out.push_str(&format!(
 			"| {} | {} | {} | `{}` | {} |\n",
-			md_cell(claim.suite_id.as_str()),
-			md_cell(claim.job_id.as_str()),
-			md_cell(claim.claim_text.as_str()),
-			md_inline(claim.evidence_ids.join(", ").as_str()),
-			md_cell(claim.reason.as_str())
+			markdown::md_cell(claim.suite_id.as_str()),
+			markdown::md_cell(claim.job_id.as_str()),
+			markdown::md_cell(claim.claim_text.as_str()),
+			markdown::md_inline(claim.evidence_ids.join(", ").as_str()),
+			markdown::md_cell(claim.reason.as_str())
 		));
 	}
 
@@ -41,10 +41,10 @@ pub(super) fn render_markdown_follow_ups(out: &mut String, report: &RealWorldRep
 	for follow_up in &report.follow_ups {
 		out.push_str(&format!(
 			"| {} | {} | {} | {} |\n",
-			md_cell(follow_up.suite_id.as_str()),
-			md_cell(follow_up.job_id.as_str()),
-			md_cell(follow_up.title.as_str()),
-			md_cell(follow_up.reason.as_str())
+			markdown::md_cell(follow_up.suite_id.as_str()),
+			markdown::md_cell(follow_up.job_id.as_str()),
+			markdown::md_cell(follow_up.title.as_str()),
+			markdown::md_cell(follow_up.reason.as_str())
 		));
 	}
 
@@ -93,7 +93,7 @@ pub(super) fn render_markdown_semantics(out: &mut String, report: &RealWorldRepo
 		out.push_str("All declared suites have at least one encoded job.\n");
 	} else {
 		for suite in &report.not_encoded_suites {
-			out.push_str(&format!("- `{}`\n", md_inline(suite.as_str())));
+			out.push_str(&format!("- `{}`\n", markdown::md_inline(suite.as_str())));
 		}
 	}
 }

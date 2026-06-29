@@ -1,4 +1,11 @@
-use super::*;
+use crate::{
+	access,
+	work_journal::validation::{
+		ELF_WORK_JOURNAL_SCHEMA_V1, ElfService, Error, HashSet, Result, SharedSpaceGrantKey, Value,
+		WorkJournalEntry, WorkJournalEntryFamily, WorkJournalEntryResponse,
+		WorkJournalWhereStopped, WritePolicyAudit, serde_json,
+	},
+};
 
 pub(in crate::work_journal) fn work_journal_read_allowed(
 	entry: &WorkJournalEntry,

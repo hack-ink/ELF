@@ -1,4 +1,8 @@
-use super::*;
+use crate::{
+	BTreeMap, CaptureIntegrationReport, ConsolidationFixture, CorpusProfile, Deserialize,
+	EvidenceLink, ExpectedClaim, OperatorDebugEvidence, ProducedAnswer, Serialize, TypedStatus,
+	Value,
+};
 
 #[derive(Debug, Deserialize)]
 pub(super) struct RealWorldJob {

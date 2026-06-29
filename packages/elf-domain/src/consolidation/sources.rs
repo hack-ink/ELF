@@ -1,4 +1,6 @@
-use super::*;
+use crate::consolidation::{
+	self, ConsolidationValidationError, Deserialize, OffsetDateTime, Serialize, Uuid, Value,
+};
 
 /// Source artifact kind accepted by consolidation input references.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -54,15 +56,15 @@ pub struct ConsolidationSourceSnapshot {
 impl ConsolidationSourceSnapshot {
 	/// Validates snapshot shape and immutable freshness guards.
 	pub fn validate(&self) -> Result<(), ConsolidationValidationError> {
-		validate_json_object("source_ref", &self.source_ref)?;
-		validate_json_object("metadata", &self.metadata)?;
+		consolidation::validate_json_object("source_ref", &self.source_ref)?;
+		consolidation::validate_json_object("metadata", &self.metadata)?;
 
 		let has_hash = self.content_hash.as_ref().is_some_and(|hash| !hash.trim().is_empty());
 		let has_embedding =
 			self.embedding_version.as_ref().is_some_and(|version| !version.trim().is_empty());
 		let has_status = self.status.as_ref().is_some_and(|status| !status.trim().is_empty());
-		let has_source_ref = non_empty_object(&self.source_ref);
-		let has_metadata = non_empty_object(&self.metadata);
+		let has_source_ref = consolidation::non_empty_object(&self.source_ref);
+		let has_metadata = consolidation::non_empty_object(&self.metadata);
 		let has_guard = self.updated_at.is_some()
 			|| self.trace_version.is_some()
 			|| has_hash

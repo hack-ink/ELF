@@ -1,13 +1,16 @@
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::Result;
+use crate::{
+	Result,
+	admin_graph_predicates::types::{
+		AdminGraphPredicateAliasResponse, AdminGraphPredicateResponse,
+	},
+};
 use elf_storage::{
 	graph,
 	models::{GraphPredicate, GraphPredicateAlias},
 };
-
-use super::types::{AdminGraphPredicateAliasResponse, AdminGraphPredicateResponse};
 
 const GRAPH_PREDICATE_SCOPE_GLOBAL: &str = "__global__";
 const GRAPH_PREDICATE_SCOPE_PROJECT_PREFIX: &str = "__project__:";
@@ -19,7 +22,6 @@ pub(super) enum AdminGraphPredicateScope {
 	Global,
 	All,
 }
-
 impl AdminGraphPredicateScope {
 	pub(super) fn parse(raw: &str) -> Option<Self> {
 		match raw.trim() {

@@ -1,4 +1,4 @@
-use super::*;
+use crate::markdown::{self, EvolutionJobReport, RealWorldReport};
 
 pub(super) fn render_markdown_evolution(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Memory Evolution\n\n");
@@ -29,11 +29,11 @@ pub(super) fn render_markdown_evolution(out: &mut String, report: &RealWorldRepo
 
 		out.push_str(&format!(
 			"| {} | {} | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | {} | {} | `{}` | `{}` | `{}` | {} |\n",
-			md_cell(job.suite_id.as_str()),
-			md_cell(job.job_id.as_str()),
-			md_inline(evolution.current_evidence.join(", ").as_str()),
-			md_inline(evolution.historical_evidence.join(", ").as_str()),
-			md_inline(
+			markdown::md_cell(job.suite_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
+			markdown::md_inline(evolution.current_evidence.join(", ").as_str()),
+			markdown::md_inline(evolution.historical_evidence.join(", ").as_str()),
+			markdown::md_inline(
 				evolution
 					.tombstone_evidence
 					.iter()
@@ -43,10 +43,10 @@ pub(super) fn render_markdown_evolution(out: &mut String, report: &RealWorldRepo
 					.join(", ")
 					.as_str()
 			),
-			md_inline(evolution.selected_current_evidence.join(", ").as_str()),
-			md_inline(evolution.selected_historical_evidence.join(", ").as_str()),
-			md_inline(evolution.selected_rationale_evidence.join(", ").as_str()),
-			md_inline(
+			markdown::md_inline(evolution.selected_current_evidence.join(", ").as_str()),
+			markdown::md_inline(evolution.selected_historical_evidence.join(", ").as_str()),
+			markdown::md_inline(evolution.selected_rationale_evidence.join(", ").as_str()),
+			markdown::md_inline(
 				evolution
 					.selected_tombstone_evidence
 					.iter()
@@ -56,14 +56,14 @@ pub(super) fn render_markdown_evolution(out: &mut String, report: &RealWorldRepo
 					.join(", ")
 					.as_str()
 			),
-			md_inline(evolution.selected_but_not_narrated_evidence.join(", ").as_str()),
-			md_inline(evolution.stale_trap_ids_used.join(", ").as_str()),
+			markdown::md_inline(evolution.selected_but_not_narrated_evidence.join(", ").as_str()),
+			markdown::md_inline(evolution.stale_trap_ids_used.join(", ").as_str()),
 			evolution.conflict_count,
 			evolution.conflict_detection_count,
-			bool_display(evolution.update_rationale_available),
+			markdown::bool_display(evolution.update_rationale_available),
 			temporal_display(evolution),
 			history_display(evolution),
-			md_cell(evolution.follow_up.as_deref().unwrap_or("-"))
+			markdown::md_cell(evolution.follow_up.as_deref().unwrap_or("-"))
 		));
 	}
 

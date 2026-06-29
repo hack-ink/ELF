@@ -2,6 +2,11 @@
 
 //! End-to-end HTTP integration tests for the ELF API app.
 
+#[path = "http/auth_admin.rs"] mod auth_admin;
+#[path = "http/contract.rs"] mod contract;
+#[path = "http/request_validation.rs"] mod request_validation;
+#[path = "http/sharing.rs"] mod sharing;
+
 use std::{collections::HashMap, env};
 
 use axum::{
@@ -14,12 +19,12 @@ use qdrant_client::{
 	qdrant::{Document, PointStruct, UpsertPointsBuilder, Vector},
 };
 use serde_json::Map;
-use tower::util::ServiceExt as _;
+use tower::util::ServiceExt;
 use tracing::Level;
 use uuid::Uuid;
 
 use elf_api::{
-	routes::{self, OPENAPI_JSON_PATH, SCALAR_DOCS_PATH},
+	routes::{self, OPENAPI_JSON_PATH},
 	state::AppState,
 };
 use elf_config::{
@@ -933,8 +938,3 @@ async fn contract_json() -> serde_json::Value {
 
 	serde_json::from_slice(&body).expect("Failed to parse OpenAPI response.")
 }
-
-#[path = "http/auth_admin.rs"] mod auth_admin;
-#[path = "http/contract.rs"] mod contract;
-#[path = "http/request_validation.rs"] mod request_validation;
-#[path = "http/sharing.rs"] mod sharing;

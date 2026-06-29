@@ -1,4 +1,4 @@
-use super::*;
+use crate::summary::{self, JobReport, MemorySummaryReport};
 
 pub(super) fn memory_summary_summary_impl(jobs: &[JobReport]) -> Option<MemorySummaryReport> {
 	let memory_jobs = jobs.iter().filter_map(|job| job.memory_summary.as_ref()).collect::<Vec<_>>();
@@ -43,11 +43,11 @@ pub(super) fn memory_summary_summary_impl(jobs: &[JobReport]) -> Option<MemorySu
 			.sum(),
 		source_ref_required_count,
 		source_ref_entry_count,
-		source_ref_coverage: ratio(source_ref_entry_count, source_ref_required_count),
+		source_ref_coverage: summary::ratio(source_ref_entry_count, source_ref_required_count),
 		freshness_marker_count,
-		freshness_coverage: ratio(freshness_marker_count, entry_count),
+		freshness_coverage: summary::ratio(freshness_marker_count, entry_count),
 		rationale_count,
-		rationale_coverage: ratio(rationale_count, entry_count),
+		rationale_coverage: summary::ratio(rationale_count, entry_count),
 		invalid_top_of_mind_count: memory_jobs
 			.iter()
 			.map(|metrics| metrics.invalid_top_of_mind_count)

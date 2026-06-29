@@ -2,11 +2,13 @@ use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 
-use super::{
-	ADD_EVENT_PIPELINE, DEFAULT_PROFILE_ID, DEFAULT_PROFILE_VERSION, profile::builtin_profile_v1,
-	types::IngestionProfileSelector,
+use crate::{
+	Error, Result,
+	ingestion_profiles::{
+		ADD_EVENT_PIPELINE, DEFAULT_PROFILE_ID, DEFAULT_PROFILE_VERSION, profile,
+		types::IngestionProfileSelector,
+	},
 };
-use crate::{Error, Result};
 
 #[derive(FromRow)]
 pub(super) struct ProfileRow {
@@ -312,7 +314,7 @@ pub(super) async fn seed_default_profile(
 	project_id: &str,
 ) -> Result<()> {
 	let profile =
-		serde_json::to_value(builtin_profile_v1()).map_err(|_| Error::InvalidRequest {
+		serde_json::to_value(profile::builtin_profile_v1()).map_err(|_| Error::InvalidRequest {
 			message: "Failed to serialize default ingestion profile.".to_string(),
 		})?;
 

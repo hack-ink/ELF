@@ -1,4 +1,4 @@
-use super::*;
+use crate::{Command, CorpusNote, HashSet, Path, PathBuf, QueryCase, QueryManifest, env, eyre, fs};
 
 pub(super) fn load_corpus_notes(corpus_dir: &Path) -> color_eyre::Result<Vec<CorpusNote>> {
 	let mut paths = fs::read_dir(corpus_dir)?

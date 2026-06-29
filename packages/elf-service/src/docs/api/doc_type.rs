@@ -15,7 +15,6 @@ pub enum DocType {
 	/// Development-oriented artifacts such as code or plans.
 	Dev,
 }
-
 impl DocType {
 	/// Returns the canonical storage and API string for this document type.
 	pub fn as_str(self) -> &'static str {

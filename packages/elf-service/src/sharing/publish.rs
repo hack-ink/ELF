@@ -1,19 +1,17 @@
+use time::OffsetDateTime;
+
 use crate::{
-	ElfService, Error, InsertVersionArgs,
+	ElfService, Error, InsertVersionArgs, Result,
 	access::{self, ORG_PROJECT_ID},
+	sharing::types::{
+		PublishNoteRequest, PublishNoteResponse, UnpublishNoteRequest, UnpublishNoteResponse,
+	},
 };
 use elf_storage::models::MemoryNote;
 
-use super::types::{
-	PublishNoteRequest, PublishNoteResponse, UnpublishNoteRequest, UnpublishNoteResponse,
-};
-
 impl ElfService {
 	/// Publishes an owned note into a shared scope.
-	pub async fn publish_note(
-		&self,
-		req: PublishNoteRequest,
-	) -> crate::Result<PublishNoteResponse> {
+	pub async fn publish_note(&self, req: PublishNoteRequest) -> Result<PublishNoteResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
@@ -48,7 +46,7 @@ FOR UPDATE",
 		if note.status != "active" {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
-		if note.expires_at.map(|ts| ts <= time::OffsetDateTime::now_utc()).unwrap_or(false) {
+		if note.expires_at.map(|ts| ts <= OffsetDateTime::now_utc()).unwrap_or(false) {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 
@@ -78,7 +76,7 @@ FOR UPDATE",
 			return Ok(PublishNoteResponse { note_id: note.note_id, scope: note.scope });
 		}
 
-		let now = time::OffsetDateTime::now_utc();
+		let now = OffsetDateTime::now_utc();
 		let prev_snapshot = crate::note_snapshot(&note);
 
 		note.scope = scope.to_string();
@@ -116,10 +114,7 @@ FOR UPDATE",
 	}
 
 	/// Returns a previously published note to its non-shared scope.
-	pub async fn unpublish_note(
-		&self,
-		req: UnpublishNoteRequest,
-	) -> crate::Result<UnpublishNoteResponse> {
+	pub async fn unpublish_note(&self, req: UnpublishNoteRequest) -> Result<UnpublishNoteResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
@@ -154,7 +149,7 @@ FOR UPDATE",
 		if note.status != "active" {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
-		if note.expires_at.map(|ts| ts <= time::OffsetDateTime::now_utc()).unwrap_or(false) {
+		if note.expires_at.map(|ts| ts <= OffsetDateTime::now_utc()).unwrap_or(false) {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		}
 		if !self.cfg.scopes.write_allowed.agent_private {
@@ -164,7 +159,7 @@ FOR UPDATE",
 			return Ok(UnpublishNoteResponse { note_id: note.note_id, scope: note.scope });
 		}
 
-		let now = time::OffsetDateTime::now_utc();
+		let now = OffsetDateTime::now_utc();
 		let prev_snapshot = crate::note_snapshot(&note);
 
 		if note.scope == "org_shared" && note.project_id == ORG_PROJECT_ID {

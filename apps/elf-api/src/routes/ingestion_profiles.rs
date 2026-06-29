@@ -1,4 +1,14 @@
-use super::*;
+use crate::routes::{
+	self, AdminIngestionProfileCreateBody, AdminIngestionProfileCreateRequest,
+	AdminIngestionProfileDefaultGetRequest, AdminIngestionProfileDefaultResponse,
+	AdminIngestionProfileDefaultResponseV2, AdminIngestionProfileDefaultSetBody,
+	AdminIngestionProfileDefaultSetRequest, AdminIngestionProfileGetQuery,
+	AdminIngestionProfileGetRequest, AdminIngestionProfileListRequest,
+	AdminIngestionProfileResponse, AdminIngestionProfileVersionsListRequest,
+	AdminIngestionProfileVersionsListResponse, AdminIngestionProfilesListResponse, ApiError,
+	AppState, ErrorBody, HeaderMap, Json, JsonRejection, Path, Query, QueryRejection,
+	RequestContext, State, StatusCode,
+};
 
 #[utoipa::path(
 	get,
@@ -50,7 +60,12 @@ pub(super) async fn admin_ingestion_profile_create(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service
@@ -94,7 +109,7 @@ pub(super) async fn admin_ingestion_profile_get(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -204,7 +219,12 @@ pub(super) async fn admin_ingestion_profile_default_set(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

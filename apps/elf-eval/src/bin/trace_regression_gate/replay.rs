@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use uuid::Uuid;
 
-use super::rows::CandidateRow;
+use crate::rows::CandidateRow;
 
 pub(super) fn decode_trace_replay_candidates(
 	rows: Vec<CandidateRow>,

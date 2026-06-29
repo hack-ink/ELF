@@ -1,10 +1,11 @@
-use serde_json;
+use serde_json::{self, Value};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::ConsolidationProposalResponse;
-
-use super::{DreamingReviewQueueItem, policy};
+use crate::{
+	ConsolidationProposalResponse,
+	dreaming_review_queue::{DreamingReviewQueueItem, policy},
+};
 
 #[test]
 fn queue_variant_prefers_payload_and_normalizes_future_variants() {
@@ -143,8 +144,8 @@ fn proposal(
 	apply_intent: &str,
 	review_state: &str,
 	confidence: f32,
-	proposed_payload: serde_json::Value,
-	diff: serde_json::Value,
+	proposed_payload: Value,
+	diff: Value,
 ) -> ConsolidationProposalResponse {
 	let now = OffsetDateTime::UNIX_EPOCH;
 

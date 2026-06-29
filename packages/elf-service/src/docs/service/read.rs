@@ -1,4 +1,8 @@
-use super::*;
+use crate::docs::service::{
+	self, DocDocument, DocsDeleteRequest, DocsDeleteResponse, DocsGetRequest, DocsGetResponse,
+	ElfService, Error, HashSet, NoteOp, ORG_PROJECT_ID, OffsetDateTime, Result, access, doc_outbox,
+	docs, search,
+};
 
 impl ElfService {
 	/// Loads document metadata when the caller can read the requested scope.
@@ -70,7 +74,7 @@ LIMIT 1",
 		};
 
 		if row.status != "active"
-			|| !doc_read_allowed(
+			|| !service::doc_read_allowed(
 				agent_id,
 				&allowed_scopes,
 				&shared_grants,

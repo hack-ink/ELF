@@ -2,6 +2,12 @@
 
 //! CLI for exporting trace fixtures used by regression gates.
 
+#[path = "trace_gate_export/cli.rs"] mod cli;
+#[path = "trace_gate_export/fetch.rs"] mod fetch;
+#[path = "trace_gate_export/render.rs"] mod render;
+#[path = "trace_gate_export/rows.rs"] mod rows;
+#[path = "trace_gate_export/sql.rs"] mod sql;
+
 use std::fs;
 
 use clap::Parser;
@@ -9,19 +15,8 @@ use color_eyre::Result;
 use tracing_subscriber::EnvFilter;
 use uuid::Uuid;
 
+use self::cli::Args;
 use elf_storage::db::Db;
-
-#[path = "trace_gate_export/cli.rs"] mod cli;
-#[path = "trace_gate_export/fetch.rs"] mod fetch;
-#[path = "trace_gate_export/render.rs"] mod render;
-#[path = "trace_gate_export/rows.rs"] mod rows;
-#[path = "trace_gate_export/sql.rs"] mod sql;
-
-use self::{
-	cli::Args,
-	fetch::{fetch_candidates, fetch_items, fetch_stage_items, fetch_stages, fetch_traces},
-	render::render_fixture_sql,
-};
 
 fn normalize_trace_ids(trace_ids: &[Uuid]) -> Vec<Uuid> {
 	let mut out = trace_ids.to_vec();
@@ -47,19 +42,30 @@ async fn main() -> Result<()> {
 
 	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
 
-	let traces = fetch_traces(&db, &trace_ids).await?;
-	let candidates = fetch_candidates(&db, &trace_ids).await?;
-	let items = if args.include_items { fetch_items(&db, &trace_ids).await? } else { Vec::new() };
+	let traces = self::fetch::fetch_traces(&db, &trace_ids).await?;
+	let candidates = self::fetch::fetch_candidates(&db, &trace_ids).await?;
+	let items = if args.include_items {
+		self::fetch::fetch_items(&db, &trace_ids).await?
+	} else {
+		Vec::new()
+	};
 	let (stages, stage_items) = if args.include_stages {
-		let stages = fetch_stages(&db, &trace_ids).await?;
+		let stages = self::fetch::fetch_stages(&db, &trace_ids).await?;
 		let stage_ids: Vec<Uuid> = stages.iter().map(|row| row.stage_id).collect();
-		let stage_items = fetch_stage_items(&db, &stage_ids).await?;
+		let stage_items = self::fetch::fetch_stage_items(&db, &stage_ids).await?;
 
 		(stages, stage_items)
 	} else {
 		(Vec::new(), Vec::new())
 	};
-	let sql = render_fixture_sql(&args, &traces, &candidates, &items, &stages, &stage_items)?;
+	let sql = self::render::render_fixture_sql(
+		&args,
+		&traces,
+		&candidates,
+		&items,
+		&stages,
+		&stage_items,
+	)?;
 
 	if let Some(out_path) = &args.out {
 		fs::write(out_path, sql)?;

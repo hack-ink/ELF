@@ -1,4 +1,6 @@
-use super::*;
+use crate::search::api::{
+	Deserialize, SearchItem, SearchTrajectorySummary, Serialize, Uuid, Value,
+};
 
 /// Planned-search variant of the raw search response.
 #[derive(Clone, Debug, Deserialize, Serialize)]

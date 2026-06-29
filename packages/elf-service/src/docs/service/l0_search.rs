@@ -1,12 +1,17 @@
-use super::*;
+use crate::docs::service::{
+	self, DocSearchRow, DocTrajectoryBuilder, DocsSearchL0Filters, DocsSearchL0Item,
+	DocsSearchL0Prepared, DocsSearchL0Request, DocsSearchL0Response, DocsSparseMode, ElfService,
+	Error, HashMap, HashSet, MAX_CANDIDATE_K, MAX_TOP_K, OffsetDateTime, Result, ScoredPoint,
+	SharedSpaceGrantKey, Uuid, access, load_doc_search_rows, search, slice,
+};
 
 impl ElfService {
 	/// Runs L0 document retrieval with access filtering and optional explain output.
 	pub async fn docs_search_l0(&self, req: DocsSearchL0Request) -> Result<DocsSearchL0Response> {
 		let trace_id = Uuid::new_v4();
-		let filters = validate_docs_search_l0(&req)?;
+		let filters = service::validate_docs_search_l0(&req)?;
 		let mut prepared = self.prepare_docs_search_l0_request(&req, &filters).await?;
-		let scored = run_doc_fusion_query(
+		let scored = service::run_doc_fusion_query(
 			&self.qdrant.client,
 			self.cfg.storage.qdrant.docs_collection.as_str(),
 			req.query.as_str(),
@@ -25,7 +30,7 @@ impl ElfService {
 		);
 
 		let scored_chunks =
-			docs_search_l0_deduplicated_chunks(&scored, prepared.candidate_k as usize)?;
+			service::docs_search_l0_deduplicated_chunks(&scored, prepared.candidate_k as usize)?;
 		let chunk_ids: Vec<Uuid> = scored_chunks.iter().map(|(chunk_id, _)| *chunk_id).collect();
 		let rows = self
 			.load_doc_search_rows(&req, &prepared.status, &chunk_ids, &mut prepared.trajectory)
@@ -39,7 +44,7 @@ impl ElfService {
 			&mut prepared.trajectory,
 		);
 
-		apply_doc_recency_boost(
+		service::apply_doc_recency_boost(
 			&mut items,
 			prepared.now,
 			self.cfg.ranking.recency_tau_days,
@@ -49,7 +54,7 @@ impl ElfService {
 		items.sort_by(|a, b| b.score.total_cmp(&a.score));
 		items.truncate(prepared.top_k as usize);
 
-		record_result_projection_stage(
+		service::record_result_projection_stage(
 			&mut prepared.trajectory,
 			rows.len(),
 			items.len(),
@@ -100,7 +105,7 @@ impl ElfService {
 		shared_grants: &HashSet<SharedSpaceGrantKey>,
 		trajectory: &mut DocTrajectoryBuilder,
 	) -> Vec<DocsSearchL0Item> {
-		let items = docs_search_l0_project_items(
+		let items = service::docs_search_l0_project_items(
 			scored_chunks,
 			rows,
 			req.caller_agent_id.as_str(),
@@ -128,7 +133,7 @@ impl ElfService {
 		let top_k = req.top_k.unwrap_or(12).min(MAX_TOP_K);
 		let candidate_k = req.candidate_k.unwrap_or(60).min(MAX_CANDIDATE_K);
 		let sparse_mode = filters.sparse_mode;
-		let sparse_enabled = docs_search_sparse_enabled(sparse_mode, req.query.as_str());
+		let sparse_enabled = service::docs_search_sparse_enabled(sparse_mode, req.query.as_str());
 		let now = OffsetDateTime::now_utc();
 		let mut trajectory = DocTrajectoryBuilder::new(explain);
 
@@ -159,7 +164,7 @@ impl ElfService {
 			org_shared_allowed,
 		)
 		.await?;
-		let filter = build_doc_search_filter(
+		let filter = service::build_doc_search_filter(
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
 			req.caller_agent_id.as_str(),

@@ -1,10 +1,18 @@
-use super::*;
+use crate::knowledge::watch::{
+	self, BTreeSet, ConsolidationApplyIntent, ConsolidationInputRef, ConsolidationLineage,
+	ConsolidationMarker, ConsolidationMarkerSeverity, ConsolidationMarkers,
+	ConsolidationProposalDiff, ConsolidationProposalInput, ConsolidationRunCreateResponse,
+	ConsolidationSourceKind, ConsolidationSourceSnapshot, KnowledgeDeltaMemoryCandidate,
+	KnowledgePageChangedSource, KnowledgePageProposalRunSummary, KnowledgePageRebuildOutput,
+	KnowledgePageResponse, KnowledgePageSectionResponse, KnowledgePageSourceRefResponse,
+	KnowledgeSourceKind, Value, serde_json,
+};
 
 pub(in crate::knowledge) fn memory_candidates_for_page(
 	page: &KnowledgePageResponse,
 	outputs: &[KnowledgePageRebuildOutput],
 ) -> Vec<KnowledgeDeltaMemoryCandidate> {
-	let reasons = candidate_reasons_by_section(outputs);
+	let reasons = watch::candidate_reasons_by_section(outputs);
 
 	page.sections
 		.iter()
@@ -151,7 +159,7 @@ pub(in crate::knowledge) fn candidate_proposed_payload(
 	section: &KnowledgePageSectionResponse,
 	reason: &str,
 ) -> Value {
-	let text = truncate_chars(
+	let text = watch::truncate_chars(
 		format!(
 			"Plan: Review knowledge page {} section {} because source changes produced a {reason} delta.",
 			page.page.page_key, section.section_key
@@ -200,7 +208,7 @@ pub(in crate::knowledge) fn candidate_proposal_input(
 		unsupported_claim_flags: Vec::new(),
 		markers: candidate_markers(candidate),
 		diff: candidate.diff.clone(),
-		target_ref: empty_object(),
+		target_ref: watch::empty_object(),
 		proposed_payload: candidate.proposed_payload.clone(),
 	}
 }

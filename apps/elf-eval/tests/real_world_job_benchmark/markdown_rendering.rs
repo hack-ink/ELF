@@ -6,11 +6,11 @@ use std::{
 use color_eyre::{Result, eyre};
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn generated_json_report_renders_markdown() -> Result<()> {
-	let report = run_json_report()?;
+	let report = support::run_json_report()?;
 	let temp_dir = env::temp_dir().join(format!("elf-real-world-job-test-{}", process::id()));
 
 	fs::create_dir_all(&temp_dir)?;
@@ -63,7 +63,7 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 
 #[test]
 fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
-	let mut report = run_json_report()?;
+	let mut report = support::run_json_report()?;
 	let adapters = report
 		.pointer_mut("/external_adapters/adapters")
 		.and_then(Value::as_array_mut)
@@ -76,9 +76,13 @@ fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
 		})
 		.ok_or_else(|| eyre::eyre!("missing agentmemory adapter"))?;
 
-	set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
-	set_json_pointer(adapter, "/scenarios/0/comparison_outcome", serde_json::json!("loss"))?;
-	set_json_pointer(
+	support::set_json_pointer(adapter, "/scenarios/0/elf_position", serde_json::json!("loses"))?;
+	support::set_json_pointer(
+		adapter,
+		"/scenarios/0/comparison_outcome",
+		serde_json::json!("loss"),
+	)?;
+	support::set_json_pointer(
 		&mut report,
 		"/external_adapters/summary/scenario_position_counts",
 		serde_json::json!({
@@ -88,7 +92,7 @@ fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
 			"untested": 10
 		}),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut report,
 		"/external_adapters/summary/scenario_outcome_counts",
 		serde_json::json!({
@@ -140,17 +144,17 @@ fn external_adapter_markdown_renders_nonzero_scenario_losses() -> Result<()> {
 
 #[test]
 fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenarios() -> Result<()> {
-	let mut report = run_json_report()?;
+	let mut report = support::run_json_report()?;
 	let adapters = report
 		.pointer_mut("/external_adapters/adapters")
 		.and_then(Value::as_array_mut)
 		.ok_or_else(|| eyre::eyre!("missing external adapter records"))?;
 
 	for adapter in adapters {
-		set_json_pointer(adapter, "/scenarios", serde_json::json!([]))?;
+		support::set_json_pointer(adapter, "/scenarios", serde_json::json!([]))?;
 	}
 
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut report,
 		"/external_adapters/summary/scenario_status_counts",
 		serde_json::json!({
@@ -165,7 +169,7 @@ fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenari
 			"not_encoded": 0
 		}),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut report,
 		"/external_adapters/summary/scenario_position_counts",
 		serde_json::json!({
@@ -175,7 +179,7 @@ fn external_adapter_markdown_omits_scenario_summary_when_manifest_has_no_scenari
 			"untested": 0
 		}),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut report,
 		"/external_adapters/summary/scenario_outcome_counts",
 		serde_json::json!({

@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::search::{FromRow, OffsetDateTime, Uuid, Value};
 
 #[derive(Clone, Debug)]
 pub(in crate::search) struct NoteMeta {

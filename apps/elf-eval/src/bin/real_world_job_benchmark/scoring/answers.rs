@@ -1,4 +1,4 @@
-use super::*;
+use crate::scoring::{BTreeSet, ExpectedClaim, ProducedAnswer, RealWorldJob, RequiredEvidence};
 
 pub(super) fn produced_answer(job: &RealWorldJob) -> &ProducedAnswer {
 	job.corpus
@@ -6,6 +6,59 @@ pub(super) fn produced_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		.as_ref()
 		.map(|response| &response.answer)
 		.unwrap_or_else(|| synthetic_answer(job))
+}
+
+pub(super) fn produced_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<String> {
+	ordered_produced_evidence_ids(answer).into_iter().collect()
+}
+
+pub(super) fn missing_required_claims(job: &RealWorldJob, answer: &ProducedAnswer) -> Vec<String> {
+	job.expected_answer
+		.must_include
+		.iter()
+		.filter(|claim| !claim_is_present(claim, answer))
+		.map(|claim| claim.text().to_string())
+		.collect()
+}
+
+pub(super) fn forbidden_claim_hits(job: &RealWorldJob, answer: &ProducedAnswer) -> Vec<String> {
+	job.expected_answer
+		.must_not_include
+		.iter()
+		.filter(|claim| answer.content.contains(claim.as_str()))
+		.cloned()
+		.collect()
+}
+
+pub(super) fn missing_required_evidence(
+	job: &RealWorldJob,
+	produced_evidence: &BTreeSet<String>,
+) -> Vec<String> {
+	job.required_evidence
+		.iter()
+		.filter(|evidence| {
+			is_required_use(evidence) && !produced_evidence.contains(&evidence.evidence_id)
+		})
+		.map(|evidence| evidence.evidence_id.clone())
+		.collect()
+}
+
+pub(super) fn is_required_use(evidence: &RequiredEvidence) -> bool {
+	matches!(evidence.requirement.as_str(), "cite" | "use" | "explain")
+}
+
+pub(super) fn trap_ids_used(
+	job: &RealWorldJob,
+	produced_evidence: &BTreeSet<String>,
+) -> Vec<String> {
+	job.negative_traps
+		.iter()
+		.filter(|trap| trap.failure_if_used)
+		.filter(|trap| {
+			trap.evidence_ids.iter().any(|evidence_id| produced_evidence.contains(evidence_id))
+		})
+		.map(|trap| trap.trap_id.clone())
+		.collect()
 }
 
 fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
@@ -27,10 +80,6 @@ fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
 		cost: None,
 		trace_explainability: None,
 	})
-}
-
-pub(super) fn produced_evidence_ids(answer: &ProducedAnswer) -> BTreeSet<String> {
-	ordered_produced_evidence_ids(answer).into_iter().collect()
 }
 
 fn ordered_produced_evidence_ids(answer: &ProducedAnswer) -> Vec<String> {
@@ -141,15 +190,6 @@ fn push_ordered_evidence(
 	}
 }
 
-pub(super) fn missing_required_claims(job: &RealWorldJob, answer: &ProducedAnswer) -> Vec<String> {
-	job.expected_answer
-		.must_include
-		.iter()
-		.filter(|claim| !claim_is_present(claim, answer))
-		.map(|claim| claim.text().to_string())
-		.collect()
-}
-
 fn claim_is_present(claim: &ExpectedClaim, answer: &ProducedAnswer) -> bool {
 	if let Some(claim_id) = claim.claim_id()
 		&& answer.claims.iter().any(|produced| produced.claim_id.as_deref() == Some(claim_id))
@@ -158,44 +198,4 @@ fn claim_is_present(claim: &ExpectedClaim, answer: &ProducedAnswer) -> bool {
 	}
 
 	answer.content.contains(claim.text())
-}
-
-pub(super) fn forbidden_claim_hits(job: &RealWorldJob, answer: &ProducedAnswer) -> Vec<String> {
-	job.expected_answer
-		.must_not_include
-		.iter()
-		.filter(|claim| answer.content.contains(claim.as_str()))
-		.cloned()
-		.collect()
-}
-
-pub(super) fn missing_required_evidence(
-	job: &RealWorldJob,
-	produced_evidence: &BTreeSet<String>,
-) -> Vec<String> {
-	job.required_evidence
-		.iter()
-		.filter(|evidence| {
-			is_required_use(evidence) && !produced_evidence.contains(&evidence.evidence_id)
-		})
-		.map(|evidence| evidence.evidence_id.clone())
-		.collect()
-}
-
-pub(super) fn is_required_use(evidence: &RequiredEvidence) -> bool {
-	matches!(evidence.requirement.as_str(), "cite" | "use" | "explain")
-}
-
-pub(super) fn trap_ids_used(
-	job: &RealWorldJob,
-	produced_evidence: &BTreeSet<String>,
-) -> Vec<String> {
-	job.negative_traps
-		.iter()
-		.filter(|trap| trap.failure_if_used)
-		.filter(|trap| {
-			trap.evidence_ids.iter().any(|evidence_id| produced_evidence.contains(evidence_id))
-		})
-		.map(|trap| trap.trap_id.clone())
-		.collect()
 }

@@ -26,13 +26,6 @@ pub(crate) fn header_string(headers: &HeaderMap, name: &str) -> Option<String> {
 	headers.get(name).and_then(|value| value.to_str().ok()).map(str::to_string)
 }
 
-fn add_context_headers(request: RequestBuilder, context: &ContextArgs) -> RequestBuilder {
-	request
-		.header("X-ELF-Tenant-Id", &context.tenant_id)
-		.header("X-ELF-Project-Id", &context.project_id)
-		.header("X-ELF-Agent-Id", &context.agent_id)
-}
-
 pub(crate) async fn request_json(client: &Client, args: JsonRequest<'_>) -> Result<Value> {
 	let mut request = client.request(args.method, join_url(args.base_url, args.path));
 
@@ -69,6 +62,13 @@ pub(crate) async fn request_json_query(
 	request = add_context_headers(request, context);
 
 	parse_json_response(request.send().await?).await
+}
+
+fn add_context_headers(request: RequestBuilder, context: &ContextArgs) -> RequestBuilder {
+	request
+		.header("X-ELF-Tenant-Id", &context.tenant_id)
+		.header("X-ELF-Project-Id", &context.project_id)
+		.header("X-ELF-Agent-Id", &context.agent_id)
 }
 
 async fn parse_json_response(response: Response) -> Result<Value> {

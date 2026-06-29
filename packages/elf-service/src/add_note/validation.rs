@@ -1,7 +1,10 @@
 use serde_json::Value;
 
-use super::types::{AddNoteInput, AddNoteRequest, AddNoteResult, default_source_ref};
-use crate::{Error, NoteOp, Result, StructuredFields, structured_fields};
+use crate::{
+	Error, NoteOp, Result, StructuredFields,
+	add_note::types::{self, AddNoteInput, AddNoteRequest, AddNoteResult},
+	structured_fields,
+};
 use elf_config::Config;
 use elf_domain::{
 	english_gate,
@@ -14,7 +17,7 @@ const REJECT_STRUCTURED_INVALID: &str = "REJECT_STRUCTURED_INVALID";
 pub(super) fn normalize_add_note_request(mut req: AddNoteRequest) -> AddNoteRequest {
 	for note in &mut req.notes {
 		if note.source_ref.is_null() {
-			note.source_ref = default_source_ref();
+			note.source_ref = types::default_source_ref();
 		}
 	}
 

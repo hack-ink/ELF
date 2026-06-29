@@ -4,32 +4,28 @@ use sqlx;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use super::{
-	details::{
-		SearchDetailsBuildArgs, build_search_details_results, build_summary, build_timeline_by_day,
-		resolve_read_scopes, validate_search_session_access,
-	},
-	storage::{
-		load_search_session, record_detail_hits, store_search_session, touch_search_session,
-	},
-	types::{
-		NewSearchSession, SESSION_SLIDING_TTL_HOURS, SearchDetailsRequest, SearchDetailsResponse,
-		SearchIndexItem, SearchIndexPlannedResponse, SearchIndexResponse, SearchSessionGetRequest,
-		SearchSessionGetResponse, SearchSessionItemRecord, SearchSessionMode, SearchSessionizePath,
-		SearchSessionizedOutput, SearchTimelineGroup, SearchTimelineRequest,
-		SearchTimelineResponse,
-	},
-};
 use crate::{
-	ElfService, PayloadLevel, SearchRequest,
+	ElfService, Error, PayloadLevel, Result, SearchRequest,
 	access::{self, ORG_PROJECT_ID},
+	progressive_search::{
+		details::{self, SearchDetailsBuildArgs},
+		storage::{self},
+		types::{
+			NewSearchSession, SESSION_SLIDING_TTL_HOURS, SearchDetailsRequest,
+			SearchDetailsResponse, SearchIndexItem, SearchIndexPlannedResponse,
+			SearchIndexResponse, SearchSessionGetRequest, SearchSessionGetResponse,
+			SearchSessionItemRecord, SearchSessionMode, SearchSessionizePath,
+			SearchSessionizedOutput, SearchTimelineGroup, SearchTimelineRequest,
+			SearchTimelineResponse,
+		},
+	},
 	structured_fields,
 };
 use elf_storage::models::MemoryNote;
 
 impl ElfService {
 	/// Runs the default progressive-search path and returns indexed results.
-	pub async fn search(&self, req: SearchRequest) -> crate::Result<SearchIndexResponse> {
+	pub async fn search(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
 		let response = self.search_planned(req).await?;
 
 		Ok(SearchIndexResponse {
@@ -42,17 +38,14 @@ impl ElfService {
 	}
 
 	/// Runs quick-find search and stores a quick session without a query plan.
-	pub async fn search_quick(&self, req: SearchRequest) -> crate::Result<SearchIndexResponse> {
+	pub async fn search_quick(&self, req: SearchRequest) -> Result<SearchIndexResponse> {
 		self.search_sessionized(req, SearchSessionizePath::Quick).await.map(|output| output.index)
 	}
 
 	/// Runs planned search and stores a session with a query plan.
-	pub async fn search_planned(
-		&self,
-		req: SearchRequest,
-	) -> crate::Result<SearchIndexPlannedResponse> {
+	pub async fn search_planned(&self, req: SearchRequest) -> Result<SearchIndexPlannedResponse> {
 		let output = self.search_sessionized(req, SearchSessionizePath::Planned).await?;
-		let query_plan = output.query_plan.ok_or_else(|| crate::Error::Storage {
+		let query_plan = output.query_plan.ok_or_else(|| Error::Storage {
 			message: "Planned search response is missing query_plan.".to_string(),
 		})?;
 
@@ -70,7 +63,7 @@ impl ElfService {
 		&self,
 		req: SearchRequest,
 		path: SearchSessionizePath,
-	) -> crate::Result<SearchSessionizedOutput> {
+	) -> Result<SearchSessionizedOutput> {
 		let top_k = req.top_k.unwrap_or(self.cfg.memory.top_k).max(1);
 		let candidate_k = req.candidate_k.unwrap_or(self.cfg.memory.candidate_k).max(top_k);
 		let mut raw_req = req.clone();
@@ -103,7 +96,7 @@ impl ElfService {
 				.get(&item.note_id)
 				.and_then(|value| value.summary.clone())
 				.unwrap_or_else(|| {
-					build_summary(&item.snippet, self.cfg.memory.max_note_chars as usize)
+					details::build_summary(&item.snippet, self.cfg.memory.max_note_chars as usize)
 				});
 
 			items.push(SearchSessionItemRecord {
@@ -122,7 +115,7 @@ impl ElfService {
 			});
 		}
 
-		store_search_session(
+		storage::store_search_session(
 			&self.db.pool,
 			NewSearchSession {
 				search_session_id,
@@ -161,25 +154,26 @@ impl ElfService {
 	pub async fn search_session_get(
 		&self,
 		req: SearchSessionGetRequest,
-	) -> crate::Result<SearchSessionGetResponse> {
+	) -> Result<SearchSessionGetResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
 
 		let now = OffsetDateTime::now_utc();
-		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
+		let session =
+			storage::load_search_session(&self.db.pool, req.search_session_id, now).await?;
 
-		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
+		details::validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
 
 		let touch = req.touch.unwrap_or(true);
 		let expires_at = if touch {
-			touch_search_session(&self.db.pool, &session, now).await?
+			storage::touch_search_session(&self.db.pool, &session, now).await?
 		} else {
 			session.expires_at
 		};
@@ -206,30 +200,35 @@ impl ElfService {
 	pub async fn search_timeline(
 		&self,
 		req: SearchTimelineRequest,
-	) -> crate::Result<SearchTimelineResponse> {
+	) -> Result<SearchTimelineResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
 
 		let now = OffsetDateTime::now_utc();
-		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
+		let session =
+			storage::load_search_session(&self.db.pool, req.search_session_id, now).await?;
 
-		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
+		details::validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
 
-		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
+		let expires_at = storage::touch_search_session(&self.db.pool, &session, now).await?;
 		let payload_level = req.payload_level;
 		let group_by = req.group_by.unwrap_or_else(|| {
 			if payload_level == PayloadLevel::L0 { "none".to_string() } else { "day".to_string() }
 		});
 
 		match group_by.as_str() {
-			"day" => build_timeline_by_day(session.search_session_id, expires_at, &session.items),
+			"day" => details::build_timeline_by_day(
+				session.search_session_id,
+				expires_at,
+				&session.items,
+			),
 			"none" => Ok(SearchTimelineResponse {
 				search_session_id: session.search_session_id,
 				expires_at,
@@ -242,33 +241,31 @@ impl ElfService {
 						.collect(),
 				}],
 			}),
-			_ => Err(crate::Error::InvalidRequest {
+			_ => Err(Error::InvalidRequest {
 				message: "group_by must be one of: day, none.".to_string(),
 			}),
 		}
 	}
 
 	/// Materializes selected note details out of a stored search session.
-	pub async fn search_details(
-		&self,
-		req: SearchDetailsRequest,
-	) -> crate::Result<SearchDetailsResponse> {
+	pub async fn search_details(&self, req: SearchDetailsRequest) -> Result<SearchDetailsResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
 
 		if tenant_id.is_empty() || project_id.is_empty() || agent_id.is_empty() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "tenant_id, project_id, and agent_id are required.".to_string(),
 			});
 		}
 
 		let now = OffsetDateTime::now_utc();
-		let session = load_search_session(&self.db.pool, req.search_session_id, now).await?;
+		let session =
+			storage::load_search_session(&self.db.pool, req.search_session_id, now).await?;
 
-		validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
+		details::validate_search_session_access(&session, tenant_id, project_id, agent_id)?;
 
-		let expires_at = touch_search_session(&self.db.pool, &session, now).await?;
+		let expires_at = storage::touch_search_session(&self.db.pool, &session, now).await?;
 		let mut by_note_id: HashMap<Uuid, SearchSessionItemRecord> = HashMap::new();
 
 		for item in &session.items {
@@ -319,7 +316,7 @@ WHERE note_id = ANY($1::uuid[])
 			)
 			.await?
 		};
-		let allowed_scopes = resolve_read_scopes(&self.cfg, &session.read_profile)?;
+		let allowed_scopes = details::resolve_read_scopes(&self.cfg, &session.read_profile)?;
 		let shared_grants = access::load_shared_read_grants_with_org_shared(
 			&self.db.pool,
 			session.tenant_id.as_str(),
@@ -341,12 +338,12 @@ WHERE note_id = ANY($1::uuid[])
 			payload_level: req.payload_level,
 			max_note_chars: self.cfg.memory.max_note_chars as usize,
 		};
-		let (results, hits) = build_search_details_results(req.note_ids, details_args);
+		let (results, hits) = details::build_search_details_results(req.note_ids, details_args);
 
 		if !hits.is_empty() {
 			let mut tx = self.db.pool.begin().await?;
 
-			record_detail_hits(&mut *tx, &session.query, &hits, now).await?;
+			storage::record_detail_hits(&mut *tx, &session.query, &hits, now).await?;
 
 			tx.commit().await?;
 		}

@@ -2,8 +2,9 @@ use sqlx::PgExecutor;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use super::types::ConsolidationRunJobInsert;
-use crate::{Result, db::Db, models::ConsolidationRunJob};
+use crate::{
+	Result, consolidation::types::ConsolidationRunJobInsert, db::Db, models::ConsolidationRunJob,
+};
 
 /// Enqueues one consolidation worker job.
 pub async fn insert_consolidation_run_job<'e, E>(

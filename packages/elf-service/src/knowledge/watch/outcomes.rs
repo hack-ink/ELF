@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::watch::{
+	self, Error, KnowledgePage, KnowledgePageChangedSource, KnowledgePageResponse,
+	KnowledgePageSection, KnowledgePageSourceRef, KnowledgePageWatchRebuildItem, LintDraft,
+	WatchRebuildOutcome,
+};
 
 pub(in crate::knowledge) fn successful_watch_rebuild(
 	before_sections: Vec<KnowledgePageSection>,
@@ -8,17 +12,18 @@ pub(in crate::knowledge) fn successful_watch_rebuild(
 	changed_sources: &[KnowledgePageChangedSource],
 ) -> WatchRebuildOutcome {
 	let previous_version_diff = rebuilt_page.page.previous_version_diff.clone();
-	let outputs = rebuild_outputs(
+	let outputs = watch::rebuild_outputs(
 		&before_sections,
 		&before_source_refs,
 		&before_lint,
 		previous_version_diff.as_ref(),
 		changed_sources,
 	);
-	let sections = successful_section_states(&before_sections, &rebuilt_page.sections, &outputs);
-	let rebuild_state = successful_rebuild_state(previous_version_diff.as_ref(), &outputs);
-	let candidates = memory_candidates_for_page(&rebuilt_page, &outputs);
-	let operator_summary = page_operator_summary(
+	let sections =
+		watch::successful_section_states(&before_sections, &rebuilt_page.sections, &outputs);
+	let rebuild_state = watch::successful_rebuild_state(previous_version_diff.as_ref(), &outputs);
+	let candidates = watch::memory_candidates_for_page(&rebuilt_page, &outputs);
+	let operator_summary = watch::page_operator_summary(
 		rebuilt_page.page.page_key.as_str(),
 		rebuild_state.as_str(),
 		outputs.len(),
@@ -47,10 +52,10 @@ pub(in crate::knowledge) fn blocked_watch_rebuild(
 	before_lint: Vec<LintDraft>,
 	err: Error,
 ) -> WatchRebuildOutcome {
-	let outputs = blocked_outputs(&sections, &before_lint, err.to_string().as_str());
-	let section_states = blocked_section_states(&sections, &outputs);
+	let outputs = watch::blocked_outputs(&sections, &before_lint, err.to_string().as_str());
+	let section_states = watch::blocked_section_states(&sections, &outputs);
 	let operator_summary =
-		page_operator_summary(page.page_key.as_str(), "blocked", outputs.len(), 0);
+		watch::page_operator_summary(page.page_key.as_str(), "blocked", outputs.len(), 0);
 	let item = KnowledgePageWatchRebuildItem {
 		page_id: page.page_id,
 		page_kind: page.page_kind,
@@ -61,7 +66,7 @@ pub(in crate::knowledge) fn blocked_watch_rebuild(
 		outputs,
 		rebuilt_page: None,
 		blocked_reason: Some(err.to_string()),
-		previous_version_diff: previous_version_diff_from_metadata(&page.rebuild_metadata),
+		previous_version_diff: watch::previous_version_diff_from_metadata(&page.rebuild_metadata),
 		operator_summary,
 	};
 

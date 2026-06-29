@@ -1,4 +1,9 @@
-use super::super::*;
+use crate::docs::{
+	self, DOC_SOURCE_REF_RESOLVER_V1, DOC_SOURCE_REF_SCHEMA_V1, DocSearchRow, DocsExcerptLocator,
+	DocsExcerptsGetRequest, DocsSearchL0ItemHashes, DocsSearchL0ItemLocator,
+	DocsSearchL0ItemPointer, DocsSearchL0ItemReference, DocsSearchL0ItemState,
+	ExcerptsSelectorKind, TextPositionSelector, Uuid,
+};
 
 pub(in crate::docs) fn docs_excerpt_locator(
 	req: &DocsExcerptsGetRequest,
@@ -8,7 +13,7 @@ pub(in crate::docs) fn docs_excerpt_locator(
 	content_hash: &str,
 ) -> DocsExcerptLocator {
 	DocsExcerptLocator {
-		span_id: source_span_id(
+		span_id: docs::source_span_id(
 			content_hash,
 			match_start_offset,
 			match_end_offset,
@@ -39,7 +44,7 @@ pub(in crate::docs) fn build_docs_l0_pointer(
 			doc_id: row.doc_id,
 			chunk_id,
 			source_record_id: row.doc_id,
-			source_span_id: source_span_id(
+			source_span_id: docs::source_span_id(
 				row.content_hash.as_str(),
 				row.start_offset.max(0) as usize,
 				row.end_offset.max(0) as usize,
@@ -53,7 +58,7 @@ pub(in crate::docs) fn build_docs_l0_pointer(
 		},
 		hashes,
 		locator: DocsSearchL0ItemLocator {
-			span_id: source_span_id(
+			span_id: docs::source_span_id(
 				row.content_hash.as_str(),
 				row.start_offset.max(0) as usize,
 				row.end_offset.max(0) as usize,

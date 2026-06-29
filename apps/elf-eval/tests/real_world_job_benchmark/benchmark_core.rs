@@ -1,8 +1,63 @@
-use super::*;
+use color_eyre::Result;
+use serde_json::Value;
+
+use crate::support;
+
+pub(super) fn assert_tracked_external_blocker_row(
+	row: &Value,
+	product_name: &str,
+	same_corpus: bool,
+) -> Result<()> {
+	assert_eq!(row.pointer("/product_name").and_then(Value::as_str), Some(product_name));
+	assert_eq!(row.pointer("/result_state").and_then(Value::as_str), Some("blocked"));
+	assert_eq!(row.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
+	assert_eq!(row.pointer("/comparable").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/same_corpus").and_then(Value::as_bool), Some(same_corpus));
+	assert_eq!(row.pointer("/source_id_mapped").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/held_out").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/leakage_audited").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/product_runtime").and_then(Value::as_bool), Some(false));
+	assert_eq!(row.pointer("/container_digest_identified").and_then(Value::as_bool), Some(false));
+	assert!(row.pointer("/metrics/retrieval/recall_at_k").is_some_and(Value::is_null));
+	assert!(row.pointer("/metrics/retrieval/precision_at_k").is_some_and(Value::is_null));
+	assert!(row.pointer("/metrics/retrieval/mrr").is_some_and(Value::is_null));
+	assert!(row.pointer("/metrics/retrieval/ndcg").is_some_and(Value::is_null));
+	assert!(support::array_contains_str(
+		row,
+		"/next_evidence",
+		"Map returned evidence to stable source ids."
+	)?);
+	assert!(support::array_contains_str(
+		row,
+		"/next_evidence",
+		"Run a Docker-contained product-runtime adapter for this row."
+	)?);
+	assert!(support::array_contains_str(
+		row,
+		"/next_evidence",
+		"Record container image digest evidence."
+	)?);
+
+	if same_corpus {
+		assert!(!support::array_contains_str(
+			row,
+			"/next_evidence",
+			"Map this product to the same corpus."
+		)?);
+	} else {
+		assert!(support::array_contains_str(
+			row,
+			"/next_evidence",
+			"Map this product to the same corpus."
+		)?);
+	}
+
+	Ok(())
+}
 
 #[test]
 fn smoke_fixture_produces_typed_json_report() -> Result<()> {
-	let report = run_json_report()?;
+	let report = support::run_json_report()?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -26,25 +81,25 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 		Some(14)
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
-	let job = find_by_field(jobs, "/job_id", "work-resume-stale-worktree-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let job = support::find_by_field(jobs, "/job_id", "work-resume-stale-worktree-001")?;
 
 	assert_eq!(job.pointer("/suite_id").and_then(Value::as_str), Some("work_resume"));
 	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(job.pointer("/latency_ms").and_then(Value::as_f64), Some(2.0));
 	assert_eq!(job.pointer("/cost/amount").and_then(Value::as_f64), Some(0.0));
 
-	let expected_evidence = array_at(job, "/expected_evidence")?;
-	let produced_evidence = array_at(job, "/produced_evidence")?;
+	let expected_evidence = support::array_at(job, "/expected_evidence")?;
+	let produced_evidence = support::array_at(job, "/produced_evidence")?;
 
 	assert_eq!(expected_evidence.len(), 2);
 	assert_eq!(produced_evidence.len(), 1);
 	assert_eq!(produced_evidence.first().and_then(Value::as_str), Some("xy844-current-worktree"));
 
-	let suites = array_at(&report, "/suites")?;
-	let encoded_suite = find_by_field(suites, "/suite_id", "work_resume")?;
-	let capture_suite = find_by_field(suites, "/suite_id", "capture_integration")?;
-	let unencoded_suite = find_by_field(suites, "/suite_id", "retrieval")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let encoded_suite = support::find_by_field(suites, "/suite_id", "work_resume")?;
+	let capture_suite = support::find_by_field(suites, "/suite_id", "capture_integration")?;
+	let unencoded_suite = support::find_by_field(suites, "/suite_id", "retrieval")?;
 
 	assert_eq!(encoded_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(encoded_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
@@ -52,13 +107,13 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 	assert_eq!(capture_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(unencoded_suite.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 
-	let capture_fixture_backed = array_at(&report, "/capture_integration/fixture_backed")?;
+	let capture_fixture_backed = support::array_at(&report, "/capture_integration/fixture_backed")?;
 
 	assert!(capture_fixture_backed.iter().any(|value| {
 		value.as_str().is_some_and(|item| item.contains("agentmemory-style hook capture"))
 	}));
 
-	let capture_not_encoded = array_at(&report, "/capture_integration/not_encoded")?;
+	let capture_not_encoded = support::array_at(&report, "/capture_integration/not_encoded")?;
 
 	assert!(capture_not_encoded.iter().any(|value| {
 		value.as_str().is_some_and(|item| item.contains("No live external hook ingestion"))
@@ -69,7 +124,7 @@ fn smoke_fixture_produces_typed_json_report() -> Result<()> {
 
 #[test]
 fn capture_integration_fixtures_score_redaction_and_source_ids() -> Result<()> {
-	let report = run_json_report_from(capture_fixture_dir())?;
+	let report = support::run_json_report_from(support::capture_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(3));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(3));
@@ -77,18 +132,22 @@ fn capture_integration_fixtures_score_redaction_and_source_ids() -> Result<()> {
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
 
-	let suites = array_at(&report, "/suites")?;
-	let capture = find_by_field(suites, "/suite_id", "capture_integration")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let capture = support::find_by_field(suites, "/suite_id", "capture_integration")?;
 
 	assert_eq!(capture.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(capture.pointer("/encoded_job_count").and_then(Value::as_u64), Some(3));
 
-	let jobs = array_at(&report, "/jobs")?;
-	let source_id = find_by_field(jobs, "/job_id", "capture-source-id-binding-001")?;
-	let redaction = find_by_field(jobs, "/job_id", "capture-write-policy-redaction-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let source_id = support::find_by_field(jobs, "/job_id", "capture-source-id-binding-001")?;
+	let redaction = support::find_by_field(jobs, "/job_id", "capture-write-policy-redaction-001")?;
 
-	assert!(array_contains_str(source_id, "/produced_evidence", "source-id-release-summary")?);
-	assert!(array_contains_str(source_id, "/produced_evidence", "source-id-command-log")?);
+	assert!(support::array_contains_str(
+		source_id,
+		"/produced_evidence",
+		"source-id-release-summary"
+	)?);
+	assert!(support::array_contains_str(source_id, "/produced_evidence", "source-id-command-log")?);
 	assert_eq!(redaction.pointer("/redaction_leak_count").and_then(Value::as_u64), Some(0));
 	assert!(
 		redaction
@@ -102,27 +161,35 @@ fn capture_integration_fixtures_score_redaction_and_source_ids() -> Result<()> {
 
 #[test]
 fn source_library_fixtures_score_saved_sources_without_memory_promotion() -> Result<()> {
-	let report = run_json_report_from(source_library_fixture_dir())?;
+	let report = support::run_json_report_from(support::source_library_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(2));
 	assert_eq!(report.pointer("/summary/source_ref_coverage").and_then(Value::as_f64), Some(1.0));
 	assert_eq!(report.pointer("/summary/quote_coverage").and_then(Value::as_f64), Some(1.0));
 
-	let suites = array_at(&report, "/suites")?;
-	let source_library = find_by_field(suites, "/suite_id", "source_library")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let source_library = support::find_by_field(suites, "/suite_id", "source_library")?;
 
 	assert_eq!(source_library.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(source_library.pointer("/encoded_job_count").and_then(Value::as_u64), Some(2));
 
-	let jobs = array_at(&report, "/jobs")?;
-	let long_doc = find_by_field(jobs, "/job_id", "source-library-long-doc-001")?;
-	let thread = find_by_field(jobs, "/job_id", "source-library-social-thread-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let long_doc = support::find_by_field(jobs, "/job_id", "source-library-long-doc-001")?;
+	let thread = support::find_by_field(jobs, "/job_id", "source-library-social-thread-001")?;
 
-	assert!(array_contains_str(long_doc, "/produced_evidence", "article-source-record")?);
-	assert!(array_contains_str(long_doc, "/produced_evidence", "article-hydrated-excerpt")?);
-	assert!(array_contains_str(thread, "/produced_evidence", "thread-source-record")?);
-	assert!(array_contains_str(thread, "/produced_evidence", "thread-promotion-boundary")?);
+	assert!(support::array_contains_str(long_doc, "/produced_evidence", "article-source-record")?);
+	assert!(support::array_contains_str(
+		long_doc,
+		"/produced_evidence",
+		"article-hydrated-excerpt"
+	)?);
+	assert!(support::array_contains_str(thread, "/produced_evidence", "thread-source-record")?);
+	assert!(support::array_contains_str(
+		thread,
+		"/produced_evidence",
+		"thread-promotion-boundary"
+	)?);
 	assert!(long_doc.pointer("/produced_answer").and_then(Value::as_str).is_some_and(|answer| {
 		answer.contains("does not automatically create a durable Memory Note")
 	}));
@@ -138,7 +205,7 @@ fn source_library_fixtures_score_saved_sources_without_memory_promotion() -> Res
 
 #[test]
 fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
-	let report = run_json_report_from(adversarial_quality_fixture_dir())?;
+	let report = support::run_json_report_from(support::adversarial_quality_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(1));
@@ -160,8 +227,8 @@ fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
 		Some(1)
 	);
 
-	let result_states = string_array_at(&report, "/scoreboard/result_states")?;
-	let evidence_classes = string_array_at(&report, "/scoreboard/evidence_classes")?;
+	let result_states = support::string_array_at(&report, "/scoreboard/result_states")?;
+	let evidence_classes = support::string_array_at(&report, "/scoreboard/evidence_classes")?;
 
 	assert_eq!(
 		result_states,
@@ -202,13 +269,17 @@ fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
 		Some(240)
 	);
 	assert_eq!(
-		string_array_at(&report, "/scoreboard/job_typed_non_pass_states_present")?,
+		support::string_array_at(&report, "/scoreboard/job_typed_non_pass_states_present")?,
 		Vec::<String>::new()
 	);
 
 	for state in ["blocked", "incomplete", "not_encoded", "not_tested", "wrong_result"] {
-		assert!(array_contains_str(&report, "/scoreboard/typed_non_pass_states_present", state)?);
-		assert!(array_contains_str(
+		assert!(support::array_contains_str(
+			&report,
+			"/scoreboard/typed_non_pass_states_present",
+			state
+		)?);
+		assert!(support::array_contains_str(
 			&report,
 			"/scoreboard/external_adapter_typed_non_pass_states_present",
 			state
@@ -231,8 +302,8 @@ fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
 
 	assert_scoreboard_rows_expose_quantitative_and_blocker_contract(&report)?;
 
-	let suites = array_at(&report, "/suites")?;
-	let adversarial = find_by_field(suites, "/suite_id", "adversarial_quality")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let adversarial = support::find_by_field(suites, "/suite_id", "adversarial_quality")?;
 
 	assert_eq!(adversarial.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(adversarial.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
@@ -241,12 +312,12 @@ fn adversarial_quality_fixtures_score_scoreboard_gates() -> Result<()> {
 }
 
 fn assert_scoreboard_rows_expose_quantitative_and_blocker_contract(report: &Value) -> Result<()> {
-	let rows = array_at(report, "/scoreboard/rows")?;
-	let elf = find_by_field(rows, "/product_id", "elf_current_report")?;
-	let qmd = find_by_field(rows, "/product_id", "qmd")?;
-	let pageindex = find_by_field(rows, "/product_id", "vectifyai_pageindex")?;
-	let openkb = find_by_field(rows, "/product_id", "vectifyai_openkb")?;
-	let honcho = find_by_field(rows, "/product_id", "plastic_labs_honcho")?;
+	let rows = support::array_at(report, "/scoreboard/rows")?;
+	let elf = support::find_by_field(rows, "/product_id", "elf_current_report")?;
+	let qmd = support::find_by_field(rows, "/product_id", "qmd")?;
+	let pageindex = support::find_by_field(rows, "/product_id", "vectifyai_pageindex")?;
+	let openkb = support::find_by_field(rows, "/product_id", "vectifyai_openkb")?;
+	let honcho = support::find_by_field(rows, "/product_id", "plastic_labs_honcho")?;
 
 	assert_eq!(rows.len(), 20);
 	assert_eq!(elf.pointer("/product_name").and_then(Value::as_str), Some("ELF"));
@@ -276,67 +347,31 @@ fn assert_scoreboard_rows_expose_quantitative_and_blocker_contract(report: &Valu
 		elf.pointer("/metrics/coverage/source_ref_coverage").and_then(Value::as_f64),
 		Some(1.0)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		elf,
 		"/next_evidence",
 		"Run a Docker-contained product-runtime adapter for this row."
 	)?);
-	assert!(array_contains_str(elf, "/next_evidence", "Record container image digest evidence.")?);
+	assert!(support::array_contains_str(
+		elf,
+		"/next_evidence",
+		"Record container image digest evidence."
+	)?);
 	assert_eq!(qmd.pointer("/product_name").and_then(Value::as_str), Some("qmd"));
 	assert_eq!(qmd.pointer("/evidence_class").and_then(Value::as_str), Some("live_real_world"));
 	assert_eq!(qmd.pointer("/comparable").and_then(Value::as_bool), Some(false));
 	assert_eq!(qmd.pointer("/product_runtime").and_then(Value::as_bool), Some(true));
 	assert_eq!(qmd.pointer("/container_digest_identified").and_then(Value::as_bool), Some(false));
 	assert!(qmd.pointer("/metrics/retrieval/recall_at_k").is_some_and(Value::is_null));
-	assert!(array_contains_str(qmd, "/next_evidence", "Record container image digest evidence.")?);
+	assert!(support::array_contains_str(
+		qmd,
+		"/next_evidence",
+		"Record container image digest evidence."
+	)?);
 
 	assert_tracked_external_blocker_row(pageindex, "VectifyAI PageIndex", true)?;
 	assert_tracked_external_blocker_row(openkb, "VectifyAI OpenKB", true)?;
 	assert_tracked_external_blocker_row(honcho, "plastic-labs Honcho", false)?;
-
-	Ok(())
-}
-
-pub(super) fn assert_tracked_external_blocker_row(
-	row: &Value,
-	product_name: &str,
-	same_corpus: bool,
-) -> Result<()> {
-	assert_eq!(row.pointer("/product_name").and_then(Value::as_str), Some(product_name));
-	assert_eq!(row.pointer("/result_state").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(row.pointer("/evidence_class").and_then(Value::as_str), Some("research_gate"));
-	assert_eq!(row.pointer("/comparable").and_then(Value::as_bool), Some(false));
-	assert_eq!(row.pointer("/same_corpus").and_then(Value::as_bool), Some(same_corpus));
-	assert_eq!(row.pointer("/source_id_mapped").and_then(Value::as_bool), Some(false));
-	assert_eq!(row.pointer("/held_out").and_then(Value::as_bool), Some(false));
-	assert_eq!(row.pointer("/leakage_audited").and_then(Value::as_bool), Some(false));
-	assert_eq!(row.pointer("/product_runtime").and_then(Value::as_bool), Some(false));
-	assert_eq!(row.pointer("/container_digest_identified").and_then(Value::as_bool), Some(false));
-	assert!(row.pointer("/metrics/retrieval/recall_at_k").is_some_and(Value::is_null));
-	assert!(row.pointer("/metrics/retrieval/precision_at_k").is_some_and(Value::is_null));
-	assert!(row.pointer("/metrics/retrieval/mrr").is_some_and(Value::is_null));
-	assert!(row.pointer("/metrics/retrieval/ndcg").is_some_and(Value::is_null));
-	assert!(array_contains_str(
-		row,
-		"/next_evidence",
-		"Map returned evidence to stable source ids."
-	)?);
-	assert!(array_contains_str(
-		row,
-		"/next_evidence",
-		"Run a Docker-contained product-runtime adapter for this row."
-	)?);
-	assert!(array_contains_str(row, "/next_evidence", "Record container image digest evidence.")?);
-
-	if same_corpus {
-		assert!(!array_contains_str(
-			row,
-			"/next_evidence",
-			"Map this product to the same corpus."
-		)?);
-	} else {
-		assert!(array_contains_str(row, "/next_evidence", "Map this product to the same corpus.")?);
-	}
 
 	Ok(())
 }

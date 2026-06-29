@@ -1,4 +1,8 @@
-use super::*;
+use crate::{
+	Arc, BaselineRuntime, BoxFuture, Config, EmbeddingProvider, EmbeddingProviderConfig,
+	EmbeddingRuntimeReport, ExtractorProvider, LlmProviderConfig, ProviderConfig, Providers,
+	RerankProvider, Serialize, Value, env, eyre,
+};
 
 #[derive(Debug)]
 pub(super) struct DeterministicEmbedding {
@@ -11,7 +15,7 @@ impl EmbeddingProvider for DeterministicEmbedding {
 		texts: &'a [String],
 	) -> BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
 		let dim = self.vector_dim;
-		let vectors = texts.iter().map(|text| embed_text(text, dim)).collect();
+		let vectors = texts.iter().map(|text| crate::embed_text(text, dim)).collect();
 
 		Box::pin(async move { Ok(vectors) })
 	}
@@ -26,11 +30,11 @@ impl RerankProvider for TokenOverlapRerank {
 		query: &'a str,
 		docs: &'a [String],
 	) -> BoxFuture<'a, elf_service::Result<Vec<f32>>> {
-		let query_terms = terms(query);
+		let query_terms = crate::terms(query);
 		let scores = docs
 			.iter()
 			.map(|doc| {
-				let doc_terms = terms(doc);
+				let doc_terms = crate::terms(doc);
 				let hits = query_terms.intersection(&doc_terms).count() as f32;
 
 				hits / query_terms.len().max(1) as f32

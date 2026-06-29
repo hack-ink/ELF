@@ -1,12 +1,11 @@
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use elf_storage::models::MemoryNote;
-
-use super::{
+use crate::memory_corrections::{
 	MemoryCorrectionAction,
-	validation::{apply_restore_snapshot, correction_source_ref_for, validate_correction_request},
+	validation::{self},
 };
+use elf_storage::models::MemoryNote;
 
 fn note(status: &str) -> MemoryNote {
 	MemoryNote {
@@ -34,7 +33,7 @@ fn note(status: &str) -> MemoryNote {
 #[test]
 fn correction_request_requires_non_empty_reason_and_source() {
 	assert!(
-		validate_correction_request(
+		validation::validate_correction_request(
 			"tenant",
 			"project",
 			"actor",
@@ -46,7 +45,7 @@ fn correction_request_requires_non_empty_reason_and_source() {
 		.is_ok()
 	);
 	assert!(
-		validate_correction_request(
+		validation::validate_correction_request(
 			"tenant",
 			"project",
 			"actor",
@@ -58,7 +57,7 @@ fn correction_request_requires_non_empty_reason_and_source() {
 		.is_err()
 	);
 	assert!(
-		validate_correction_request(
+		validation::validate_correction_request(
 			"tenant",
 			"project",
 			"actor",
@@ -83,7 +82,7 @@ fn restore_snapshot_must_be_active_and_restores_memory_fields() {
 	});
 	let mut note = note("deleted");
 
-	apply_restore_snapshot(&mut note, &snapshot, OffsetDateTime::UNIX_EPOCH)
+	validation::apply_restore_snapshot(&mut note, &snapshot, OffsetDateTime::UNIX_EPOCH)
 		.expect("snapshot should restore");
 
 	assert_eq!(note.status, "active");
@@ -99,7 +98,7 @@ fn correction_source_ref_preserves_prior_and_review_evidence() {
 		"source_ref": { "schema": "prior" },
 		"text": "Fact: Prior memory."
 	});
-	let correction = correction_source_ref_for(
+	let correction = validation::correction_source_ref_for(
 		MemoryCorrectionAction::Supersede,
 		&prior,
 		&serde_json::json!({ "schema": "review" }),

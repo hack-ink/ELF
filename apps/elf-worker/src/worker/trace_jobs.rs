@@ -1,11 +1,15 @@
-use super::*;
+use crate::worker::{
+	self, Db, OffsetDateTime, PgConnection, PgExecutor, QueryBuilder, Result, TraceCandidateInsert,
+	TraceCandidateRecord, TraceItemInsert, TraceItemRecord, TraceOutboxJob, TracePayload,
+	TraceRecord, TraceStageInsert, TraceStageItemInsert, TraceTrajectoryStageRecord, Uuid, Value,
+};
 
 pub(super) async fn handle_trace_job(db: &Db, job: &TraceOutboxJob) -> Result<()> {
 	let payload: TracePayload = serde_json::from_value(job.payload.clone())?;
 	let TracePayload { trace, items, candidates, stages } = payload;
 	let trace_id = trace.trace_id;
-	let expanded_queries_json = encode_json(&trace.expanded_queries, "expanded_queries")?;
-	let allowed_scopes_json = encode_json(&trace.allowed_scopes, "allowed_scopes")?;
+	let expanded_queries_json = worker::encode_json(&trace.expanded_queries, "expanded_queries")?;
+	let allowed_scopes_json = worker::encode_json(&trace.allowed_scopes, "allowed_scopes")?;
 	let mut tx = db.pool.begin().await?;
 
 	insert_trace_tx(&mut *tx, trace_id, &trace, expanded_queries_json, allowed_scopes_json).await?;

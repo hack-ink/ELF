@@ -3,11 +3,11 @@ use std::{env, fs, process};
 use color_eyre::Result;
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn production_ops_fixtures_report_bounded_typed_states() -> Result<()> {
-	let report = run_json_report_from(production_ops_fixture_dir())?;
+	let report = support::run_json_report_from(support::production_ops_fixture_dir())?;
 
 	assert_production_ops_summary(&report)?;
 	assert_production_ops_jobs(&report)?;
@@ -32,8 +32,8 @@ fn assert_production_ops_summary(report: &Value) -> Result<()> {
 		Some(1)
 	);
 
-	let suites = array_at(report, "/suites")?;
-	let production_ops = find_by_field(suites, "/suite_id", "production_ops")?;
+	let suites = support::array_at(report, "/suites")?;
+	let production_ops = support::find_by_field(suites, "/suite_id", "production_ops")?;
 
 	assert_eq!(production_ops.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(production_ops.pointer("/encoded_job_count").and_then(Value::as_u64), Some(8));
@@ -42,16 +42,19 @@ fn assert_production_ops_summary(report: &Value) -> Result<()> {
 }
 
 fn assert_production_ops_jobs(report: &Value) -> Result<()> {
-	let jobs = array_at(report, "/jobs")?;
+	let jobs = support::array_at(report, "/jobs")?;
 	let authority_recovery =
-		find_by_field(jobs, "/job_id", "production-ops-authority-plane-recovery-001")?;
-	let backfill = find_by_field(jobs, "/job_id", "production-ops-backfill-resume-001")?;
-	let restore = find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
-	let public_proxy = find_by_field(jobs, "/job_id", "production-ops-public-proxy-addendum-001")?;
+		support::find_by_field(jobs, "/job_id", "production-ops-authority-plane-recovery-001")?;
+	let backfill = support::find_by_field(jobs, "/job_id", "production-ops-backfill-resume-001")?;
+	let restore = support::find_by_field(jobs, "/job_id", "production-ops-restore-cold-start-001")?;
+	let public_proxy =
+		support::find_by_field(jobs, "/job_id", "production-ops-public-proxy-addendum-001")?;
 	let private_manifest =
-		find_by_field(jobs, "/job_id", "production-ops-private-manifest-blocked-001")?;
-	let credentials = find_by_field(jobs, "/job_id", "production-ops-credential-boundary-001")?;
-	let dependency = find_by_field(jobs, "/job_id", "production-ops-cold-start-dependency-001")?;
+		support::find_by_field(jobs, "/job_id", "production-ops-private-manifest-blocked-001")?;
+	let credentials =
+		support::find_by_field(jobs, "/job_id", "production-ops-credential-boundary-001")?;
+	let dependency =
+		support::find_by_field(jobs, "/job_id", "production-ops-cold-start-dependency-001")?;
 
 	assert_authority_recovery_job(authority_recovery)?;
 
@@ -86,7 +89,7 @@ fn assert_authority_recovery_job(job: &Value) -> Result<()> {
 		job.pointer("/recovery_drills/0/contract_schema").and_then(Value::as_str),
 		Some("elf.authority_recovery_drill/v1")
 	);
-	assert!(array_at(job, "/hard_fail_hits")?.is_empty());
+	assert!(support::array_at(job, "/hard_fail_hits")?.is_empty());
 
 	Ok(())
 }
@@ -137,11 +140,11 @@ fn assert_production_ops_operational_evidence(report: &Value) -> Result<()> {
 
 	assert_authority_recovery_operational_evidence(report);
 
-	let tiers = array_at(report, "/operational_evidence/tiers")?;
-	let local_fixture = find_by_field(tiers, "/tier", "local_fixture")?;
-	let public_proxy_tier = find_by_field(tiers, "/tier", "public_proxy")?;
-	let private_corpus = find_by_field(tiers, "/tier", "private_corpus")?;
-	let provider_backed = find_by_field(tiers, "/tier", "provider_backed")?;
+	let tiers = support::array_at(report, "/operational_evidence/tiers")?;
+	let local_fixture = support::find_by_field(tiers, "/tier", "local_fixture")?;
+	let public_proxy_tier = support::find_by_field(tiers, "/tier", "public_proxy")?;
+	let private_corpus = support::find_by_field(tiers, "/tier", "private_corpus")?;
+	let provider_backed = support::find_by_field(tiers, "/tier", "provider_backed")?;
 
 	assert_eq!(local_fixture.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(local_fixture.pointer("/job_count").and_then(Value::as_u64), Some(5));
@@ -235,7 +238,7 @@ fn authority_recovery_fixture_rejects_incomplete_recovery_predicates() -> Result
 	for (slug, pointer, replacement, expected_error) in authority_recovery_failure_cases() {
 		assert_authority_recovery_fixture_failure(
 			slug,
-			|fixture| set_json_pointer(fixture, pointer, replacement),
+			|fixture| support::set_json_pointer(fixture, pointer, replacement),
 			expected_error,
 		)?;
 	}
@@ -316,8 +319,9 @@ fn assert_authority_recovery_fixture_failure<F>(
 where
 	F: FnOnce(&mut Value) -> Result<()>,
 {
-	let fixture_path = production_ops_fixture_dir().join("authority_plane_recovery_drill.json");
-	let mut fixture = load_json(&fixture_path)?;
+	let fixture_path =
+		support::production_ops_fixture_dir().join("authority_plane_recovery_drill.json");
+	let mut fixture = support::load_json(&fixture_path)?;
 
 	mutate(&mut fixture)?;
 
@@ -326,7 +330,7 @@ where
 	fs::create_dir_all(&temp_dir)?;
 	fs::write(temp_dir.join("fixture.json"), serde_json::to_vec_pretty(&fixture)?)?;
 
-	let stderr = run_json_report_from_failure(temp_dir)?;
+	let stderr = support::run_json_report_from_failure(temp_dir)?;
 
 	assert!(
 		stderr.contains(expected_error),

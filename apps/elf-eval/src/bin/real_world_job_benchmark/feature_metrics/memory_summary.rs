@@ -1,4 +1,7 @@
-use super::*;
+use crate::feature_metrics::{
+	self, BTreeSet, MemorySummaryArtifact, MemorySummaryEntry, MemorySummaryJobMetrics,
+	MemorySummarySourceTrace, ProducedAnswer, RealWorldJob, UnsupportedClaimReport,
+};
 
 pub(super) fn memory_summary_metrics_impl(
 	job: &RealWorldJob,
@@ -30,11 +33,56 @@ pub(super) fn memory_summary_metrics_impl(
 	metrics.missing_required_category_count =
 		metrics.required_category_count.saturating_sub(covered_required_category_count);
 	metrics.source_ref_coverage =
-		ratio(metrics.source_ref_entry_count, metrics.source_ref_required_count);
-	metrics.freshness_coverage = ratio(metrics.freshness_marker_count, metrics.entry_count);
-	metrics.rationale_coverage = ratio(metrics.rationale_count, metrics.entry_count);
+		feature_metrics::ratio(metrics.source_ref_entry_count, metrics.source_ref_required_count);
+	metrics.freshness_coverage =
+		feature_metrics::ratio(metrics.freshness_marker_count, metrics.entry_count);
+	metrics.rationale_coverage =
+		feature_metrics::ratio(metrics.rationale_count, metrics.entry_count);
 
 	Some(metrics)
+}
+
+pub(super) fn memory_summary_non_current_trace_refs_impl(
+	trace: &MemorySummarySourceTrace,
+) -> BTreeSet<&str> {
+	trace
+		.stale_source_refs
+		.iter()
+		.chain(trace.superseded_source_refs.iter())
+		.chain(trace.tombstone_source_refs.iter())
+		.map(|item| item.evidence_id.as_str())
+		.collect()
+}
+
+pub(super) fn unsupported_memory_summary_claims_impl(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Vec<UnsupportedClaimReport> {
+	answer
+		.memory_summaries
+		.iter()
+		.flat_map(|summary| {
+			summary.entries.iter().filter_map(|entry| {
+				if entry.category != "derived_project_profile"
+					|| !entry.source_refs.is_empty()
+					|| !entry.unsupported_claim_flags.is_empty()
+				{
+					return None;
+				}
+
+				Some(UnsupportedClaimReport {
+					suite_id: job.suite.clone(),
+					job_id: job.job_id.clone(),
+					claim_id: Some(format!("{}:{}", summary.summary_id, entry.entry_id)),
+					claim_text: feature_metrics::bounded_text(entry.text.as_str(), 240),
+					reason:
+						"derived memory summary entry has no source refs and no unsupported-claim flags"
+							.to_string(),
+					evidence_ids: entry.source_refs.clone(),
+				})
+			})
+		})
+		.collect()
 }
 
 fn accumulate_memory_summary_metrics(
@@ -97,18 +145,6 @@ fn accumulate_memory_summary_metrics(
 	}
 }
 
-pub(super) fn memory_summary_non_current_trace_refs_impl(
-	trace: &MemorySummarySourceTrace,
-) -> BTreeSet<&str> {
-	trace
-		.stale_source_refs
-		.iter()
-		.chain(trace.superseded_source_refs.iter())
-		.chain(trace.tombstone_source_refs.iter())
-		.map(|item| item.evidence_id.as_str())
-		.collect()
-}
-
 fn accumulate_memory_summary_category(category: &str, metrics: &mut MemorySummaryJobMetrics) {
 	match category {
 		"top_of_mind" => metrics.top_of_mind_count += 1,
@@ -165,35 +201,4 @@ fn memory_summary_entry_has_rationale(entry: &MemorySummaryEntry) -> bool {
 fn memory_summary_entry_includes_unsupported_current_claim(entry: &MemorySummaryEntry) -> bool {
 	!entry.unsupported_claim_flags.is_empty()
 		&& (entry.rationale.decision != "excluded" || entry.freshness.status == "current")
-}
-
-pub(super) fn unsupported_memory_summary_claims_impl(
-	job: &RealWorldJob,
-	answer: &ProducedAnswer,
-) -> Vec<UnsupportedClaimReport> {
-	answer
-		.memory_summaries
-		.iter()
-		.flat_map(|summary| {
-			summary.entries.iter().filter_map(|entry| {
-				if entry.category != "derived_project_profile"
-					|| !entry.source_refs.is_empty()
-					|| !entry.unsupported_claim_flags.is_empty()
-				{
-					return None;
-				}
-
-				Some(UnsupportedClaimReport {
-					suite_id: job.suite.clone(),
-					job_id: job.job_id.clone(),
-					claim_id: Some(format!("{}:{}", summary.summary_id, entry.entry_id)),
-					claim_text: bounded_text(entry.text.as_str(), 240),
-					reason:
-						"derived memory summary entry has no source refs and no unsupported-claim flags"
-							.to_string(),
-					evidence_ids: entry.source_refs.clone(),
-				})
-			})
-		})
-		.collect()
 }

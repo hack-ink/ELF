@@ -1,10 +1,15 @@
-use super::*;
+use crate::knowledge::{
+	self, KnowledgePageLintSummary, KnowledgePageSearchItem, KnowledgePageSearchRow,
+	KnowledgePageSection, KnowledgePageSectionResponse, KnowledgePageSectionSourceBacklink,
+	KnowledgePageSourceRef, KnowledgePageSourceRefResponse, KnowledgeSourceKind,
+	SEARCH_SNIPPET_CHARS, Value,
+};
 
 pub(super) fn section_response(
 	section: KnowledgePageSection,
 	source_refs: Vec<KnowledgePageSourceRef>,
 ) -> KnowledgePageSectionResponse {
-	let citation_count = citation_count(&section.citations);
+	let citation_count = knowledge::citation_count(&section.citations);
 	let source_ref_count = source_refs.len();
 	let source_backlinks =
 		source_refs.iter().map(KnowledgePageSectionSourceBacklink::from).collect();
@@ -24,7 +29,7 @@ pub(super) fn knowledge_page_search_item(
 	query: &str,
 ) -> KnowledgePageSearchItem {
 	let source_ref_count = usize::try_from(row.section_source_ref_count).unwrap_or(0);
-	let citation_count = citation_count(&row.citations);
+	let citation_count = knowledge::citation_count(&row.citations);
 	let lint_summary = KnowledgePageLintSummary {
 		error_count: row.lint_error_count,
 		warning_count: row.lint_warning_count,
@@ -36,7 +41,8 @@ pub(super) fn knowledge_page_search_item(
 		row.source_coverage.get("coverage_complete").and_then(Value::as_bool).unwrap_or(false);
 	let trust_state = search_trust_state(&lint_summary, coverage_complete, &row);
 	let repair_guidance = search_repair_guidance(&trust_state);
-	let previous_version_diff = previous_version_diff_from_metadata(&row.rebuild_metadata);
+	let previous_version_diff =
+		knowledge::previous_version_diff_from_metadata(&row.rebuild_metadata);
 
 	KnowledgePageSearchItem {
 		result_kind: "knowledge_page_section".to_string(),
@@ -49,7 +55,7 @@ pub(super) fn knowledge_page_search_item(
 		section_key: row.section_key,
 		heading: row.heading,
 		role: row.role,
-		snippet: snippet_for_query(row.content.as_str(), query, SEARCH_SNIPPET_CHARS),
+		snippet: knowledge::snippet_for_query(row.content.as_str(), query, SEARCH_SNIPPET_CHARS),
 		citations: sanitize_search_citations(row.citations),
 		citation_count,
 		source_ref_count,
@@ -74,7 +80,7 @@ pub(super) fn search_source_ref_response(
 	let mut response = KnowledgePageSourceRefResponse::from(source_ref);
 
 	if response.source_kind == KnowledgeSourceKind::Proposal.as_str() {
-		response.source_snapshot = sanitize_proposal_snapshot(&response.source_snapshot);
+		response.source_snapshot = knowledge::sanitize_proposal_snapshot(&response.source_snapshot);
 	}
 
 	response
@@ -101,7 +107,7 @@ pub(super) fn sanitize_search_citation(mut citation: Value) -> Value {
 	if let Some(object) = citation.as_object_mut()
 		&& let Some(source_snapshot) = object.get_mut("source_snapshot")
 	{
-		*source_snapshot = sanitize_proposal_snapshot(source_snapshot);
+		*source_snapshot = knowledge::sanitize_proposal_snapshot(source_snapshot);
 	}
 
 	citation

@@ -1,4 +1,11 @@
-use super::super::*;
+use crate::{
+	access,
+	search::{
+		ElfService, HashMap, OffsetDateTime, RELATION_CONTEXT_SQL, RelationTemporalStatus, Result,
+		ScoredChunk, SearchExplainRelationContext, SearchExplainRelationContextObject,
+		SearchExplainRelationEntityRef, SearchRelationContextRow, Uuid,
+	},
+};
 
 impl ElfService {
 	pub(in crate::search) async fn build_relation_context_for_selected_results(

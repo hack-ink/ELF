@@ -1,12 +1,18 @@
-use super::*;
+use crate::search::{
+	self, BuildQueryPlanArgs, DynamicGateSummary, ElfService, ExpansionMode, FinishSearchPolicies,
+	QueryPlan, QueryPlanBlendSegment, QueryPlanBudget, QueryPlanDynamicGate, QueryPlanFusionPolicy,
+	QueryPlanIntent, QueryPlanRerankPolicy, QueryPlanRetrievalStage, QueryPlanRewrite,
+	QueryPlanStage, QueryPlanStagesArgs, ResolvedRetrievalSourcesPolicy, ranking,
+	raw_search_path_label,
+};
 
 const QUERY_PLAN_SCHEMA: &str = "elf.search.query_plan";
 const QUERY_PLAN_VERSION: &str = "v1";
 
 impl ElfService {
 	pub(super) fn build_query_plan(&self, args: BuildQueryPlanArgs<'_>) -> QueryPlan {
-		let allowed_scopes = sorted_unique_strings(args.allowed_scopes.to_vec());
-		let expanded_queries = sorted_unique_strings(args.expanded_queries);
+		let allowed_scopes = search::sorted_unique_strings(args.allowed_scopes.to_vec());
+		let expanded_queries = search::sorted_unique_strings(args.expanded_queries);
 		let retrieval_stages = self.build_query_plan_retrieval_stages(
 			args.candidate_k,
 			args.retrieval_sources_policy,

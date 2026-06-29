@@ -1,11 +1,14 @@
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use super::{
-	materialize::{handle_add_note_add, handle_add_note_none, handle_add_note_update},
-	types::{AddNoteContext, AddNoteInput, AddNoteResult},
+use crate::{
+	ElfService, NoteOp, Result, UpdateDecision,
+	add_note::{
+		materialize::{self},
+		types::{AddNoteContext, AddNoteInput, AddNoteResult},
+	},
+	structured_fields::StructuredFields,
 };
-use crate::{ElfService, NoteOp, Result, UpdateDecision, structured_fields::StructuredFields};
 use elf_config::Config;
 use elf_domain::memory_policy::{self, MemoryPolicyDecision};
 
@@ -65,6 +68,23 @@ pub(super) fn ignore_reason_code_for_policy(
 	}
 }
 
+pub(super) fn base_decision_for_update(
+	decision: &UpdateDecision,
+	structured_present: bool,
+	graph_present: bool,
+) -> MemoryPolicyDecision {
+	match decision {
+		UpdateDecision::Update { .. } => MemoryPolicyDecision::Update,
+		UpdateDecision::Add { .. } => MemoryPolicyDecision::Remember,
+		UpdateDecision::None { .. } =>
+			if structured_present || graph_present {
+				MemoryPolicyDecision::Update
+			} else {
+				MemoryPolicyDecision::Ignore
+			},
+	}
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn apply_policy_result(
 	service: &ElfService,
@@ -82,7 +102,8 @@ pub(super) async fn apply_policy_result(
 	if should_apply {
 		let (result, note_version_id) = match decision {
 			UpdateDecision::Add { .. } => {
-				let note_version_id = handle_add_note_add(service, tx, ctx, note, note_id).await?;
+				let note_version_id =
+					materialize::handle_add_note_add(service, tx, ctx, note, note_id).await?;
 
 				(
 					AddNoteResult {
@@ -97,7 +118,7 @@ pub(super) async fn apply_policy_result(
 				)
 			},
 			UpdateDecision::Update { .. } =>
-				handle_add_note_update(
+				materialize::handle_add_note_update(
 					service,
 					tx,
 					note,
@@ -108,7 +129,7 @@ pub(super) async fn apply_policy_result(
 				)
 				.await?,
 			UpdateDecision::None { .. } => {
-				let (mut none_result, note_version_id) = handle_add_note_none(
+				let (mut none_result, note_version_id) = materialize::handle_add_note_none(
 					tx,
 					ctx,
 					note,
@@ -145,23 +166,6 @@ pub(super) async fn apply_policy_result(
 		}
 
 		Ok((result, NoteOp::None, None))
-	}
-}
-
-pub(super) fn base_decision_for_update(
-	decision: &UpdateDecision,
-	structured_present: bool,
-	graph_present: bool,
-) -> MemoryPolicyDecision {
-	match decision {
-		UpdateDecision::Update { .. } => MemoryPolicyDecision::Update,
-		UpdateDecision::Add { .. } => MemoryPolicyDecision::Remember,
-		UpdateDecision::None { .. } =>
-			if structured_present || graph_present {
-				MemoryPolicyDecision::Update
-			} else {
-				MemoryPolicyDecision::Ignore
-			},
 	}
 }
 

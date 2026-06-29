@@ -1,7 +1,9 @@
-use super::{
-	super::*,
-	memory::{MemorySummaryFreshness, MemorySummarySourceTrace},
-	proactive::ProactiveSuggestionAction,
+use crate::{
+	Deserialize, Serialize, Value,
+	artifacts::{
+		memory::{MemorySummaryFreshness, MemorySummarySourceTrace},
+		proactive::ProactiveSuggestionAction,
+	},
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

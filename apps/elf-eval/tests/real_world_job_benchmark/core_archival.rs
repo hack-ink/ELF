@@ -1,11 +1,11 @@
 use color_eyre::Result;
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Result<()> {
-	let report = run_json_report_from(core_archival_memory_fixture_dir())?;
+	let report = support::run_json_report_from(support::core_archival_memory_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(6));
 	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(1));
@@ -26,13 +26,13 @@ fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Resu
 	assert_eq!(report.pointer("/summary/scope_correct_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/scope_violation_count").and_then(Value::as_u64), Some(0));
 
-	let suites = array_at(&report, "/suites")?;
-	let core = find_by_field(suites, "/suite_id", "core_archival_memory")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let core = support::find_by_field(suites, "/suite_id", "core_archival_memory")?;
 
 	assert_eq!(core.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(core.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
 
-	let jobs = array_at(&report, "/jobs")?;
+	let jobs = support::array_at(&report, "/jobs")?;
 
 	for job_id in [
 		"core-archival-core-block-attachment-001",
@@ -42,14 +42,15 @@ fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Resu
 		"core-archival-archival-fallback-001",
 		"core-archival-project-decision-recovery-001",
 	] {
-		let job = find_by_field(jobs, "/job_id", job_id)?;
+		let job = support::find_by_field(jobs, "/job_id", job_id)?;
 
 		assert_eq!(job.pointer("/suite_id").and_then(Value::as_str), Some("core_archival_memory"));
 		assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("pass"));
 	}
 
-	let scope = find_by_field(jobs, "/job_id", "core-archival-core-block-scope-001")?;
-	let decision = find_by_field(jobs, "/job_id", "core-archival-project-decision-recovery-001")?;
+	let scope = support::find_by_field(jobs, "/job_id", "core-archival-core-block-scope-001")?;
+	let decision =
+		support::find_by_field(jobs, "/job_id", "core-archival-project-decision-recovery-001")?;
 
 	assert_eq!(scope.pointer("/scope_check_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(scope.pointer("/scope_correct_count").and_then(Value::as_u64), Some(1));
@@ -61,7 +62,7 @@ fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Resu
 			.is_some_and(|content| content.contains("Letta remains blocked or not_tested"))
 	);
 	assert!(
-		array_at(decision, "/produced_evidence")?
+		support::array_at(decision, "/produced_evidence")?
 			.iter()
 			.any(|id| id.as_str() == Some("decision-letta-export-boundary"))
 	);
@@ -71,16 +72,16 @@ fn core_archival_memory_fixtures_score_separate_core_and_archival_jobs() -> Resu
 
 #[test]
 fn memory_authority_benchmark_covers_entity_history_and_core_archive_strengths() -> Result<()> {
-	let report = run_json_report_from(real_world_memory_fixture_dir())?;
+	let report = support::run_json_report_from(support::real_world_memory_fixture_dir())?;
 
 	assert_eq!(
 		report.pointer("/summary/history_readback_encoded_count").and_then(Value::as_u64),
 		Some(4)
 	);
 
-	let suites = array_at(&report, "/suites")?;
-	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
-	let core_archival = find_by_field(suites, "/suite_id", "core_archival_memory")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let memory_evolution = support::find_by_field(suites, "/suite_id", "memory_evolution")?;
+	let core_archival = support::find_by_field(suites, "/suite_id", "core_archival_memory")?;
 
 	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(core_archival.pointer("/status").and_then(Value::as_str), Some("pass"));
@@ -90,40 +91,41 @@ fn memory_authority_benchmark_covers_entity_history_and_core_archive_strengths()
 	);
 	assert_eq!(core_archival.pointer("/encoded_job_count").and_then(Value::as_u64), Some(6));
 
-	let jobs = array_at(&report, "/jobs")?;
-	let preference = find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let preference = support::find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
 	let core_attachment =
-		find_by_field(jobs, "/job_id", "core-archival-core-block-attachment-001")?;
-	let archival_fallback = find_by_field(jobs, "/job_id", "core-archival-archival-fallback-001")?;
+		support::find_by_field(jobs, "/job_id", "core-archival-core-block-attachment-001")?;
+	let archival_fallback =
+		support::find_by_field(jobs, "/job_id", "core-archival-archival-fallback-001")?;
 
 	assert_eq!(preference.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		preference.pointer("/evolution/history_readback_encoded").and_then(Value::as_bool),
 		Some(true)
 	);
-	assert!(array_contains_str(preference, "/evolution/history_event_types", "update")?);
+	assert!(support::array_contains_str(preference, "/evolution/history_event_types", "update")?);
 	assert_eq!(core_attachment.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(archival_fallback.pointer("/status").and_then(Value::as_str), Some("pass"));
 
-	let adapters = array_at(&report, "/external_adapters/adapters")?;
-	let mem0 = find_by_field(adapters, "/adapter_id", "mem0_openmemory_live_baseline")?;
-	let letta = find_by_field(adapters, "/adapter_id", "letta_research_gate")?;
-	let mem0_scenarios = array_at(mem0, "/scenarios")?;
+	let adapters = support::array_at(&report, "/external_adapters/adapters")?;
+	let mem0 = support::find_by_field(adapters, "/adapter_id", "mem0_openmemory_live_baseline")?;
+	let letta = support::find_by_field(adapters, "/adapter_id", "letta_research_gate")?;
+	let mem0_scenarios = support::array_at(mem0, "/scenarios")?;
 	let mem0_history =
-		find_by_field(mem0_scenarios, "/scenario_id", "preference_correction_history")?;
+		support::find_by_field(mem0_scenarios, "/scenario_id", "preference_correction_history")?;
 	let mem0_entity =
-		find_by_field(mem0_scenarios, "/scenario_id", "entity_scoped_personalization")?;
+		support::find_by_field(mem0_scenarios, "/scenario_id", "entity_scoped_personalization")?;
 
 	assert_eq!(mem0_history.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(mem0_entity.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(mem0_history.pointer("/comparison_outcome").and_then(Value::as_str), Some("loss"));
 	assert_eq!(mem0_entity.pointer("/comparison_outcome").and_then(Value::as_str), Some("tie"));
 
-	let letta_scenarios = array_at(letta, "/scenarios")?;
+	let letta_scenarios = support::array_at(letta, "/scenarios")?;
 	let letta_core =
-		find_by_field(letta_scenarios, "/scenario_id", "core_block_attachment_readback")?;
+		support::find_by_field(letta_scenarios, "/scenario_id", "core_block_attachment_readback")?;
 	let letta_fallback =
-		find_by_field(letta_scenarios, "/scenario_id", "archival_fallback_readback")?;
+		support::find_by_field(letta_scenarios, "/scenario_id", "archival_fallback_readback")?;
 
 	for scenario in [letta_core, letta_fallback] {
 		assert_eq!(
@@ -142,7 +144,7 @@ fn memory_authority_benchmark_covers_entity_history_and_core_archive_strengths()
 
 #[test]
 fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
-	let report = run_json_report_from(context_trajectory_fixture_dir())?;
+	let report = support::run_json_report_from(support::context_trajectory_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(3));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(0));
@@ -158,19 +160,28 @@ fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
 		Some(3)
 	);
 
-	let suites = array_at(&report, "/suites")?;
-	let context = find_by_field(suites, "/suite_id", "context_trajectory")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let context = support::find_by_field(suites, "/suite_id", "context_trajectory")?;
 
 	assert_eq!(context.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(context.pointer("/encoded_job_count").and_then(Value::as_u64), Some(3));
 
-	let jobs = array_at(&report, "/jobs")?;
-	let staged =
-		find_by_field(jobs, "/job_id", "context-trajectory-openviking-staged-retrieval-001")?;
-	let hierarchy =
-		find_by_field(jobs, "/job_id", "context-trajectory-openviking-hierarchy-selection-001")?;
-	let recursive =
-		find_by_field(jobs, "/job_id", "context-trajectory-openviking-recursive-expansion-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let staged = support::find_by_field(
+		jobs,
+		"/job_id",
+		"context-trajectory-openviking-staged-retrieval-001",
+	)?;
+	let hierarchy = support::find_by_field(
+		jobs,
+		"/job_id",
+		"context-trajectory-openviking-hierarchy-selection-001",
+	)?;
+	let recursive = support::find_by_field(
+		jobs,
+		"/job_id",
+		"context-trajectory-openviking-recursive-expansion-001",
+	)?;
 
 	assert_eq!(staged.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(hierarchy.pointer("/status").and_then(Value::as_str), Some("blocked"));
@@ -188,23 +199,33 @@ fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
 		Some("openviking.recursive_expansion_gate")
 	);
 
-	let staged_stages = array_at(staged, "/trace_explainability/stages")?;
+	let staged_stages = support::array_at(staged, "/trace_explainability/stages")?;
 	let staged_gate =
-		find_by_field(staged_stages, "/stage_name", "openviking.stage_artifact_gate")?;
+		support::find_by_field(staged_stages, "/stage_name", "openviking.stage_artifact_gate")?;
 
-	assert!(array_contains_str(staged_gate, "/dropped_evidence", "trajectory-win-decoy")?);
+	assert!(support::array_contains_str(staged_gate, "/dropped_evidence", "trajectory-win-decoy")?);
 
-	let hierarchy_stages = array_at(hierarchy, "/trace_explainability/stages")?;
-	let hierarchy_gate =
-		find_by_field(hierarchy_stages, "/stage_name", "openviking.hierarchy_artifact_gate")?;
+	let hierarchy_stages = support::array_at(hierarchy, "/trace_explainability/stages")?;
+	let hierarchy_gate = support::find_by_field(
+		hierarchy_stages,
+		"/stage_name",
+		"openviking.hierarchy_artifact_gate",
+	)?;
 
-	assert!(array_contains_str(hierarchy_gate, "/dropped_evidence", "hierarchy-design-win-decoy")?);
+	assert!(support::array_contains_str(
+		hierarchy_gate,
+		"/dropped_evidence",
+		"hierarchy-design-win-decoy"
+	)?);
 
-	let recursive_stages = array_at(recursive, "/trace_explainability/stages")?;
-	let recursive_gate =
-		find_by_field(recursive_stages, "/stage_name", "openviking.recursive_expansion_gate")?;
+	let recursive_stages = support::array_at(recursive, "/trace_explainability/stages")?;
+	let recursive_gate = support::find_by_field(
+		recursive_stages,
+		"/stage_name",
+		"openviking.recursive_expansion_gate",
+	)?;
 
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		recursive_gate,
 		"/dropped_evidence",
 		"recursive-expansion-win-decoy"

@@ -3,84 +3,6 @@ use std::sync::Arc;
 use rmcp::model::JsonObject;
 use serde_json::Value;
 
-fn notes_structured_entity_schema() -> Value {
-	serde_json::json!({
-		"type": "object",
-		"additionalProperties": true,
-		"required": ["canonical"],
-		"properties": {
-			"canonical": { "type": "string" },
-			"kind": { "type": ["string", "null"] },
-			"aliases": {
-				"type": ["array", "null"],
-				"items": { "type": "string" }
-			}
-		}
-	})
-}
-
-fn notes_structured_relation_object_schema() -> Value {
-	serde_json::json!({
-		"type": "object",
-		"additionalProperties": true,
-		"oneOf": [
-			{
-				"type": "object",
-				"required": ["entity"],
-				"properties": {
-					"entity": notes_structured_entity_schema(),
-					"value": { "type": "null" }
-				}
-			},
-			{
-				"type": "object",
-				"required": ["value"],
-				"properties": {
-					"entity": { "type": ["object", "null"] },
-					"value": { "type": "string" }
-				}
-			}
-		]
-	})
-}
-
-fn notes_structured_schema() -> Value {
-	serde_json::json!({
-		"type": ["object", "null"],
-		"additionalProperties": true,
-		"properties": {
-			"summary": { "type": ["string", "null"] },
-			"facts": {
-				"type": ["array", "null"],
-				"items": { "type": "string" }
-			},
-			"concepts": {
-				"type": ["array", "null"],
-				"items": { "type": "string" }
-			},
-			"entities": {
-				"type": ["array", "null"],
-				"items": notes_structured_entity_schema()
-			},
-			"relations": {
-				"type": ["array", "null"],
-				"items": {
-					"type": "object",
-					"additionalProperties": true,
-					"required": ["subject", "predicate", "object"],
-					"properties": {
-						"subject": notes_structured_entity_schema(),
-						"predicate": { "type": "string" },
-						"object": notes_structured_relation_object_schema(),
-						"valid_from": { "type": ["string", "null"], "format": "date-time" },
-						"valid_to": { "type": ["string", "null"], "format": "date-time" }
-					}
-				}
-			}
-		}
-	})
-}
-
 pub(in crate::app::server) fn notes_ingest_schema() -> Arc<JsonObject> {
 	Arc::new(
 		serde_json::from_value(serde_json::json!({
@@ -166,4 +88,82 @@ pub(in crate::app::server) fn notes_publish_schema() -> Arc<JsonObject> {
 
 pub(in crate::app::server) fn notes_unpublish_schema() -> Arc<JsonObject> {
 	notes_publish_schema()
+}
+
+fn notes_structured_entity_schema() -> Value {
+	serde_json::json!({
+		"type": "object",
+		"additionalProperties": true,
+		"required": ["canonical"],
+		"properties": {
+			"canonical": { "type": "string" },
+			"kind": { "type": ["string", "null"] },
+			"aliases": {
+				"type": ["array", "null"],
+				"items": { "type": "string" }
+			}
+		}
+	})
+}
+
+fn notes_structured_relation_object_schema() -> Value {
+	serde_json::json!({
+		"type": "object",
+		"additionalProperties": true,
+		"oneOf": [
+			{
+				"type": "object",
+				"required": ["entity"],
+				"properties": {
+					"entity": notes_structured_entity_schema(),
+					"value": { "type": "null" }
+				}
+			},
+			{
+				"type": "object",
+				"required": ["value"],
+				"properties": {
+					"entity": { "type": ["object", "null"] },
+					"value": { "type": "string" }
+				}
+			}
+		]
+	})
+}
+
+fn notes_structured_schema() -> Value {
+	serde_json::json!({
+		"type": ["object", "null"],
+		"additionalProperties": true,
+		"properties": {
+			"summary": { "type": ["string", "null"] },
+			"facts": {
+				"type": ["array", "null"],
+				"items": { "type": "string" }
+			},
+			"concepts": {
+				"type": ["array", "null"],
+				"items": { "type": "string" }
+			},
+			"entities": {
+				"type": ["array", "null"],
+				"items": notes_structured_entity_schema()
+			},
+			"relations": {
+				"type": ["array", "null"],
+				"items": {
+					"type": "object",
+					"additionalProperties": true,
+					"required": ["subject", "predicate", "object"],
+					"properties": {
+						"subject": notes_structured_entity_schema(),
+						"predicate": { "type": "string" },
+						"object": notes_structured_relation_object_schema(),
+						"valid_from": { "type": ["string", "null"], "format": "date-time" },
+						"valid_to": { "type": ["string", "null"], "format": "date-time" }
+					}
+				}
+			}
+		}
+	})
 }

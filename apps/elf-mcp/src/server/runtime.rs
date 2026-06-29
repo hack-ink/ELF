@@ -1,4 +1,21 @@
-use super::*;
+use std::{net::SocketAddr, sync::Arc};
+
+use axum::{Router, middleware};
+use color_eyre::Result;
+use rmcp::{
+	ServerHandler,
+	model::{ServerCapabilities, ServerInfo},
+	transport::streamable_http_server::{
+		StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
+	},
+};
+use tokio::net::TcpListener;
+
+use crate::app::{
+	McpAuthState,
+	server::{self, ElfContextHeaders, ElfMcp},
+};
+use elf_config::McpContext;
 
 #[rmcp::tool_handler(router = self.tool_router)]
 impl ServerHandler for ElfMcp {
@@ -16,8 +33,8 @@ pub async fn serve_mcp(
 	mcp_context: &McpContext,
 ) -> Result<()> {
 	let bind_addr: SocketAddr = bind_addr.parse()?;
-	let api_base = normalize_api_base(api_base);
-	let admin_base = normalize_api_base(admin_base);
+	let api_base = server::normalize_api_base(api_base);
+	let admin_base = server::normalize_api_base(admin_base);
 	let context = ElfContextHeaders::new(mcp_context);
 	let middleware_auth_state = auth_state.clone();
 	let client_auth_state = auth_state.clone();
@@ -36,7 +53,7 @@ pub async fn serve_mcp(
 	);
 	let router = Router::new()
 		.fallback_service(service)
-		.layer(middleware::from_fn_with_state(middleware_auth_state, mcp_auth_middleware));
+		.layer(middleware::from_fn_with_state(middleware_auth_state, server::mcp_auth_middleware));
 	let listener = TcpListener::bind(bind_addr).await?;
 
 	axum::serve(listener, router).await?;

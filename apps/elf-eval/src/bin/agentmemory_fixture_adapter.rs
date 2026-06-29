@@ -10,28 +10,25 @@
 #[path = "agentmemory_fixture_adapter/util.rs"] mod util;
 
 use clap::Parser;
+use color_eyre::Result;
 
-use self::{
-	adapt::adapt_fixture,
-	cli::Args,
-	io::{read_fixture, write_output},
-};
+use self::cli::Args;
 
 const OUTPUT_SCHEMA: &str = "elf.agentmemory_adapter/v1";
 const FIXTURE_RESOLVER: &str = "agentmemory_fixture/v1";
 const DEFAULT_IMPORTANCE: f32 = 0.5;
 const DEFAULT_CONFIDENCE: f32 = 0.5;
 
-fn main() -> color_eyre::Result<()> {
+fn main() -> Result<()> {
 	color_eyre::install()?;
 
 	let args = Args::parse();
-	let fixture = read_fixture(&args.fixture)?;
-	let output = adapt_fixture(&fixture, args.scope.as_str(), args.max_note_chars);
+	let fixture = self::io::read_fixture(&args.fixture)?;
+	let output = self::adapt::adapt_fixture(&fixture, args.scope.as_str(), args.max_note_chars);
 	let json = serde_json::to_string_pretty(&output)?;
 
 	if let Some(path) = args.out {
-		write_output(path, json.as_str())?;
+		self::io::write_output(path, json.as_str())?;
 	} else {
 		println!("{json}");
 	}

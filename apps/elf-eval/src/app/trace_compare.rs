@@ -4,13 +4,9 @@ use color_eyre::{Result, eyre};
 use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
-use elf_config::Config;
-use elf_service::search::{self, TraceReplayCandidate, TraceReplayContext};
-use elf_storage::db::Db;
-
-use super::{
+use crate::app::{
 	Args,
-	metrics::{churn_against_baseline_at_k, retrieval_top_rank_retention},
+	metrics::{self},
 	types::{
 		TraceCompareCandidateRow, TraceCompareChurn, TraceCompareGuardrails, TraceCompareOutput,
 		TraceComparePolicies, TraceComparePolicy, TraceCompareRegressionAttribution,
@@ -18,6 +14,76 @@ use super::{
 		TraceCompareTraceRow, TraceCompareVariant,
 	},
 };
+use elf_config::Config;
+use elf_service::search::{self, TraceReplayCandidate, TraceReplayContext};
+use elf_storage::db::Db;
+
+pub(super) async fn trace_compare(
+	config_a_path: &Path,
+	config_a: Config,
+	config_b_path: &Path,
+	config_b: Config,
+	args: &Args,
+) -> Result<TraceCompareOutput> {
+	let policy_id_a =
+		search::ranking_policy_id(&config_a, None).map_err(|err| eyre::eyre!("{err}"))?;
+	let policy_id_b =
+		search::ranking_policy_id(&config_b, None).map_err(|err| eyre::eyre!("{err}"))?;
+	let db = Db::connect(&config_a.storage.postgres).await?;
+
+	db.ensure_schema(config_a.storage.qdrant.vector_dim).await?;
+
+	let mut traces = Vec::with_capacity(args.trace_id.len());
+	let mut positional_sum = 0.0_f64;
+	let mut set_sum = 0.0_f64;
+	let mut top3_retention_a_sum = 0.0_f64;
+	let mut top3_retention_b_sum = 0.0_f64;
+
+	for trace_id in &args.trace_id {
+		let trace = compare_trace_id(
+			&db,
+			&config_a,
+			&config_b,
+			policy_id_a.as_str(),
+			policy_id_b.as_str(),
+			trace_id,
+			args,
+		)
+		.await?;
+
+		positional_sum += trace.churn.positional_churn_at_k;
+		set_sum += trace.churn.set_churn_at_k;
+		top3_retention_a_sum += trace.guardrails.a_retrieval_top3_retention;
+		top3_retention_b_sum += trace.guardrails.b_retrieval_top3_retention;
+
+		traces.push(trace);
+	}
+
+	let count = traces.len().max(1) as f64;
+	let summary = TraceCompareSummary {
+		trace_count: traces.len(),
+		avg_positional_churn_at_k: positional_sum / count,
+		avg_set_churn_at_k: set_sum / count,
+		avg_a_retrieval_top3_retention: top3_retention_a_sum / count,
+		avg_b_retrieval_top3_retention: top3_retention_b_sum / count,
+		avg_retrieval_top3_retention_delta: (top3_retention_b_sum - top3_retention_a_sum) / count,
+	};
+
+	Ok(TraceCompareOutput {
+		policies: TraceComparePolicies {
+			a: TraceComparePolicy {
+				config_path: config_a_path.display().to_string(),
+				policy_id: policy_id_a,
+			},
+			b: TraceComparePolicy {
+				config_path: config_b_path.display().to_string(),
+				policy_id: policy_id_b,
+			},
+		},
+		summary,
+		traces,
+	})
+}
 
 fn decode_trace_replay_candidates(
 	rows: Vec<TraceCompareCandidateRow>,
@@ -137,73 +203,6 @@ fn build_trace_compare_regression_attribution(
 	}
 }
 
-pub(super) async fn trace_compare(
-	config_a_path: &Path,
-	config_a: Config,
-	config_b_path: &Path,
-	config_b: Config,
-	args: &Args,
-) -> Result<TraceCompareOutput> {
-	let policy_id_a =
-		search::ranking_policy_id(&config_a, None).map_err(|err| eyre::eyre!("{err}"))?;
-	let policy_id_b =
-		search::ranking_policy_id(&config_b, None).map_err(|err| eyre::eyre!("{err}"))?;
-	let db = Db::connect(&config_a.storage.postgres).await?;
-
-	db.ensure_schema(config_a.storage.qdrant.vector_dim).await?;
-
-	let mut traces = Vec::with_capacity(args.trace_id.len());
-	let mut positional_sum = 0.0_f64;
-	let mut set_sum = 0.0_f64;
-	let mut top3_retention_a_sum = 0.0_f64;
-	let mut top3_retention_b_sum = 0.0_f64;
-
-	for trace_id in &args.trace_id {
-		let trace = compare_trace_id(
-			&db,
-			&config_a,
-			&config_b,
-			policy_id_a.as_str(),
-			policy_id_b.as_str(),
-			trace_id,
-			args,
-		)
-		.await?;
-
-		positional_sum += trace.churn.positional_churn_at_k;
-		set_sum += trace.churn.set_churn_at_k;
-		top3_retention_a_sum += trace.guardrails.a_retrieval_top3_retention;
-		top3_retention_b_sum += trace.guardrails.b_retrieval_top3_retention;
-
-		traces.push(trace);
-	}
-
-	let count = traces.len().max(1) as f64;
-	let summary = TraceCompareSummary {
-		trace_count: traces.len(),
-		avg_positional_churn_at_k: positional_sum / count,
-		avg_set_churn_at_k: set_sum / count,
-		avg_a_retrieval_top3_retention: top3_retention_a_sum / count,
-		avg_b_retrieval_top3_retention: top3_retention_b_sum / count,
-		avg_retrieval_top3_retention_delta: (top3_retention_b_sum - top3_retention_a_sum) / count,
-	};
-
-	Ok(TraceCompareOutput {
-		policies: TraceComparePolicies {
-			a: TraceComparePolicy {
-				config_path: config_a_path.display().to_string(),
-				policy_id: policy_id_a,
-			},
-			b: TraceComparePolicy {
-				config_path: config_b_path.display().to_string(),
-				policy_id: policy_id_b,
-			},
-		},
-		summary,
-		traces,
-	})
-}
-
 async fn compare_trace_id(
 	db: &Db,
 	config_a: &Config,
@@ -238,10 +237,11 @@ async fn compare_trace_id(
 	let note_ids_a: Vec<Uuid> = items_a.iter().map(|item| item.note_id).collect();
 	let note_ids_b: Vec<Uuid> = items_b.iter().map(|item| item.note_id).collect();
 	let (positional_churn_at_k, set_churn_at_k) =
-		churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
+		metrics::churn_against_baseline_at_k(&note_ids_a, &note_ids_b, top_k as usize);
 	let (retrieval_top3_total, a_retained, a_retention) =
-		retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
-	let (_, b_retained, b_retention) = retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
+		metrics::retrieval_top_rank_retention(&candidates, &note_ids_a, 3);
+	let (_, b_retained, b_retention) =
+		metrics::retrieval_top_rank_retention(&candidates, &note_ids_b, 3);
 	let churn = TraceCompareChurn { positional_churn_at_k, set_churn_at_k };
 	let guardrails = TraceCompareGuardrails {
 		retrieval_top3_total,

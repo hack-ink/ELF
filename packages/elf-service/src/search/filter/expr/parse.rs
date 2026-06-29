@@ -1,14 +1,12 @@
 use serde_json::{Map, Value};
 
-use super::{
-	super::{
-		parser::{
-			FilterParseError, FilterParseState, MAX_FILTER_DEPTH, MAX_FILTER_NODES,
-			MAX_IN_LIST_ITEMS, parse_expr, parse_value,
-		},
-		value::FilterValue,
+use crate::search::filter::{
+	expr::{FilterExpr, FilterField},
+	parser::{
+		self, FilterParseError, FilterParseState, MAX_FILTER_DEPTH, MAX_FILTER_NODES,
+		MAX_IN_LIST_ITEMS,
 	},
-	FilterExpr, FilterField,
+	value::FilterValue,
 };
 
 impl FilterExpr {
@@ -36,7 +34,7 @@ impl FilterExpr {
 			.map(|(index, node)| {
 				let child_path = format!("{path}[{index}]");
 
-				parse_expr(node, &child_path, depth.saturating_add(1), state)
+				parser::parse_expr(node, &child_path, depth.saturating_add(1), state)
 			})
 			.collect()
 	}
@@ -68,7 +66,7 @@ impl FilterExpr {
 			.map(|(index, raw)| {
 				let item_path = format!("{path}[{index}]");
 
-				parse_value(field, raw, &item_path)
+				parser::parse_value(field, raw, &item_path)
 			})
 			.collect()
 	}
@@ -120,7 +118,7 @@ impl FilterExpr {
 			path: format!("{path}.value"),
 			message: "op node is missing required field 'value'.".to_string(),
 		})?;
-		let value = parse_value(&field, value_raw, &path_value)?;
+		let value = parser::parse_value(&field, value_raw, &path_value)?;
 
 		match op {
 			"eq" => Ok(Self::Eq { field, value }),

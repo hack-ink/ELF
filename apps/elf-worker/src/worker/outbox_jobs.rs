@@ -1,12 +1,15 @@
-use super::*;
+use crate::worker::{
+	self, CLAIM_LEASE_SECONDS, CONSOLIDATION_JOB_LEASE_SECONDS, Db, Error, OffsetDateTime, Result,
+	TRACE_OUTBOX_LEASE_SECONDS, ToString, Uuid, WorkerState, consolidation, doc_outbox, outbox,
+};
 
 pub(super) async fn process_indexing_outbox_once(state: &WorkerState) -> Result<()> {
 	let now = OffsetDateTime::now_utc();
 	let job = outbox::claim_next_indexing_outbox_job(&state.db, now, CLAIM_LEASE_SECONDS).await?;
 	let Some(job) = job else { return Ok(()) };
 	let result = match job.op.as_str() {
-		"UPSERT" => handle_upsert(state, &job).await,
-		"DELETE" => handle_delete(state, &job).await,
+		"UPSERT" => worker::handle_upsert(state, &job).await,
+		"DELETE" => worker::handle_delete(state, &job).await,
 		other => Err(Error::Validation(format!("Unsupported outbox op: {other}."))),
 	};
 
@@ -36,8 +39,8 @@ pub(super) async fn process_doc_indexing_outbox_once(state: &WorkerState) -> Res
 		doc_outbox::claim_next_doc_indexing_outbox_job(&state.db, now, CLAIM_LEASE_SECONDS).await?;
 	let Some(job) = job else { return Ok(()) };
 	let result = match job.op.as_str() {
-		"UPSERT" => handle_doc_upsert(state, &job).await,
-		"DELETE" => handle_doc_delete(state, &job).await,
+		"UPSERT" => worker::handle_doc_upsert(state, &job).await,
+		"DELETE" => worker::handle_doc_delete(state, &job).await,
 		other => Err(Error::Validation(format!("Unsupported doc outbox op: {other}."))),
 	};
 
@@ -71,7 +74,7 @@ pub(super) async fn process_trace_outbox_once(state: &WorkerState) -> Result<()>
 	let job =
 		outbox::claim_next_trace_outbox_job(&state.db, now, TRACE_OUTBOX_LEASE_SECONDS).await?;
 	let Some(job) = job else { return Ok(()) };
-	let result = handle_trace_job(&state.db, &job).await;
+	let result = worker::handle_trace_job(&state.db, &job).await;
 
 	match result {
 		Ok(()) => {
@@ -102,7 +105,7 @@ pub(super) async fn process_consolidation_run_job_once(state: &WorkerState) -> R
 	)
 	.await?;
 	let Some(job) = job else { return Ok(()) };
-	let result = handle_consolidation_job(&state.db, &job).await;
+	let result = worker::handle_consolidation_job(&state.db, &job).await;
 
 	match result {
 		Ok(()) => {},
@@ -128,10 +131,10 @@ pub(super) async fn mark_failed(
 	err: &Error,
 ) -> Result<()> {
 	let next_attempts = attempts.saturating_add(1);
-	let backoff = backoff_for_attempt(next_attempts);
+	let backoff = worker::backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = sanitize_outbox_error(&err.to_string());
+	let error_text = worker::sanitize_outbox_error(&err.to_string());
 
 	outbox::mark_indexing_outbox_failed(
 		db,
@@ -153,10 +156,10 @@ pub(super) async fn mark_doc_failed(
 	err: &Error,
 ) -> Result<()> {
 	let next_attempts = attempts.saturating_add(1);
-	let backoff = backoff_for_attempt(next_attempts);
+	let backoff = worker::backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = sanitize_outbox_error(&err.to_string());
+	let error_text = worker::sanitize_outbox_error(&err.to_string());
 
 	doc_outbox::mark_doc_indexing_outbox_failed(
 		db,
@@ -178,10 +181,10 @@ pub(super) async fn mark_trace_failed(
 	err: &Error,
 ) -> Result<()> {
 	let next_attempts = attempts.saturating_add(1);
-	let backoff = backoff_for_attempt(next_attempts);
+	let backoff = worker::backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = sanitize_outbox_error(&err.to_string());
+	let error_text = worker::sanitize_outbox_error(&err.to_string());
 
 	outbox::mark_trace_outbox_failed(
 		db,
@@ -203,10 +206,10 @@ pub(super) async fn mark_consolidation_failed(
 	err: &Error,
 ) -> Result<()> {
 	let next_attempts = attempts.saturating_add(1);
-	let backoff = backoff_for_attempt(next_attempts);
+	let backoff = worker::backoff_for_attempt(next_attempts);
 	let now = OffsetDateTime::now_utc();
 	let available_at = now + backoff;
-	let error_text = sanitize_outbox_error(&err.to_string());
+	let error_text = worker::sanitize_outbox_error(&err.to_string());
 
 	consolidation::mark_consolidation_run_job_failed(
 		db,

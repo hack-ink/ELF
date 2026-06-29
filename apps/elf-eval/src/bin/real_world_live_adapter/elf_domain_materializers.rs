@@ -1,4 +1,12 @@
-use super::*;
+use crate::{
+	AGENT_ID, AddNoteInput, AddNoteRequest, BaselineRuntime, ConsolidationLineage,
+	ConsolidationMaterializationEvidence, ConsolidationProposalResponse,
+	ConsolidationProposalReviewRequest, ConsolidationProposalsListRequest,
+	ConsolidationRunCreateRequest, ElfService, IngestedCorpus, KnowledgeMaterializationEvidence,
+	KnowledgePageKind, KnowledgePageLintRequest, KnowledgePageRebuildRequest,
+	KnowledgePageSearchRequest, LiveConsolidationFixture, LoadedJob, Result, SCOPE, TENANT_ID,
+	Uuid, Value, eyre, serde_json,
+};
 
 pub(super) async fn materialize_elf_consolidation(
 	runtime: &BaselineRuntime,
@@ -6,19 +14,16 @@ pub(super) async fn materialize_elf_consolidation(
 	loaded: &LoadedJob,
 	ingested: &IngestedCorpus,
 	adapter_id: &str,
-) -> color_eyre::Result<(
-	Option<serde_json::Value>,
-	Option<ConsolidationMaterializationEvidence>,
-	Option<String>,
-)> {
+) -> Result<(Option<Value>, Option<ConsolidationMaterializationEvidence>, Option<String>)> {
 	if loaded.job.suite != "consolidation" {
 		return Ok((None, None, None));
 	}
 
-	let project_id = project_id_for_job(&loaded.job.job_id);
-	let fixture = live_consolidation_fixture(loaded)?;
-	let corpus = corpus_texts(loaded)?;
-	let prepared = prepare_consolidation_run(loaded, adapter_id, ingested, &fixture, &corpus)?;
+	let project_id = crate::project_id_for_job(&loaded.job.job_id);
+	let fixture = crate::live_consolidation_fixture(loaded)?;
+	let corpus = crate::corpus_texts(loaded)?;
+	let prepared =
+		crate::prepare_consolidation_run(loaded, adapter_id, ingested, &fixture, &corpus)?;
 	let run = service
 		.consolidation_run_create(ConsolidationRunCreateRequest {
 			tenant_id: TENANT_ID.to_string(),
@@ -44,7 +49,7 @@ pub(super) async fn materialize_elf_consolidation(
 			eyre::eyre!("ELF consolidation_run_create failed for {}: {err}", loaded.job.job_id)
 		})?;
 
-	run_worker(runtime).await?;
+	crate::run_worker(runtime).await?;
 
 	let reviewed = review_live_consolidation_proposals(
 		service,
@@ -54,8 +59,8 @@ pub(super) async fn materialize_elf_consolidation(
 		&fixture,
 	)
 	.await?;
-	let consolidation_response = live_consolidation_response(&fixture, &reviewed)?;
-	let evidence = consolidation_materialization_evidence(
+	let consolidation_response = crate::live_consolidation_response(&fixture, &reviewed)?;
+	let evidence = crate::consolidation_materialization_evidence(
 		run.run.run_id,
 		&fixture,
 		&prepared.input_refs,
@@ -70,17 +75,13 @@ pub(super) async fn materialize_elf_knowledge(
 	loaded: &LoadedJob,
 	ingested: &IngestedCorpus,
 	adapter_id: &str,
-) -> color_eyre::Result<(
-	Vec<serde_json::Value>,
-	Option<KnowledgeMaterializationEvidence>,
-	Option<String>,
-)> {
+) -> Result<(Vec<Value>, Option<KnowledgeMaterializationEvidence>, Option<String>)> {
 	if loaded.job.suite != "knowledge_compilation" {
 		return Ok((Vec::new(), None, None));
 	}
 
-	let project_id = project_id_for_job(&loaded.job.job_id);
-	let note_ids = live_note_ids(ingested);
+	let project_id = crate::project_id_for_job(&loaded.job.job_id);
+	let note_ids = crate::live_note_ids(ingested);
 
 	if note_ids.is_empty() {
 		return Err(eyre::eyre!(
@@ -89,7 +90,7 @@ pub(super) async fn materialize_elf_knowledge(
 		));
 	}
 
-	let page_key = slug(&loaded.job.job_id);
+	let page_key = crate::slug(&loaded.job.job_id);
 	let request = KnowledgePageRebuildRequest {
 		tenant_id: TENANT_ID.to_string(),
 		project_id: project_id.clone(),
@@ -143,8 +144,9 @@ pub(super) async fn materialize_elf_knowledge(
 		.map_err(|err| {
 			eyre::eyre!("ELF knowledge_pages_search failed for {}: {err}", loaded.job.job_id)
 		})?;
-	let page = knowledge_page_artifact(loaded, ingested, &first.page, &second.page, &lint)?;
-	let evidence = knowledge_materialization_evidence(&second.page, &lint, search.items.len());
+	let page = crate::knowledge_page_artifact(loaded, ingested, &first.page, &second.page, &lint)?;
+	let evidence =
+		crate::knowledge_materialization_evidence(&second.page, &lint, search.items.len());
 
 	Ok((vec![page], Some(evidence), None))
 }
@@ -155,7 +157,7 @@ async fn review_live_consolidation_proposals(
 	project_id: &str,
 	run_id: Uuid,
 	fixture: &LiveConsolidationFixture,
-) -> color_eyre::Result<Vec<ConsolidationProposalResponse>> {
+) -> Result<Vec<ConsolidationProposalResponse>> {
 	let listed = service
 		.consolidation_proposals_list(ConsolidationProposalsListRequest {
 			tenant_id: TENANT_ID.to_string(),
@@ -179,7 +181,7 @@ async fn review_live_consolidation_proposals(
 			)
 		})?;
 		let review_action =
-			consolidation_review_action(fixture_proposal.actual_review_action.as_str())?;
+			crate::consolidation_review_action(fixture_proposal.actual_review_action.as_str())?;
 
 		reviewed.push(
 			service
@@ -204,7 +206,7 @@ async fn review_live_consolidation_proposals(
 		);
 	}
 
-	validate_reviewed_consolidation_count(loaded, fixture, &reviewed)?;
+	crate::validate_reviewed_consolidation_count(loaded, fixture, &reviewed)?;
 
 	Ok(reviewed)
 }
@@ -214,8 +216,8 @@ async fn update_stale_trap_sources(
 	loaded: &LoadedJob,
 	adapter_id: &str,
 	project_id: &str,
-) -> color_eyre::Result<()> {
-	for evidence_id in stale_trap_evidence_ids(loaded) {
+) -> Result<()> {
+	for evidence_id in crate::stale_trap_evidence_ids(loaded) {
 		service
 			.add_note(AddNoteRequest {
 				tenant_id: TENANT_ID.to_string(),

@@ -1,8 +1,10 @@
 use serde_json::Value;
 
+use crate::{CaptureRuntimeSourceRefEvidence, LiveCaptureAction, LiveCapturePolicy};
+
 fn capture_item(
 	evidence_id: &str,
-	action: super::LiveCaptureAction,
+	action: LiveCaptureAction,
 	source_id: Option<&str>,
 	evidence_binding: Option<&str>,
 	write_policy: Option<Value>,
@@ -10,7 +12,7 @@ fn capture_item(
 	super::CorpusText {
 		evidence_id: evidence_id.to_string(),
 		text: "Public capture text.".to_string(),
-		capture: super::LiveCapturePolicy {
+		capture: LiveCapturePolicy {
 			action,
 			source_id: source_id.map(ToString::to_string),
 			evidence_binding: evidence_binding.map(ToString::to_string),
@@ -99,7 +101,7 @@ fn capture_runtime_source_refs_are_written_into_generated_fixture() {
 	});
 	let mut capture = capture_evidence(&["source-a"], &[]);
 
-	capture.runtime_source_refs.push(super::CaptureRuntimeSourceRefEvidence {
+	capture.runtime_source_refs.push(CaptureRuntimeSourceRefEvidence {
 		evidence_id: "source-a".to_string(),
 		source_ref: serde_json::json!({
 			"schema": "real_world_live_adapter/v1",

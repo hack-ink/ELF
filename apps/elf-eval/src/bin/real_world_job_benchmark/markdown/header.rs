@@ -1,4 +1,7 @@
-use super::*;
+use crate::markdown::{
+	self, KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport, RealWorldReport,
+	ReportSummary, ScheduledMemorySummaryReport, WorkContinuitySummaryReport,
+};
 
 pub(super) fn render_markdown_header(
 	out: &mut String,
@@ -12,20 +15,29 @@ pub(super) fn render_markdown_header(
 	out.push_str(
 		"Read this when: You need a durable smoke report for real-world agent memory job fixtures.\n",
 	);
-	out.push_str(&format!("Inputs: `{}`.\n", md_inline(report_path)));
+	out.push_str(&format!("Inputs: `{}`.\n", markdown::md_inline(report_path)));
 	out.push_str("Depends on: `apps/elf-eval/fixtures/`, `docs/spec/real_world_agent_memory_benchmark_v1.md`, and `Makefile.toml`.\n");
 	out.push_str(
 		"Verification: Compare this Markdown summary with the source JSON before committing.\n\n",
 	);
 	out.push_str("## Summary\n\n");
-	out.push_str(&format!("- Run ID: `{}`\n", md_inline(report.run_id.as_str())));
-	out.push_str(&format!("- Generated at: `{}`\n", md_inline(report.generated_at.as_str())));
-	out.push_str(&format!("- Runner version: `{}`\n", md_inline(report.runner_version.as_str())));
-	out.push_str(&format!("- Corpus profile: `{}`\n", md_inline(report.corpus_profile.as_str())));
+	out.push_str(&format!("- Run ID: `{}`\n", markdown::md_inline(report.run_id.as_str())));
+	out.push_str(&format!(
+		"- Generated at: `{}`\n",
+		markdown::md_inline(report.generated_at.as_str())
+	));
+	out.push_str(&format!(
+		"- Runner version: `{}`\n",
+		markdown::md_inline(report.runner_version.as_str())
+	));
+	out.push_str(&format!(
+		"- Corpus profile: `{}`\n",
+		markdown::md_inline(report.corpus_profile.as_str())
+	));
 	out.push_str(&format!(
 		"- Adapter: `{}` ({})\n",
-		md_inline(report.adapter.adapter_id.as_str()),
-		md_inline(report.adapter.behavior.as_str())
+		markdown::md_inline(report.adapter.adapter_id.as_str()),
+		markdown::md_inline(report.adapter.behavior.as_str())
 	));
 	out.push_str(&format!("- Jobs: `{}`\n", report.summary.job_count));
 	out.push_str(&format!(
@@ -65,9 +77,12 @@ pub(super) fn render_markdown_header(
 	out.push_str(&format!("- Mean score: `{:.3}`\n", report.summary.mean_score));
 	out.push_str(&format!(
 		"- Mean latency: `{}`\n",
-		optional_f64(report.summary.mean_latency_ms, " ms")
+		markdown::optional_f64(report.summary.mean_latency_ms, " ms")
 	));
-	out.push_str(&format!("- Cost: `{}`\n", cost_display(report.summary.total_cost.as_ref())));
+	out.push_str(&format!(
+		"- Cost: `{}`\n",
+		markdown::cost_display(report.summary.total_cost.as_ref())
+	));
 	out.push_str(&format!(
 		"- Operator-debug jobs: `{}`\n",
 		report.summary.operator_debug_job_count
@@ -83,7 +98,7 @@ pub(super) fn render_markdown_header(
 
 	out.push_str(&format!(
 		"- Private corpus redaction: `{}`\n\n",
-		md_inline(report.private_corpus_redaction.policy.as_str())
+		markdown::md_inline(report.private_corpus_redaction.policy.as_str())
 	));
 }
 

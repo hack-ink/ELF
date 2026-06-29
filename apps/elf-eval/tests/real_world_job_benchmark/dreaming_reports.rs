@@ -1,14 +1,14 @@
 use std::{fs, path::Path};
 
-use color_eyre::{Result, eyre};
+use color_eyre::{self, eyre};
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
-fn read_rust_module_sources(src_dir: &Path, module_name: &str) -> Result<String> {
+fn read_rust_module_sources(src_dir: &Path, module_name: &str) -> color_eyre::Result<String> {
 	let module_root = src_dir.join(format!("{module_name}.rs"));
-	let mut source = fs::read_to_string(module_root)?;
 	let module_dir = src_dir.join(module_name);
+	let mut source = fs::read_to_string(module_root)?;
 
 	if module_dir.is_dir() {
 		let mut entries = fs::read_dir(module_dir)?
@@ -28,13 +28,14 @@ fn read_rust_module_sources(src_dir: &Path, module_name: &str) -> Result<String>
 }
 
 #[test]
-fn live_temporal_reconciliation_report_records_xy905_before_after() -> Result<()> {
+fn live_temporal_reconciliation_report_records_xy905_before_after() -> color_eyre::Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		live_temporal_reconciliation_report_json_path()?,
+		support::live_temporal_reconciliation_report_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(live_temporal_reconciliation_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown =
+		fs::read_to_string(support::live_temporal_reconciliation_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -85,17 +86,17 @@ fn live_temporal_reconciliation_report_records_xy905_before_after() -> Result<()
 			.and_then(Value::as_str),
 		Some("unchanged")
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/trace_contract/answer_fields",
 		"selected_historical_evidence"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/trace_contract/materialization_fields",
 		"current_winner_evidence_ids"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/trace_contract/trace_stages",
 		"temporal_reconciliation.conflict_candidates"
@@ -116,13 +117,15 @@ fn live_temporal_reconciliation_report_records_xy905_before_after() -> Result<()
 }
 
 #[test]
-fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims() -> Result<()> {
+fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims()
+-> color_eyre::Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		dreaming_competitor_strength_retest_report_json_path()?,
+		support::dreaming_competitor_strength_retest_report_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(dreaming_competitor_strength_retest_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown =
+		fs::read_to_string(support::dreaming_competitor_strength_retest_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -138,8 +141,8 @@ fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims() 
 		Some("not_proven")
 	);
 	assert_eq!(report.pointer("/summary/regressed_stage_count").and_then(Value::as_u64), Some(0));
-	assert!(array_contains_str(&report, "/status_terms", "typed_non_pass")?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(&report, "/status_terms", "typed_non_pass")?);
+	assert!(support::array_contains_str(
 		&report,
 		"/summary/unsupported_claims_rejected",
 		"ELF does not broadly beat qmd from this retest."
@@ -174,14 +177,14 @@ fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims() 
 }
 
 #[test]
-fn qmd_debug_ergonomics_dreaming_retest_report_preserves_qmd_edge() -> Result<()> {
+fn qmd_debug_ergonomics_dreaming_retest_report_preserves_qmd_edge() -> color_eyre::Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		qmd_debug_ergonomics_dreaming_retest_report_json_path()?,
+		support::qmd_debug_ergonomics_dreaming_retest_report_json_path()?,
 	)?)?;
 	let markdown =
-		fs::read_to_string(qmd_debug_ergonomics_dreaming_retest_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+		fs::read_to_string(support::qmd_debug_ergonomics_dreaming_retest_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_qmd_debug_retest_summary(&report)?;
 	assert_qmd_debug_retest_command_and_adapters(&report)?;
@@ -192,7 +195,7 @@ fn qmd_debug_ergonomics_dreaming_retest_report_preserves_qmd_edge() -> Result<()
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_summary(report: &Value) -> Result<()> {
+fn assert_qmd_debug_retest_summary(report: &Value) -> color_eyre::Result<()> {
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
 		Some("elf.qmd_debug_ergonomics_dreaming_retest_report/v1")
@@ -219,7 +222,7 @@ fn assert_qmd_debug_retest_summary(report: &Value) -> Result<()> {
 		report.pointer("/summary/unchanged_scenario_count").and_then(Value::as_u64),
 		Some(6)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/summary/unsupported_claims_rejected",
 		"qmd's live operator-debug wrong_result rows do not erase qmd's default top-k and short CLI replay edge."
@@ -228,9 +231,9 @@ fn assert_qmd_debug_retest_summary(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_command_and_adapters(report: &Value) -> Result<()> {
-	let command = find_by_field(
-		array_at(report, "/commands")?,
+fn assert_qmd_debug_retest_command_and_adapters(report: &Value) -> color_eyre::Result<()> {
+	let command = support::find_by_field(
+		support::array_at(report, "/commands")?,
 		"/command",
 		"cargo make real-world-job-operator-ux-live-adapters",
 	)?;
@@ -241,9 +244,9 @@ fn assert_qmd_debug_retest_command_and_adapters(report: &Value) -> Result<()> {
 		Some("elf.real_world_operator_debug_live_adapter_sweep/v1")
 	);
 
-	let adapters = array_at(report, "/adapter_summaries")?;
-	let elf = find_by_field(adapters, "/adapter_id", "elf_operator_debug_live")?;
-	let qmd = find_by_field(adapters, "/adapter_id", "qmd_operator_debug_live")?;
+	let adapters = support::array_at(report, "/adapter_summaries")?;
+	let elf = support::find_by_field(adapters, "/adapter_id", "elf_operator_debug_live")?;
+	let qmd = support::find_by_field(adapters, "/adapter_id", "qmd_operator_debug_live")?;
 
 	assert_eq!(elf.pointer("/job_count").and_then(Value::as_u64), Some(6));
 	assert_eq!(elf.pointer("/pass").and_then(Value::as_u64), Some(6));
@@ -260,16 +263,22 @@ fn assert_qmd_debug_retest_command_and_adapters(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_scenarios(report: &Value) -> Result<()> {
-	let scenarios = array_at(report, "/scenario_retests")?;
-	let top10 = find_by_field(scenarios, "/scenario_id", "qmd_default_top10_candidate_artifact")?;
-	let replay = find_by_field(scenarios, "/scenario_id", "qmd_short_cli_replay")?;
-	let trace = find_by_field(scenarios, "/scenario_id", "elf_operator_debug_trace_hydration")?;
-	let candidate =
-		find_by_field(scenarios, "/scenario_id", "operator_debug_candidate_drop_visibility")?;
-	let expansion = find_by_field(scenarios, "/scenario_id", "query_expansion_attribution")?;
-	let fusion = find_by_field(scenarios, "/scenario_id", "fusion_attribution")?;
-	let rerank = find_by_field(scenarios, "/scenario_id", "rerank_attribution")?;
+fn assert_qmd_debug_retest_scenarios(report: &Value) -> color_eyre::Result<()> {
+	let scenarios = support::array_at(report, "/scenario_retests")?;
+	let top10 =
+		support::find_by_field(scenarios, "/scenario_id", "qmd_default_top10_candidate_artifact")?;
+	let replay = support::find_by_field(scenarios, "/scenario_id", "qmd_short_cli_replay")?;
+	let trace =
+		support::find_by_field(scenarios, "/scenario_id", "elf_operator_debug_trace_hydration")?;
+	let candidate = support::find_by_field(
+		scenarios,
+		"/scenario_id",
+		"operator_debug_candidate_drop_visibility",
+	)?;
+	let expansion =
+		support::find_by_field(scenarios, "/scenario_id", "query_expansion_attribution")?;
+	let fusion = support::find_by_field(scenarios, "/scenario_id", "fusion_attribution")?;
+	let rerank = support::find_by_field(scenarios, "/scenario_id", "rerank_attribution")?;
 
 	assert_eq!(scenarios.len(), 10);
 	assert_eq!(top10.pointer("/judgment").and_then(Value::as_str), Some("unchanged"));
@@ -289,7 +298,11 @@ fn assert_qmd_debug_retest_scenarios(report: &Value) -> Result<()> {
 			.and_then(Value::as_u64),
 		Some(0)
 	);
-	assert!(array_contains_str(candidate, "/typed_non_pass_states", "retrieved_but_dropped")?);
+	assert!(support::array_contains_str(
+		candidate,
+		"/typed_non_pass_states",
+		"retrieved_but_dropped"
+	)?);
 	assert_eq!(expansion.pointer("/judgment").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(fusion.pointer("/judgment").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(rerank.pointer("/judgment").and_then(Value::as_str), Some("non_goal"));
@@ -297,18 +310,18 @@ fn assert_qmd_debug_retest_scenarios(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_boundaries(report: &Value) -> Result<()> {
-	assert!(array_contains_str(
+fn assert_qmd_debug_retest_boundaries(report: &Value) -> color_eyre::Result<()> {
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries/allowed",
 		"qmd's default local-debug edge remains: top-10 candidate rows plus short CLI replay."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries/not_allowed",
 		"Do not claim ELF broadly beats qmd from this retest."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/next_optimization_direction/required_fields",
 		"fusion_rank_deltas"
@@ -338,14 +351,15 @@ fn assert_qmd_debug_retest_markdown_and_indexes(
 }
 
 #[test]
-fn openviking_trajectory_materialization_report_preserves_blocked_gates() -> Result<()> {
+fn openviking_trajectory_materialization_report_preserves_blocked_gates() -> color_eyre::Result<()>
+{
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		openviking_trajectory_materialization_report_json_path()?,
+		support::openviking_trajectory_materialization_report_json_path()?,
 	)?)?;
 	let markdown =
-		fs::read_to_string(openviking_trajectory_materialization_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+		fs::read_to_string(support::openviking_trajectory_materialization_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_openviking_trajectory_materialization_summary(&report)?;
 	assert_openviking_trajectory_materialization_command(&report)?;
@@ -361,13 +375,14 @@ fn openviking_trajectory_materialization_report_preserves_blocked_gates() -> Res
 }
 
 #[test]
-fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> Result<()> {
+fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> color_eyre::Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		letta_core_archive_export_readback_report_json_path()?,
+		support::letta_core_archive_export_readback_report_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(letta_core_archive_export_readback_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown =
+		fs::read_to_string(support::letta_core_archive_export_readback_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -443,7 +458,7 @@ fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> Result
 			.and_then(Value::as_str),
 		Some("unchanged")
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/materialization/claim_boundaries/not_allowed",
 		"Do not claim ELF beats Letta on core-vs-archival memory from fixture-only ELF evidence."
@@ -459,16 +474,17 @@ fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> Result
 }
 
 #[test]
-fn service_native_dreaming_readback_report_materializes_public_jobs() -> Result<()> {
+fn service_native_dreaming_readback_report_materializes_public_jobs() -> color_eyre::Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		service_native_dreaming_readback_report_json_path()?,
+		support::service_native_dreaming_readback_report_json_path()?,
 	)?)?;
 	let materialization = serde_json::from_str::<Value>(&fs::read_to_string(
-		service_native_dreaming_readback_materialization_json_path()?,
+		support::service_native_dreaming_readback_materialization_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(service_native_dreaming_readback_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown =
+		fs::read_to_string(support::service_native_dreaming_readback_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_service_native_dreaming_report_summary(&report)?;
 	assert_service_native_dreaming_report_jobs(&report)?;
@@ -478,7 +494,7 @@ fn service_native_dreaming_readback_report_materializes_public_jobs() -> Result<
 	Ok(())
 }
 
-fn assert_service_native_dreaming_report_summary(report: &Value) -> Result<()> {
+fn assert_service_native_dreaming_report_summary(report: &Value) -> color_eyre::Result<()> {
 	assert_eq!(
 		report.pointer("/adapter/adapter_id").and_then(Value::as_str),
 		Some("elf_service_native_dreaming")
@@ -512,10 +528,10 @@ fn assert_service_native_dreaming_report_summary(report: &Value) -> Result<()> {
 		Some(0)
 	);
 
-	let suites = array_at(report, "/suites")?;
-	let memory = find_by_field(suites, "/suite_id", "memory_summary")?;
-	let proactive = find_by_field(suites, "/suite_id", "proactive_brief")?;
-	let scheduled = find_by_field(suites, "/suite_id", "scheduled_memory")?;
+	let suites = support::array_at(report, "/suites")?;
+	let memory = support::find_by_field(suites, "/suite_id", "memory_summary")?;
+	let proactive = support::find_by_field(suites, "/suite_id", "proactive_brief")?;
+	let scheduled = support::find_by_field(suites, "/suite_id", "scheduled_memory")?;
 
 	assert_eq!(memory.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(proactive.pointer("/status").and_then(Value::as_str), Some("blocked"));
@@ -524,25 +540,29 @@ fn assert_service_native_dreaming_report_summary(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_service_native_dreaming_report_jobs(report: &Value) -> Result<()> {
-	let jobs = array_at(report, "/jobs")?;
-	let memory = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
-	let daily = find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
+fn assert_service_native_dreaming_report_jobs(report: &Value) -> color_eyre::Result<()> {
+	let jobs = support::array_at(report, "/jobs")?;
+	let memory = support::find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+	let daily = support::find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
 	let private_brief =
-		find_by_field(jobs, "/job_id", "proactive-private-corpus-refresh-blocked-001")?;
-	let weekly = find_by_field(jobs, "/job_id", "scheduled-weekly-project-status-summary-001")?;
-	let private_scheduled =
-		find_by_field(jobs, "/job_id", "scheduled-private-provider-scheduler-blocked-001")?;
+		support::find_by_field(jobs, "/job_id", "proactive-private-corpus-refresh-blocked-001")?;
+	let weekly =
+		support::find_by_field(jobs, "/job_id", "scheduled-weekly-project-status-summary-001")?;
+	let private_scheduled = support::find_by_field(
+		jobs,
+		"/job_id",
+		"scheduled-private-provider-scheduler-blocked-001",
+	)?;
 
 	assert_eq!(memory.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(daily.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(weekly.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(private_brief.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(private_scheduled.pointer("/status").and_then(Value::as_str), Some("blocked"));
-	assert!(!array_contains_str(memory, "/produced_evidence", "stale-summary-gap")?);
-	assert!(!array_contains_str(memory, "/produced_evidence", "summary-temporary-claim")?);
-	assert!(!array_contains_str(daily, "/produced_evidence", "daily-old-parity-trap")?);
-	assert!(!array_contains_str(
+	assert!(!support::array_contains_str(memory, "/produced_evidence", "stale-summary-gap")?);
+	assert!(!support::array_contains_str(memory, "/produced_evidence", "summary-temporary-claim")?);
+	assert!(!support::array_contains_str(daily, "/produced_evidence", "daily-old-parity-trap")?);
+	assert!(!support::array_contains_str(
 		weekly,
 		"/produced_evidence",
 		"scheduled-weekly-hosted-parity-trap"
@@ -551,7 +571,9 @@ fn assert_service_native_dreaming_report_jobs(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_service_native_dreaming_materialization(materialization: &Value) -> Result<()> {
+fn assert_service_native_dreaming_materialization(
+	materialization: &Value,
+) -> color_eyre::Result<()> {
 	assert_eq!(
 		materialization.pointer("/schema").and_then(Value::as_str),
 		Some("elf.real_world_live_adapter_materialization/v1")
@@ -562,11 +584,11 @@ fn assert_service_native_dreaming_materialization(materialization: &Value) -> Re
 	);
 	assert_eq!(materialization.pointer("/status").and_then(Value::as_str), Some("blocked"));
 
-	let jobs = array_at(materialization, "/jobs")?;
-	let memory = find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
-	let daily = find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
+	let jobs = support::array_at(materialization, "/jobs")?;
+	let memory = support::find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
+	let daily = support::find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
 	let private_brief =
-		find_by_field(jobs, "/job_id", "proactive-private-corpus-refresh-blocked-001")?;
+		support::find_by_field(jobs, "/job_id", "proactive-private-corpus-refresh-blocked-001")?;
 
 	for job in jobs {
 		match job.pointer("/status").and_then(Value::as_str) {
@@ -575,7 +597,9 @@ fn assert_service_native_dreaming_materialization(materialization: &Value) -> Re
 					job.pointer("/dreaming_readback/runtime_path").and_then(Value::as_str),
 					Some("ElfService::add_note -> ElfService::list -> derived readback artifact")
 				);
-				assert!(array_at(job, "/dreaming_readback/missing_source_refs")?.is_empty());
+				assert!(
+					support::array_at(job, "/dreaming_readback/missing_source_refs")?.is_empty()
+				);
 				assert_eq!(
 					job.pointer("/dreaming_readback/source_mutation_count").and_then(Value::as_u64),
 					Some(0)
@@ -597,18 +621,18 @@ fn assert_service_native_dreaming_materialization(materialization: &Value) -> Re
 		}
 	}
 
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		memory,
 		"/dreaming_readback/selected_source_refs",
 		"stale-summary-gap"
 	)?);
-	assert!(!array_contains_str(memory, "/evidence_ids", "stale-summary-gap")?);
-	assert!(array_contains_str(
+	assert!(!support::array_contains_str(memory, "/evidence_ids", "stale-summary-gap")?);
+	assert!(support::array_contains_str(
 		daily,
 		"/dreaming_readback/selected_source_refs",
 		"daily-old-parity-trap"
 	)?);
-	assert!(!array_contains_str(daily, "/evidence_ids", "daily-old-parity-trap")?);
+	assert!(!support::array_contains_str(daily, "/evidence_ids", "daily-old-parity-trap")?);
 	assert!(private_brief.pointer("/dreaming_readback").is_none_or(Value::is_null));
 
 	Ok(())
@@ -626,14 +650,14 @@ fn assert_service_native_dreaming_docs(markdown: &str, benchmarking_index: &str,
 }
 
 #[test]
-fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> Result<()> {
+fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> color_eyre::Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		dreaming_review_queue_report_json_path()?,
+		support::dreaming_review_queue_report_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(dreaming_review_queue_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
-	let workspace = workspace_root()?;
+	let markdown = fs::read_to_string(support::dreaming_review_queue_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
+	let workspace = support::workspace_root()?;
 	let service = read_rust_module_sources(
 		&workspace.join("packages/elf-service/src"),
 		"dreaming_review_queue",
@@ -666,14 +690,18 @@ fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> Result<()>
 	assert_eq!(report.pointer("/summary/variant_count").and_then(Value::as_u64), Some(9));
 
 	for suite in ["memory_summary", "proactive_brief", "scheduled_memory", "consolidation"] {
-		assert!(array_contains_str(&report, "/summary/covered_existing_suites", suite)?);
+		assert!(support::array_contains_str(&report, "/summary/covered_existing_suites", suite)?);
 	}
 	for variant in
 		["tag", "duplicate_merge", "page_rebuild", "memory_promotion", "graph_fact", "correction"]
 	{
-		assert!(array_contains_str(&report, "/summary/covered_future_variants", variant)?);
+		assert!(support::array_contains_str(&report, "/summary/covered_future_variants", variant)?);
 
-		find_by_field(array_at(&report, "/queue_variants")?, "/variant", variant)?;
+		support::find_by_field(
+			support::array_at(&report, "/queue_variants")?,
+			"/variant",
+			variant,
+		)?;
 	}
 	for field in [
 		"source_refs",
@@ -684,7 +712,7 @@ fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> Result<()>
 		"policy",
 		"review_audit",
 	] {
-		assert!(array_contains_str(&report, "/required_item_fields", field)?);
+		assert!(support::array_contains_str(&report, "/required_item_fields", field)?);
 	}
 
 	assert!(service.contains("ELF_DREAMING_REVIEW_QUEUE_SCHEMA_V1"));
@@ -714,7 +742,7 @@ fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> Result<()>
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_summary(report: &Value) -> Result<()> {
+fn assert_openviking_trajectory_materialization_summary(report: &Value) -> color_eyre::Result<()> {
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
 		Some("elf.openviking_trajectory_materialization_report/v1")
@@ -737,7 +765,7 @@ fn assert_openviking_trajectory_materialization_summary(report: &Value) -> Resul
 		Some(0)
 	);
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/summary/unsupported_claims_rejected",
 		"ELF does not beat OpenViking staged retrieval trajectory from fixture-only blocked rows."
@@ -746,9 +774,9 @@ fn assert_openviking_trajectory_materialization_summary(report: &Value) -> Resul
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_command(report: &Value) -> Result<()> {
-	let command = find_by_field(
-		array_at(report, "/commands")?,
+fn assert_openviking_trajectory_materialization_command(report: &Value) -> color_eyre::Result<()> {
+	let command = support::find_by_field(
+		support::array_at(report, "/commands")?,
 		"/command",
 		"cargo make real-world-memory-context-trajectory",
 	)?;
@@ -771,13 +799,22 @@ fn assert_openviking_trajectory_materialization_command(report: &Value) -> Resul
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_scenarios(report: &Value) -> Result<()> {
-	let scenarios = array_at(report, "/scenario_materialization")?;
-	let staged =
-		find_by_field(scenarios, "/scenario_id", "openviking_staged_retrieval_trajectory")?;
-	let hierarchy = find_by_field(scenarios, "/scenario_id", "openviking_hierarchy_selection")?;
-	let recursive =
-		find_by_field(scenarios, "/scenario_id", "openviking_recursive_context_expansion")?;
+fn assert_openviking_trajectory_materialization_scenarios(
+	report: &Value,
+) -> color_eyre::Result<()> {
+	let scenarios = support::array_at(report, "/scenario_materialization")?;
+	let staged = support::find_by_field(
+		scenarios,
+		"/scenario_id",
+		"openviking_staged_retrieval_trajectory",
+	)?;
+	let hierarchy =
+		support::find_by_field(scenarios, "/scenario_id", "openviking_hierarchy_selection")?;
+	let recursive = support::find_by_field(
+		scenarios,
+		"/scenario_id",
+		"openviking_recursive_context_expansion",
+	)?;
 
 	assert_eq!(scenarios.len(), 3);
 
@@ -787,17 +824,17 @@ fn assert_openviking_trajectory_materialization_scenarios(report: &Value) -> Res
 		assert_eq!(scenario.pointer("/judgment").and_then(Value::as_str), Some("unchanged"));
 	}
 
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		staged,
 		"/produced_evidence",
 		"openviking-evidence-id-output-contract"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		hierarchy,
 		"/produced_evidence",
 		"hierarchy-selection-output-contract"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		recursive,
 		"/produced_evidence",
 		"recursive-expansion-output-contract"
@@ -820,7 +857,9 @@ fn assert_openviking_trajectory_materialization_scenarios(report: &Value) -> Res
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_boundaries(report: &Value) -> Result<()> {
+fn assert_openviking_trajectory_materialization_boundaries(
+	report: &Value,
+) -> color_eyre::Result<()> {
 	assert_eq!(
 		report.pointer("/improvement_regression_readback/improved").and_then(Value::as_u64),
 		Some(0)
@@ -829,17 +868,17 @@ fn assert_openviking_trajectory_materialization_boundaries(report: &Value) -> Re
 		report.pointer("/improvement_regression_readback/blocked").and_then(Value::as_u64),
 		Some(3)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries/allowed",
 		"The context-trajectory slice is now reproducible through cargo make real-world-memory-context-trajectory."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries/not_allowed",
 		"Do not claim ELF beats OpenViking on staged retrieval trajectory."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/next_optimization_direction/required_fields",
 		"expansion_path"
@@ -871,13 +910,15 @@ fn assert_openviking_trajectory_materialization_markdown_and_indexes(
 	assert!(readme.contains("3 typed blockers with 9/9 evidence coverage"));
 }
 
-fn assert_xy955_commands(report: &Value) -> Result<()> {
-	let commands = array_at(report, "/commands")?;
-	let aggregate = find_by_field(commands, "/command", "cargo make real-world-memory")?;
-	let graph_rag = find_by_field(commands, "/command", "cargo make real-world-memory-graph-rag")?;
+fn assert_xy955_commands(report: &Value) -> color_eyre::Result<()> {
+	let commands = support::array_at(report, "/commands")?;
+	let aggregate = support::find_by_field(commands, "/command", "cargo make real-world-memory")?;
+	let graph_rag =
+		support::find_by_field(commands, "/command", "cargo make real-world-memory-graph-rag")?;
 	let first_generation =
-		find_by_field(commands, "/command", "cargo make real-world-first-generation-oss")?;
-	let live = find_by_field(commands, "/command", "cargo make real-world-memory-live-adapters")?;
+		support::find_by_field(commands, "/command", "cargo make real-world-first-generation-oss")?;
+	let live =
+		support::find_by_field(commands, "/command", "cargo make real-world-memory-live-adapters")?;
 
 	assert_eq!(aggregate.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(aggregate.pointer("/summary/pass").and_then(Value::as_u64), Some(53));
@@ -909,15 +950,16 @@ fn assert_xy955_commands(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_stage_closeout(report: &Value) -> Result<()> {
-	let stages = array_at(report, "/stage_closeout")?;
+fn assert_xy955_stage_closeout(report: &Value) -> color_eyre::Result<()> {
+	let stages = support::array_at(report, "/stage_closeout")?;
 
 	assert_eq!(stages.len(), 8);
 
-	let current = find_by_field(stages, "/stage_id", "current_vs_historical_correctness")?;
-	let proactive = find_by_field(stages, "/stage_id", "proactive_brief_readiness")?;
-	let scheduled = find_by_field(stages, "/stage_id", "scheduled_memory_task_readiness")?;
-	let final_retest = find_by_field(stages, "/stage_id", "final_competitor_retest_status")?;
+	let current = support::find_by_field(stages, "/stage_id", "current_vs_historical_correctness")?;
+	let proactive = support::find_by_field(stages, "/stage_id", "proactive_brief_readiness")?;
+	let scheduled = support::find_by_field(stages, "/stage_id", "scheduled_memory_task_readiness")?;
+	let final_retest =
+		support::find_by_field(stages, "/stage_id", "final_competitor_retest_status")?;
 
 	assert_eq!(current.pointer("/judgment").and_then(Value::as_str), Some("improved"));
 	assert_eq!(current.pointer("/current_counts/pass").and_then(Value::as_u64), Some(6));
@@ -950,19 +992,22 @@ fn assert_xy955_stage_closeout(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_scenario_retests(report: &Value) -> Result<()> {
-	let scenarios = array_at(report, "/scenario_retests")?;
-	let qmd = find_by_field(scenarios, "/scenario_id", "qmd_debug_ergonomics")?;
-	let mem0 =
-		find_by_field(scenarios, "/scenario_id", "mem0_openmemory_preference_history_export")?;
-	let letta = find_by_field(scenarios, "/scenario_id", "letta_core_archive")?;
-	let graph_rag = find_by_field(
+fn assert_xy955_scenario_retests(report: &Value) -> color_eyre::Result<()> {
+	let scenarios = support::array_at(report, "/scenario_retests")?;
+	let qmd = support::find_by_field(scenarios, "/scenario_id", "qmd_debug_ergonomics")?;
+	let mem0 = support::find_by_field(
+		scenarios,
+		"/scenario_id",
+		"mem0_openmemory_preference_history_export",
+	)?;
+	let letta = support::find_by_field(scenarios, "/scenario_id", "letta_core_archive")?;
+	let graph_rag = support::find_by_field(
 		scenarios,
 		"/scenario_id",
 		"graph_rag_citation_navigation_knowledge_surfaces",
 	)?;
 	let private_provider =
-		find_by_field(scenarios, "/scenario_id", "private_provider_production_gates")?;
+		support::find_by_field(scenarios, "/scenario_id", "private_provider_production_gates")?;
 
 	assert_eq!(qmd.pointer("/current_outcome").and_then(Value::as_str), Some("unchanged"));
 	assert_eq!(qmd.pointer("/current_status").and_then(Value::as_str), Some("pass"));
@@ -991,20 +1036,21 @@ fn assert_xy955_scenario_retests(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_optimization_queue(report: &Value) -> Result<()> {
-	let queue = array_at(report, "/optimization_queue")?;
-	let qmd = find_by_field(queue, "/issue", "XY-923")?;
-	let private_provider = find_by_field(queue, "/issue", "XY-930")?;
-	let openviking = find_by_field(queue, "/issue", "XY-928")?;
-	let letta = find_by_field(queue, "/issue", "letta-core-archive-adapter-brief")?;
-	let service_native = find_by_field(queue, "/issue", "service-native-dreaming-outputs-brief")?;
+fn assert_xy955_optimization_queue(report: &Value) -> color_eyre::Result<()> {
+	let queue = support::array_at(report, "/optimization_queue")?;
+	let qmd = support::find_by_field(queue, "/issue", "XY-923")?;
+	let private_provider = support::find_by_field(queue, "/issue", "XY-930")?;
+	let openviking = support::find_by_field(queue, "/issue", "XY-928")?;
+	let letta = support::find_by_field(queue, "/issue", "letta-core-archive-adapter-brief")?;
+	let service_native =
+		support::find_by_field(queue, "/issue", "service-native-dreaming-outputs-brief")?;
 
 	assert_eq!(qmd.pointer("/status").and_then(Value::as_str), Some("existing"));
 	assert_eq!(private_provider.pointer("/status").and_then(Value::as_str), Some("existing"));
 	assert_eq!(openviking.pointer("/status").and_then(Value::as_str), Some("existing"));
 	assert_eq!(letta.pointer("/status").and_then(Value::as_str), Some("proposed"));
 	assert_eq!(service_native.pointer("/status").and_then(Value::as_str), Some("proposed"));
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries/not_allowed",
 		"Do not treat qmd full-suite wrong_result counts as a regression of qmd debug ergonomics."
@@ -1013,14 +1059,14 @@ fn assert_xy955_optimization_queue(report: &Value) -> Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_follow_up_issue_briefs(report: &Value) -> Result<()> {
-	let existing = array_at(report, "/follow_up_issue_briefs/existing")?;
-	let proposed = array_at(report, "/follow_up_issue_briefs/proposed")?;
-	let qmd = find_by_field(existing, "/issue", "XY-923")?;
-	let private_provider = find_by_field(existing, "/issue", "XY-930")?;
-	let letta = find_by_field(proposed, "/issue", "letta-core-archive-adapter-brief")?;
+fn assert_xy955_follow_up_issue_briefs(report: &Value) -> color_eyre::Result<()> {
+	let existing = support::array_at(report, "/follow_up_issue_briefs/existing")?;
+	let proposed = support::array_at(report, "/follow_up_issue_briefs/proposed")?;
+	let qmd = support::find_by_field(existing, "/issue", "XY-923")?;
+	let private_provider = support::find_by_field(existing, "/issue", "XY-930")?;
+	let letta = support::find_by_field(proposed, "/issue", "letta-core-archive-adapter-brief")?;
 	let service_native =
-		find_by_field(proposed, "/issue", "service-native-dreaming-outputs-brief")?;
+		support::find_by_field(proposed, "/issue", "service-native-dreaming-outputs-brief")?;
 
 	assert!(qmd.pointer("/scope").and_then(Value::as_str).is_some_and(|scope| {
 		scope.contains("immediate top-k") && scope.contains("candidate-drop artifacts")

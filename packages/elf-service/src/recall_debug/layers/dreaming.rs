@@ -1,4 +1,7 @@
-use super::*;
+use crate::recall_debug::layers::{
+	self, DreamingReviewQueueRequest, ElfService, RecallDebugLayer, RecallDebugPanelRequest,
+	RecallDebugRow, Result,
+};
 
 impl ElfService {
 	pub(super) async fn recall_dreaming_layer(
@@ -8,7 +11,7 @@ impl ElfService {
 		limit: u32,
 	) -> Result<RecallDebugLayer> {
 		if !include_dreaming {
-			return Ok(not_requested_layer(
+			return Ok(layers::not_requested_layer(
 				"dreaming_proposals",
 				"Set include_dreaming=true to show reviewable Dreaming proposals.",
 			));
@@ -63,7 +66,7 @@ impl ElfService {
 			})
 			.collect();
 
-		Ok(layer_from_rows_with_artifacts(
+		Ok(layers::layer_from_rows_with_artifacts(
 			"dreaming_proposals",
 			"pass",
 			None,

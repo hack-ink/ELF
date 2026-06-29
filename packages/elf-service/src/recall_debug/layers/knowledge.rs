@@ -1,4 +1,7 @@
-use super::*;
+use crate::recall_debug::layers::{
+	self, ElfService, KnowledgePageSearchRequest, RecallDebugLayer, RecallDebugPanelRequest,
+	RecallDebugRow, Result,
+};
 
 impl ElfService {
 	pub(super) async fn recall_knowledge_layer(
@@ -8,7 +11,7 @@ impl ElfService {
 		limit: u32,
 	) -> Result<RecallDebugLayer> {
 		let Some(query) = knowledge_query else {
-			return Ok(not_requested_layer(
+			return Ok(layers::not_requested_layer(
 				"knowledge_pages",
 				"Supply query or knowledge_query to show Knowledge Workspace page candidates.",
 			));
@@ -38,7 +41,7 @@ impl ElfService {
 				}),
 				selection_state: "selected".to_string(),
 				authority_layer: "derived_knowledge_page".to_string(),
-				freshness_state: knowledge_freshness(&item),
+				freshness_state: layers::knowledge_freshness(&item),
 				source_refs: serde_json::json!({
 					"source_coverage": item.source_coverage,
 					"section_source_ref_count": item.source_ref_count,
@@ -64,7 +67,7 @@ impl ElfService {
 			})
 			.collect();
 
-		Ok(layer_from_rows_with_artifacts(
+		Ok(layers::layer_from_rows_with_artifacts(
 			"knowledge_pages",
 			"pass",
 			Some(query.to_string()),

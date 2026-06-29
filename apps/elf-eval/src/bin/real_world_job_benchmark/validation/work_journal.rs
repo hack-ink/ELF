@@ -1,4 +1,7 @@
-use super::*;
+use crate::validation::{
+	self, BTreeSet, Path, Result, WorkJournalEntryArtifact, WorkJournalNextStepArtifact,
+	WorkJournalReadbackArtifact, WorkJournalWhereStoppedArtifact, eyre,
+};
 
 pub(super) fn validate_work_journal_readback_artifact(
 	readback: &WorkJournalReadbackArtifact,
@@ -18,7 +21,11 @@ pub(super) fn validate_work_journal_readback_artifact(
 		return Err(eyre::eyre!("{} has an incomplete Work Journal readback.", path.display()));
 	}
 
-	validate_optional_rfc3339(&readback.generated_at, path, readback.readback_id.as_str())?;
+	validation::validate_optional_rfc3339(
+		&readback.generated_at,
+		path,
+		readback.readback_id.as_str(),
+	)?;
 
 	if readback.promotion_boundary.journal_entry_authority.trim().is_empty() {
 		return Err(eyre::eyre!(
@@ -55,7 +62,7 @@ pub(super) fn validate_work_journal_readback_artifact(
 		}
 
 		for evidence_ref in &candidate.evidence_refs {
-			ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+			validation::ensure_known_evidence(path, evidence_ids, evidence_ref)?;
 		}
 	}
 
@@ -77,7 +84,7 @@ fn validate_work_journal_entry(
 	}
 
 	for source_ref in &entry.source_refs {
-		ensure_known_evidence(path, evidence_ids, source_ref)?;
+		validation::ensure_known_evidence(path, evidence_ids, source_ref)?;
 	}
 	for marker_id in entry
 		.redaction_audit
@@ -107,7 +114,7 @@ fn validate_work_journal_entry(
 		}
 
 		for evidence_ref in &option.evidence_refs {
-			ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+			validation::ensure_known_evidence(path, evidence_ids, evidence_ref)?;
 		}
 	}
 
@@ -125,7 +132,7 @@ fn validate_work_journal_next_step(
 	}
 
 	for evidence_ref in &step.evidence_refs {
-		ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_ref)?;
 	}
 
 	Ok(())
@@ -141,7 +148,7 @@ fn validate_work_journal_where_stopped(
 		.iter()
 		.chain(where_stopped.handoff_source_refs.iter())
 	{
-		ensure_known_evidence(path, evidence_ids, evidence_ref)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_ref)?;
 	}
 	for claim in &where_stopped.journal_only_authority_claims {
 		if claim.trim().is_empty() {

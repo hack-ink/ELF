@@ -1,9 +1,7 @@
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::{Error, Result, models::GraphPredicate};
-
-use super::query::get_predicate_by_id;
+use crate::{Error, Result, graph::predicate::query, models::GraphPredicate};
 
 /// Updates a predicate's mutable status and cardinality fields.
 pub async fn update_predicate(
@@ -133,7 +131,7 @@ pub async fn update_predicate_guarded(
 		return Ok(row);
 	}
 
-	let existing = get_predicate_by_id(executor, predicate_id).await?;
+	let existing = query::get_predicate_by_id(executor, predicate_id).await?;
 	let Some(_) = existing else {
 		return Err(Error::NotFound(format!(
 			"graph predicate not found; predicate_id={predicate_id}"

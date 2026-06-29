@@ -7,13 +7,13 @@ use serde_json;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::types::{
-	HitItem, SearchDetailsError, SearchDetailsResult, SearchIndexItem, SearchSession,
-	SearchSessionItemRecord, SearchTimelineGroup, SearchTimelineResponse,
-};
 use crate::{
-	NoteFetchResponse, PayloadLevel,
+	Error, NoteFetchResponse, PayloadLevel, Result,
 	access::{self, SharedSpaceGrantKey},
+	progressive_search::types::{
+		HitItem, SearchDetailsError, SearchDetailsResult, SearchIndexItem, SearchSession,
+		SearchSessionItemRecord, SearchTimelineGroup, SearchTimelineResponse,
+	},
 	structured_fields::StructuredFields,
 };
 use elf_config::Config;
@@ -128,31 +128,11 @@ pub(super) fn build_search_details_results(
 	(results, hits)
 }
 
-fn apply_payload_level_to_search_details_text(
-	raw_text: &str,
-	structured: Option<&StructuredFields>,
-	payload_level: PayloadLevel,
-	max_note_chars: usize,
-) -> String {
-	match payload_level {
-		PayloadLevel::L0 => build_summary(raw_text, max_note_chars),
-		PayloadLevel::L1 => {
-			let candidate_text = structured
-				.and_then(|item| item.summary.as_deref())
-				.filter(|summary| !summary.trim().is_empty())
-				.unwrap_or(raw_text);
-
-			build_summary(candidate_text, max_note_chars)
-		},
-		PayloadLevel::L2 => raw_text.to_string(),
-	}
-}
-
 pub(super) fn build_timeline_by_day(
 	search_session_id: Uuid,
 	expires_at: OffsetDateTime,
 	items: &[SearchSessionItemRecord],
-) -> crate::Result<SearchTimelineResponse> {
+) -> Result<SearchTimelineResponse> {
 	let mut grouped: BTreeMap<String, Vec<SearchIndexItem>> = BTreeMap::new();
 
 	for item in items {
@@ -179,6 +159,51 @@ pub(super) fn build_summary(raw: &str, max_chars: usize) -> String {
 	let normalized = normalize_whitespace(raw);
 
 	truncate_chars(&normalized, max_chars)
+}
+
+pub(super) fn resolve_read_scopes(cfg: &Config, profile: &str) -> Result<Vec<String>> {
+	match profile {
+		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
+		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
+		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
+		_ => Err(Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
+	}
+}
+
+pub(super) fn validate_search_session_access(
+	session: &SearchSession,
+	tenant_id: &str,
+	project_id: &str,
+	agent_id: &str,
+) -> Result<()> {
+	if session.tenant_id != tenant_id
+		|| session.project_id != project_id
+		|| session.agent_id != agent_id
+	{
+		return Err(Error::InvalidRequest { message: "Unknown search_session_id.".to_string() });
+	}
+
+	Ok(())
+}
+
+fn apply_payload_level_to_search_details_text(
+	raw_text: &str,
+	structured: Option<&StructuredFields>,
+	payload_level: PayloadLevel,
+	max_note_chars: usize,
+) -> String {
+	match payload_level {
+		PayloadLevel::L0 => build_summary(raw_text, max_note_chars),
+		PayloadLevel::L1 => {
+			let candidate_text = structured
+				.and_then(|item| item.summary.as_deref())
+				.filter(|summary| !summary.trim().is_empty())
+				.unwrap_or(raw_text);
+
+			build_summary(candidate_text, max_note_chars)
+		},
+		PayloadLevel::L2 => raw_text.to_string(),
+	}
 }
 
 fn normalize_whitespace(raw: &str) -> String {
@@ -231,33 +256,6 @@ fn truncate_chars(raw: &str, max_chars: usize) -> String {
 	out.push_str(TRUNCATION_MARKER);
 
 	out
-}
-
-pub(super) fn resolve_read_scopes(cfg: &Config, profile: &str) -> crate::Result<Vec<String>> {
-	match profile {
-		"private_only" => Ok(cfg.scopes.read_profiles.private_only.clone()),
-		"private_plus_project" => Ok(cfg.scopes.read_profiles.private_plus_project.clone()),
-		"all_scopes" => Ok(cfg.scopes.read_profiles.all_scopes.clone()),
-		_ => Err(crate::Error::InvalidRequest { message: "Unknown read_profile.".to_string() }),
-	}
-}
-
-pub(super) fn validate_search_session_access(
-	session: &SearchSession,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-) -> crate::Result<()> {
-	if session.tenant_id != tenant_id
-		|| session.project_id != project_id
-		|| session.agent_id != agent_id
-	{
-		return Err(crate::Error::InvalidRequest {
-			message: "Unknown search_session_id.".to_string(),
-		});
-	}
-
-	Ok(())
 }
 
 fn validate_note_access(

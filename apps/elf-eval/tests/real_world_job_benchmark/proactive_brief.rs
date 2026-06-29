@@ -6,11 +6,11 @@ use std::{
 use color_eyre::Result;
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn proactive_brief_fixtures_score_source_linked_suggestions() -> Result<()> {
-	let report = run_json_report_from(proactive_brief_fixture_dir())?;
+	let report = support::run_json_report_from(support::proactive_brief_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
@@ -60,15 +60,16 @@ fn proactive_brief_fixtures_score_source_linked_suggestions() -> Result<()> {
 		Some(2)
 	);
 
-	let suites = array_at(&report, "/suites")?;
-	let proactive = find_by_field(suites, "/suite_id", "proactive_brief")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let proactive = support::find_by_field(suites, "/suite_id", "proactive_brief")?;
 
 	assert_eq!(proactive.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(proactive.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
 
-	let jobs = array_at(&report, "/jobs")?;
-	let daily = find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
-	let private = find_by_field(jobs, "/job_id", "proactive-private-corpus-refresh-blocked-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let daily = support::find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
+	let private =
+		support::find_by_field(jobs, "/job_id", "proactive-private-corpus-refresh-blocked-001")?;
 
 	assert_eq!(daily.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
@@ -88,7 +89,7 @@ fn proactive_brief_fixtures_score_source_linked_suggestions() -> Result<()> {
 
 #[test]
 fn proactive_brief_markdown_renders_source_and_freshness_metrics() -> Result<()> {
-	let report = run_json_report_from(proactive_brief_fixture_dir())?;
+	let report = support::run_json_report_from(support::proactive_brief_fixture_dir())?;
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-proactive-brief-test-{}", process::id()));
 
@@ -126,8 +127,8 @@ fn proactive_brief_markdown_renders_source_and_freshness_metrics() -> Result<()>
 
 #[test]
 fn proactive_brief_fixture_fails_unsupported_suggestions() -> Result<()> {
-	let fixture_path = proactive_brief_fixture_dir().join("daily_project_brief.json");
-	let mut fixture = load_json(&fixture_path)?;
+	let fixture_path = support::proactive_brief_fixture_dir().join("daily_project_brief.json");
+	let mut fixture = support::load_json(&fixture_path)?;
 
 	fixture["corpus"]["adapter_response"]["answer"]["proactive_briefs"][0]["suggestions"][0]["evidence_refs"] =
 		Value::Array(Vec::new());
@@ -138,9 +139,9 @@ fn proactive_brief_fixture_fails_unsupported_suggestions() -> Result<()> {
 	fs::create_dir_all(&temp_dir)?;
 	fs::write(temp_dir.join("unsupported_brief.json"), serde_json::to_vec_pretty(&fixture)?)?;
 
-	let report = run_json_report_from(temp_dir)?;
-	let jobs = array_at(&report, "/jobs")?;
-	let job = find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
+	let report = support::run_json_report_from(temp_dir)?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let job = support::find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
 
 	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("unsupported_claim"));
 	assert_eq!(
@@ -154,8 +155,8 @@ fn proactive_brief_fixture_fails_unsupported_suggestions() -> Result<()> {
 
 #[test]
 fn proactive_brief_fixture_fails_stale_decisions_presented_current() -> Result<()> {
-	let fixture_path = proactive_brief_fixture_dir().join("stale_decision_audit.json");
-	let mut fixture = load_json(&fixture_path)?;
+	let fixture_path = support::proactive_brief_fixture_dir().join("stale_decision_audit.json");
+	let mut fixture = support::load_json(&fixture_path)?;
 
 	fixture["corpus"]["adapter_response"]["answer"]["proactive_briefs"][0]["suggestions"][0]["freshness"]
 		["status"] = Value::String("current".to_string());
@@ -166,9 +167,9 @@ fn proactive_brief_fixture_fails_stale_decisions_presented_current() -> Result<(
 	fs::create_dir_all(&temp_dir)?;
 	fs::write(temp_dir.join("stale_current_brief.json"), serde_json::to_vec_pretty(&fixture)?)?;
 
-	let report = run_json_report_from(temp_dir)?;
-	let jobs = array_at(&report, "/jobs")?;
-	let job = find_by_field(jobs, "/job_id", "proactive-stale-decision-audit-001")?;
+	let report = support::run_json_report_from(temp_dir)?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let job = support::find_by_field(jobs, "/job_id", "proactive-stale-decision-audit-001")?;
 
 	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(
@@ -182,8 +183,9 @@ fn proactive_brief_fixture_fails_stale_decisions_presented_current() -> Result<(
 
 #[test]
 fn proactive_brief_fixture_fails_tombstone_ttl_violations() -> Result<()> {
-	let fixture_path = proactive_brief_fixture_dir().join("stale_plan_preference_warning.json");
-	let mut fixture = load_json(&fixture_path)?;
+	let fixture_path =
+		support::proactive_brief_fixture_dir().join("stale_plan_preference_warning.json");
+	let mut fixture = support::load_json(&fixture_path)?;
 
 	fixture["corpus"]["adapter_response"]["answer"]["proactive_briefs"][0]["suggestions"][0]["freshness"]
 		["status"] = Value::String("current".to_string());
@@ -195,9 +197,10 @@ fn proactive_brief_fixture_fails_tombstone_ttl_violations() -> Result<()> {
 	fs::create_dir_all(&temp_dir)?;
 	fs::write(temp_dir.join("tombstone_current_brief.json"), serde_json::to_vec_pretty(&fixture)?)?;
 
-	let report = run_json_report_from(temp_dir)?;
-	let jobs = array_at(&report, "/jobs")?;
-	let job = find_by_field(jobs, "/job_id", "proactive-stale-plan-preference-warning-001")?;
+	let report = support::run_json_report_from(temp_dir)?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let job =
+		support::find_by_field(jobs, "/job_id", "proactive-stale-plan-preference-warning-001")?;
 
 	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(

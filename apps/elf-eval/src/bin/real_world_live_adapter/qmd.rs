@@ -1,14 +1,19 @@
-use super::*;
+use crate::{
+	AdapterKind, Command, CommandEvidence, Instant, LoadedJob, MaterializedJob,
+	MaterializedJobInput, MaterializedOutput, OperatorDebugMaterializationEvidence, Path, QmdArgs,
+	Result, SelectedEvidenceText, Value, aggregate_status, eyre, fs, serde_json,
+};
 
-pub(super) fn run_qmd(args: QmdArgs) -> color_eyre::Result<()> {
-	let jobs = load_jobs(&args.fixtures)?;
+pub(super) fn run_qmd(args: QmdArgs) -> Result<()> {
+	let jobs = crate::load_jobs(&args.fixtures)?;
 	let result = materialize_qmd_jobs(&args, &jobs);
 	let materialized = match result {
 		Ok(jobs) => jobs,
-		Err(err) => failure_jobs(&args.adapter_id, &jobs, "qmd_cli_runtime", err.to_string()),
+		Err(err) =>
+			crate::failure_jobs(&args.adapter_id, &jobs, "qmd_cli_runtime", err.to_string()),
 	};
 
-	write_materialized_output(MaterializedOutput {
+	crate::write_materialized_output(MaterializedOutput {
 		adapter_id: &args.adapter_id,
 		adapter_kind: AdapterKind::QmdCliRuntime,
 		fixtures: &args.fixtures,
@@ -28,10 +33,7 @@ pub(super) fn run_qmd(args: QmdArgs) -> color_eyre::Result<()> {
 	})
 }
 
-fn materialize_qmd_jobs(
-	args: &QmdArgs,
-	jobs: &[LoadedJob],
-) -> color_eyre::Result<Vec<MaterializedJob>> {
+fn materialize_qmd_jobs(args: &QmdArgs, jobs: &[LoadedJob]) -> Result<Vec<MaterializedJob>> {
 	fs::create_dir_all(&args.work_dir)?;
 
 	let log_path = args.work_dir.join("qmd-live-real-world.log");
@@ -47,13 +49,13 @@ fn materialize_qmd_jobs(
 	Ok(out)
 }
 
-fn ensure_qmd_checkout(args: &QmdArgs, log_path: &Path) -> color_eyre::Result<()> {
+fn ensure_qmd_checkout(args: &QmdArgs, log_path: &Path) -> Result<()> {
 	if !args.qmd_dir.exists() {
 		if let Some(parent) = args.qmd_dir.parent() {
 			fs::create_dir_all(parent)?;
 		}
 
-		run_logged_command(
+		crate::run_logged_command(
 			"qmd clone",
 			Command::new("git")
 				.arg("clone")
@@ -65,7 +67,7 @@ fn ensure_qmd_checkout(args: &QmdArgs, log_path: &Path) -> color_eyre::Result<()
 		)?;
 	}
 
-	run_logged_shell(
+	crate::run_logged_shell(
 		"qmd install",
 		&args.qmd_dir,
 		"(npm ci || npm install --no-audit --no-fund) && npm run build --if-present",
@@ -77,16 +79,16 @@ fn materialize_qmd_job(
 	args: &QmdArgs,
 	loaded: &LoadedJob,
 	log_path: &Path,
-) -> color_eyre::Result<MaterializedJob> {
-	if let Some(job) = declared_encoding_job(&args.adapter_id, loaded) {
+) -> Result<MaterializedJob> {
+	if let Some(job) = crate::declared_encoding_job(&args.adapter_id, loaded) {
 		return Ok(job);
 	}
-	if let Some(job) = not_encoded_job(&args.adapter_id, loaded) {
+	if let Some(job) = crate::not_encoded_job(&args.adapter_id, loaded) {
 		return Ok(job);
 	}
 
-	let corpus = corpus_texts(loaded)?;
-	let job_slug = slug(&loaded.job.job_id);
+	let corpus = crate::corpus_texts(loaded)?;
+	let job_slug = crate::slug(&loaded.job.job_id);
 	let corpus_dir = args.work_dir.join("corpus").join(&job_slug);
 	let home_dir = args.work_dir.join("home").join(&job_slug);
 	let collection = format!("elfrw-{job_slug}");
@@ -94,18 +96,18 @@ fn materialize_qmd_job(
 	fs::create_dir_all(&corpus_dir)?;
 	fs::create_dir_all(&home_dir)?;
 
-	for existing in read_dir_paths(&corpus_dir)? {
+	for existing in crate::read_dir_paths(&corpus_dir)? {
 		if existing.is_file() {
 			fs::remove_file(existing)?;
 		}
 	}
 	for item in &corpus {
-		let path = corpus_dir.join(format!("{}.md", slug(&item.evidence_id)));
+		let path = corpus_dir.join(format!("{}.md", crate::slug(&item.evidence_id)));
 
 		fs::write(path, format!("# {}\n\n{}\n", item.evidence_id, item.text))?;
 	}
 
-	run_qmd_command(
+	crate::run_qmd_command(
 		"qmd collection add",
 		args,
 		&home_dir,
@@ -120,8 +122,8 @@ fn materialize_qmd_job(
 		],
 		log_path,
 	)?;
-	run_qmd_command("qmd update", args, &home_dir, &["update"], log_path)?;
-	run_qmd_command(
+	crate::run_qmd_command("qmd update", args, &home_dir, &["update"], log_path)?;
+	crate::run_qmd_command(
 		"qmd embed",
 		args,
 		&home_dir,
@@ -131,7 +133,7 @@ fn materialize_qmd_job(
 
 	let started_at = Instant::now();
 	let query = format!("lex: {}\nvec: {}", loaded.job.prompt.content, loaded.job.prompt.content);
-	let stdout = run_qmd_command(
+	let stdout = crate::run_qmd_command(
 		"qmd query",
 		args,
 		&home_dir,
@@ -150,7 +152,7 @@ fn materialize_qmd_job(
 		log_path,
 	)?;
 	let latency_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
-	let results = serde_json::from_str::<serde_json::Value>(&stdout).map_err(|err| {
+	let results = serde_json::from_str::<Value>(&stdout).map_err(|err| {
 		eyre::eyre!("qmd query did not return JSON for {}: {err}", loaded.job.job_id)
 	})?;
 	let entries = results.as_array().cloned().unwrap_or_default();
@@ -160,17 +162,17 @@ fn materialize_qmd_job(
 		let entry_text = serde_json::to_string(entry)?;
 
 		for item in &corpus {
-			if entry_text.contains(format!("{}.md", slug(&item.evidence_id)).as_str())
+			if entry_text.contains(format!("{}.md", crate::slug(&item.evidence_id)).as_str())
 				|| entry_text.contains(item.evidence_id.as_str())
 			{
-				push_unique(&mut evidence_ids, item.evidence_id.clone());
+				crate::push_unique(&mut evidence_ids, item.evidence_id.clone());
 			}
 		}
 	}
 
-	let selected = selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
-	let replay_command = qmd_replay_command(&loaded.job.prompt.content, collection.as_str());
-	let (operator_debug, operator_debug_evidence) = operator_debug_output(
+	let selected = crate::selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
+	let replay_command = crate::qmd_replay_command(&loaded.job.prompt.content, collection.as_str());
+	let (operator_debug, operator_debug_evidence) = crate::operator_debug_output(
 		AdapterKind::QmdCliRuntime,
 		loaded,
 		None,
@@ -195,10 +197,10 @@ fn qmd_materialized_job(
 	selected: SelectedEvidenceText,
 	latency_ms: f64,
 	returned_count: usize,
-	operator_debug: Option<serde_json::Value>,
+	operator_debug: Option<Value>,
 	operator_debug_evidence: Option<OperatorDebugMaterializationEvidence>,
 ) -> MaterializedJob {
-	materialized_job(
+	crate::materialized_job(
 		loaded,
 		adapter_id,
 		MaterializedJobInput {

@@ -1,7 +1,10 @@
-use super::{
-	super::*, cost::CostReport, knowledge::DerivedPageArtifact, memory::MemorySummaryArtifact,
-	proactive::ProactiveBriefArtifact, recovery::AuthorityRecoveryDrillArtifact,
-	scheduled::ScheduledMemoryTaskArtifact, work::WorkJournalReadbackArtifact,
+use crate::{
+	Deserialize, Serialize, TraceExplainability,
+	artifacts::{
+		cost::CostReport, knowledge::DerivedPageArtifact, memory::MemorySummaryArtifact,
+		proactive::ProactiveBriefArtifact, recovery::AuthorityRecoveryDrillArtifact,
+		scheduled::ScheduledMemoryTaskArtifact, work::WorkJournalReadbackArtifact,
+	},
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

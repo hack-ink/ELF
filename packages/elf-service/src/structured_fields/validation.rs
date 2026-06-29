@@ -1,10 +1,11 @@
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{Error, Result};
+use crate::{
+	Error, Result,
+	structured_fields::types::{StructuredEntity, StructuredFields, StructuredRelation},
+};
 use elf_domain::{english_gate, evidence};
-
-use super::types::{StructuredEntity, StructuredFields, StructuredRelation};
 
 const MAX_LIST_ITEMS: usize = 64;
 const MAX_ENTITIES: usize = 32;

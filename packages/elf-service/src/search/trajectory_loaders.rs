@@ -1,4 +1,10 @@
-use super::*;
+use sqlx::Row;
+
+use crate::search::{
+	self, HashMap, PgPool, Result, SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1, SearchExplainTrajectory,
+	SearchExplainTrajectoryMatch, SearchExplainTrajectoryStage, SearchTrajectoryStage,
+	SearchTrajectoryStageItem, SearchTrajectorySummary, Uuid, Value,
+};
 
 pub(super) async fn load_trace_trajectory_summary(
 	pool: &PgPool,
@@ -9,7 +15,7 @@ pub(super) async fn load_trace_trajectory_summary(
 	if stages.is_empty() {
 		Ok(None)
 	} else {
-		Ok(Some(build_trajectory_summary_from_stages(stages.as_slice())))
+		Ok(Some(search::build_trajectory_summary_from_stages(stages.as_slice())))
 	}
 }
 

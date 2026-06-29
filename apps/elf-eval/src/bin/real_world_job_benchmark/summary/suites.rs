@@ -1,7 +1,32 @@
-use super::{super::formatting::round3, *};
+use crate::{
+	BTreeSet, JobReport, NOT_ENCODED_REASON, SUITES, SuiteReport, TypedStatus, formatting,
+	summary::{self},
+};
 
 pub(super) fn suite_reports_impl(jobs: &[JobReport]) -> Vec<SuiteReport> {
 	SUITES.iter().map(|suite_id| suite_report(suite_id, jobs)).collect()
+}
+
+pub(super) fn aggregate_status_impl(jobs: &[&JobReport]) -> TypedStatus {
+	let statuses = jobs.iter().map(|job| job.status).collect::<BTreeSet<_>>();
+
+	if statuses.contains(&TypedStatus::UnsupportedClaim) {
+		TypedStatus::UnsupportedClaim
+	} else if statuses.contains(&TypedStatus::LifecycleFail) {
+		TypedStatus::LifecycleFail
+	} else if statuses.contains(&TypedStatus::WrongResult) {
+		TypedStatus::WrongResult
+	} else if statuses.contains(&TypedStatus::Incomplete) {
+		TypedStatus::Incomplete
+	} else if statuses.contains(&TypedStatus::Blocked) {
+		TypedStatus::Blocked
+	} else if statuses.contains(&TypedStatus::NotEncoded) {
+		TypedStatus::NotEncoded
+	} else if statuses.contains(&TypedStatus::Pass) {
+		TypedStatus::Pass
+	} else {
+		TypedStatus::NotEncoded
+	}
 }
 
 fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
@@ -46,7 +71,7 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 		suite_id: suite_id.to_string(),
 		status,
 		encoded_job_count: suite_jobs.len(),
-		score_mean: Some(round3(score_sum / suite_jobs.len() as f64)),
+		score_mean: Some(formatting::round3(score_sum / suite_jobs.len() as f64)),
 		unsupported_claim_count,
 		wrong_result_count,
 		stale_answer_count,
@@ -54,32 +79,10 @@ fn suite_report(suite_id: &str, jobs: &[JobReport]) -> SuiteReport {
 		update_rationale_available_count,
 		temporal_validity_not_encoded_count,
 		history_readback_encoded_count,
-		expected_evidence_recall: Some(expected_evidence_recall_for_jobs(&suite_jobs)),
-		irrelevant_context_ratio: Some(irrelevant_context_ratio_for_jobs(&suite_jobs)),
+		expected_evidence_recall: Some(summary::expected_evidence_recall_for_jobs(&suite_jobs)),
+		irrelevant_context_ratio: Some(summary::irrelevant_context_ratio_for_jobs(&suite_jobs)),
 		trace_explainability_count,
 		reason: suite_reason(status, suite_jobs.len()),
-	}
-}
-
-pub(super) fn aggregate_status_impl(jobs: &[&JobReport]) -> TypedStatus {
-	let statuses = jobs.iter().map(|job| job.status).collect::<BTreeSet<_>>();
-
-	if statuses.contains(&TypedStatus::UnsupportedClaim) {
-		TypedStatus::UnsupportedClaim
-	} else if statuses.contains(&TypedStatus::LifecycleFail) {
-		TypedStatus::LifecycleFail
-	} else if statuses.contains(&TypedStatus::WrongResult) {
-		TypedStatus::WrongResult
-	} else if statuses.contains(&TypedStatus::Incomplete) {
-		TypedStatus::Incomplete
-	} else if statuses.contains(&TypedStatus::Blocked) {
-		TypedStatus::Blocked
-	} else if statuses.contains(&TypedStatus::NotEncoded) {
-		TypedStatus::NotEncoded
-	} else if statuses.contains(&TypedStatus::Pass) {
-		TypedStatus::Pass
-	} else {
-		TypedStatus::NotEncoded
 	}
 }
 

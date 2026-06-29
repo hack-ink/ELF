@@ -1,15 +1,11 @@
-use super::{
+use crate::{
+	BTreeSet, CorpusProfile, JobReport, OPERATIONAL_EVIDENCE_SCHEMA,
+	OperationalAuthorityRecoveryReport, OperationalColdStartRestoreRebuild, OperationalCostSummary,
+	OperationalEvidenceReport, OperationalEvidenceTierReport, OperationalLatencyReport,
+	OperationalResourceSummary, RealWorldJob, TypedStatus,
 	formatting::round3,
-	recovery::{
-		authority_record_count_balanced, recovery_dead_letter_succeeded, recovery_drill_succeeded,
-		recovery_measurement_met, recovery_migration_repair_succeeded,
-		recovery_outbox_replay_succeeded, recovery_qdrant_rebuild_succeeded,
-	},
-	summary::{
-		aggregate_status, mean_latency_for_reports, mean_latency_for_values, total_cost,
-		total_cost_for_reports,
-	},
-	*,
+	recovery::{self},
+	summary::{self},
 };
 
 const OPERATIONAL_EVIDENCE_TIERS: &[&str] =
@@ -49,6 +45,20 @@ pub(super) fn operational_evidence_report(
 	}
 }
 
+pub(super) fn operational_evidence_tier(job: &RealWorldJob) -> &'static str {
+	if job_has_tag(job, "provider_backed") {
+		"provider_backed"
+	} else if job_has_tag(job, "private_corpus")
+		|| matches!(job.corpus.profile, CorpusProfile::PrivateSanitized)
+	{
+		"private_corpus"
+	} else if job_has_tag(job, "public_proxy") {
+		"public_proxy"
+	} else {
+		"local_fixture"
+	}
+}
+
 fn operational_evidence_tier_report(
 	tier: &str,
 	paired: &[(&RealWorldJob, &JobReport)],
@@ -62,7 +72,7 @@ fn operational_evidence_tier_report(
 	let status = if reports.is_empty() {
 		TypedStatus::NotEncoded
 	} else {
-		aggregate_status(reports.as_slice())
+		summary::aggregate_status(reports.as_slice())
 	};
 	let job_count = reports.len();
 	let pass = reports.iter().filter(|report| report.status == TypedStatus::Pass).count();
@@ -89,8 +99,8 @@ fn operational_evidence_tier_report(
 		blocked,
 		not_encoded,
 		unsupported_claim,
-		mean_latency_ms: mean_latency_for_reports(reports.as_slice()),
-		total_cost: total_cost_for_reports(reports.as_slice()),
+		mean_latency_ms: summary::mean_latency_for_reports(reports.as_slice()),
+		total_cost: summary::total_cost_for_reports(reports.as_slice()),
 		resource_evidence_count: tier_jobs
 			.iter()
 			.filter(|(job, _)| job_has_tag(job, "resource_envelope"))
@@ -129,7 +139,7 @@ fn operational_latency_report(reports: &[JobReport]) -> OperationalLatencyReport
 	OperationalLatencyReport {
 		measured_job_count: latencies.len(),
 		missing_latency_job_count: reports.len().saturating_sub(latencies.len()),
-		mean_ms: mean_latency_for_values(latencies.as_slice()),
+		mean_ms: summary::mean_latency_for_values(latencies.as_slice()),
 		max_ms: latencies.iter().copied().reduce(f64::max).map(round3),
 	}
 }
@@ -143,7 +153,7 @@ fn operational_cost_summary(reports: &[JobReport]) -> OperationalCostSummary {
 		jobs_with_cost_report: costs.len(),
 		missing_cost_job_count: reports.len().saturating_sub(costs.len()),
 		zero_cost_job_count,
-		total: total_cost(reports),
+		total: summary::total_cost(reports),
 		claim_boundary: "Fixture and local-provider zero-cost reports are execution-accounting evidence only; they do not prove hosted provider spend.".to_string(),
 	}
 }
@@ -233,7 +243,7 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 			.iter()
 			.filter(|report| report.status == TypedStatus::Pass)
 			.flat_map(|report| report.recovery_drills.iter())
-			.filter(|drill| recovery_drill_succeeded(drill))
+			.filter(|drill| recovery::recovery_drill_succeeded(drill))
 			.count(),
 		topology_reported_count: drills
 			.iter()
@@ -253,13 +263,19 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 			.filter(|drill| drill.backup_pitr.restored)
 			.count(),
 		rpo_target_count: drills.len(),
-		rpo_met_count: drills.iter().filter(|drill| recovery_measurement_met(&drill.rpo)).count(),
+		rpo_met_count: drills
+			.iter()
+			.filter(|drill| recovery::recovery_measurement_met(&drill.rpo))
+			.count(),
 		rto_target_count: drills.len(),
-		rto_met_count: drills.iter().filter(|drill| recovery_measurement_met(&drill.rto)).count(),
+		rto_met_count: drills
+			.iter()
+			.filter(|drill| recovery::recovery_measurement_met(&drill.rto))
+			.count(),
 		authority_plane_count: authority_counts.len(),
 		record_count_preserved_count: authority_counts
 			.iter()
-			.filter(|count| authority_record_count_balanced(count))
+			.filter(|count| recovery::authority_record_count_balanced(count))
 			.count(),
 		source_ref_preserved_count: authority_counts
 			.iter()
@@ -271,35 +287,21 @@ fn operational_authority_recovery(reports: &[JobReport]) -> OperationalAuthority
 			.count(),
 		idempotent_outbox_replay_count: drills
 			.iter()
-			.filter(|drill| recovery_outbox_replay_succeeded(&drill.outbox_replay))
+			.filter(|drill| recovery::recovery_outbox_replay_succeeded(&drill.outbox_replay))
 			.count(),
 		qdrant_rebuild_complete_count: drills
 			.iter()
-			.filter(|drill| recovery_qdrant_rebuild_succeeded(&drill.qdrant_rebuild))
+			.filter(|drill| recovery::recovery_qdrant_rebuild_succeeded(&drill.qdrant_rebuild))
 			.count(),
 		migration_repair_count: drills
 			.iter()
-			.filter(|drill| recovery_migration_repair_succeeded(&drill.migration_repair))
+			.filter(|drill| recovery::recovery_migration_repair_succeeded(&drill.migration_repair))
 			.count(),
 		dead_letter_handled_count: drills
 			.iter()
-			.filter(|drill| recovery_dead_letter_succeeded(&drill.dead_letter))
+			.filter(|drill| recovery::recovery_dead_letter_succeeded(&drill.dead_letter))
 			.count(),
 		job_ids,
-	}
-}
-
-pub(super) fn operational_evidence_tier(job: &RealWorldJob) -> &'static str {
-	if job_has_tag(job, "provider_backed") {
-		"provider_backed"
-	} else if job_has_tag(job, "private_corpus")
-		|| matches!(job.corpus.profile, CorpusProfile::PrivateSanitized)
-	{
-		"private_corpus"
-	} else if job_has_tag(job, "public_proxy") {
-		"public_proxy"
-	} else {
-		"local_fixture"
 	}
 }
 

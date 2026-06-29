@@ -1,4 +1,6 @@
-use super::*;
+use crate::knowledge::api::{
+	ConsolidationInputRef, ConsolidationProposalDiff, KnowledgePageResponse, Serialize, Uuid, Value,
+};
 
 /// Response returned after rebuilding pages affected by changed sources.
 #[derive(Clone, Debug, Serialize)]

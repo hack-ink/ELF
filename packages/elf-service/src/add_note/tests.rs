@@ -1,8 +1,10 @@
-use super::{
-	types::{AddNoteInput, AddNoteRequest},
-	validation,
+use crate::{
+	Error,
+	add_note::{
+		types::{AddNoteInput, AddNoteRequest},
+		validation,
+	},
 };
-use crate::Error;
 
 #[test]
 fn accepts_identifier_like_source_ref_ref_field() {

@@ -1,4 +1,4 @@
-use super::{promotion, types};
+use crate::consolidation::{promotion, types};
 
 fn payload_with_scope(scope: Option<&str>) -> types::PromotedMemoryPayload {
 	types::PromotedMemoryPayload {

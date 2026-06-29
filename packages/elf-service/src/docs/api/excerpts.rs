@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{
+use crate::docs::api::{
 	selectors::{TextPositionSelector, TextQuoteSelector},
 	trajectory::DocRetrievalTrajectory,
 };

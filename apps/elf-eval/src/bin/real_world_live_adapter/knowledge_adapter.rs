@@ -1,4 +1,7 @@
-use super::*;
+use crate::{
+	HashMap, IngestedCorpus, KnowledgeMaterializationEvidence, KnowledgePageLintResponse,
+	KnowledgePageResponse, LoadedJob, Result, Uuid, serde_json,
+};
 
 pub(super) fn knowledge_page_artifact(
 	loaded: &LoadedJob,
@@ -6,7 +9,7 @@ pub(super) fn knowledge_page_artifact(
 	first: &KnowledgePageResponse,
 	second: &KnowledgePageResponse,
 	lint: &KnowledgePageLintResponse,
-) -> color_eyre::Result<serde_json::Value> {
+) -> Result<serde_json::Value> {
 	let reverse = note_id_to_evidence_id(ingested);
 	let mut sections = second
 		.sections
@@ -77,6 +80,29 @@ pub(super) fn knowledge_materialization_evidence(
 			.and_then(serde_json::Value::as_bool)
 			.unwrap_or(false),
 	}
+}
+
+pub(super) fn stale_trap_evidence_ids(loaded: &LoadedJob) -> Vec<String> {
+	loaded
+		.value
+		.get("negative_traps")
+		.and_then(serde_json::Value::as_array)
+		.into_iter()
+		.flatten()
+		.filter(|trap| {
+			trap.get("type").and_then(serde_json::Value::as_str) == Some("stale_fact")
+				&& trap.get("failure_if_used").and_then(serde_json::Value::as_bool).unwrap_or(false)
+		})
+		.flat_map(|trap| {
+			trap.get("evidence_ids")
+				.and_then(serde_json::Value::as_array)
+				.into_iter()
+				.flatten()
+				.filter_map(serde_json::Value::as_str)
+				.map(ToString::to_string)
+				.collect::<Vec<_>>()
+		})
+		.collect()
 }
 
 fn note_id_to_evidence_id(ingested: &IngestedCorpus) -> HashMap<Uuid, String> {
@@ -175,29 +201,6 @@ fn unsupported_sections_from_fixture(loaded: &LoadedJob) -> Vec<serde_json::Valu
 	}
 
 	sections
-}
-
-pub(super) fn stale_trap_evidence_ids(loaded: &LoadedJob) -> Vec<String> {
-	loaded
-		.value
-		.get("negative_traps")
-		.and_then(serde_json::Value::as_array)
-		.into_iter()
-		.flatten()
-		.filter(|trap| {
-			trap.get("type").and_then(serde_json::Value::as_str) == Some("stale_fact")
-				&& trap.get("failure_if_used").and_then(serde_json::Value::as_bool).unwrap_or(false)
-		})
-		.flat_map(|trap| {
-			trap.get("evidence_ids")
-				.and_then(serde_json::Value::as_array)
-				.into_iter()
-				.flatten()
-				.filter_map(serde_json::Value::as_str)
-				.map(ToString::to_string)
-				.collect::<Vec<_>>()
-		})
-		.collect()
 }
 
 fn trap_id_for_evidence(loaded: &LoadedJob, evidence_id: &str) -> Option<String> {

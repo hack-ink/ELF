@@ -1,4 +1,8 @@
-use super::*;
+use crate::{
+	AGENT_ID, AddNoteInput, AddNoteRequest, CaptureMaterializationEvidence, CorpusText, ElfService,
+	IngestedCorpus, LiveCaptureAction, LoadedJob, Result, SCOPE, TENANT_ID, Uuid,
+	capture_action_str, eyre, serde_json,
+};
 
 pub(super) async fn ingest_elf_corpus(
 	service: &ElfService,
@@ -6,20 +10,23 @@ pub(super) async fn ingest_elf_corpus(
 	adapter_id: &str,
 	project_id: &str,
 	corpus: &[CorpusText],
-) -> color_eyre::Result<IngestedCorpus> {
+) -> Result<IngestedCorpus> {
 	let mut ingested = IngestedCorpus::default();
 
 	for item in corpus {
 		if item.capture.action == LiveCaptureAction::Exclude {
-			push_unique(&mut ingested.capture.excluded_evidence_ids, item.evidence_id.clone());
+			crate::push_unique(
+				&mut ingested.capture.excluded_evidence_ids,
+				item.evidence_id.clone(),
+			);
 
 			continue;
 		}
 
-		push_unique(&mut ingested.capture.stored_evidence_ids, item.evidence_id.clone());
+		crate::push_unique(&mut ingested.capture.stored_evidence_ids, item.evidence_id.clone());
 
 		if let Some(source_id) = item.capture.source_id.as_deref() {
-			push_unique(&mut ingested.capture.source_ids, source_id.to_string());
+			crate::push_unique(&mut ingested.capture.source_ids, source_id.to_string());
 		}
 
 		if item.capture.write_policy.is_some() {
@@ -46,7 +53,7 @@ pub(super) async fn ingest_elf_corpus(
 			continue;
 		}
 
-		let chunks = note_text_chunks(item.text.as_str());
+		let chunks = crate::note_text_chunks(item.text.as_str());
 		let chunk_count = chunks.len();
 
 		for (chunk_index, text) in chunks.into_iter().enumerate() {
@@ -92,12 +99,12 @@ async fn ingest_elf_corpus_item(
 	chunk_index: usize,
 	chunk_count: usize,
 	capture: &mut CaptureMaterializationEvidence,
-) -> color_eyre::Result<Uuid> {
+) -> Result<Uuid> {
 	let write_policy = item
 		.capture
 		.write_policy
 		.as_ref()
-		.map(|policy| write_policy_from_value(policy, item.evidence_id.as_str()))
+		.map(|policy| crate::write_policy_from_value(policy, item.evidence_id.as_str()))
 		.transpose()?;
 	let response = service
 		.add_note(AddNoteRequest {

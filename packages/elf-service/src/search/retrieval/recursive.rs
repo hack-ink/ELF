@@ -1,4 +1,7 @@
-use super::super::*;
+use crate::search::{
+	ChunkCandidate, Condition, ElfService, HashMap, HashSet, QueryEmbedding,
+	RecursiveRetrievalArgs, RecursiveRetrievalResult, Result, VecDeque, ranking, slice,
+};
 
 impl ElfService {
 	pub(in crate::search::retrieval) async fn run_recursive_retrieval(

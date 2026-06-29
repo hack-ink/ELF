@@ -1,8 +1,13 @@
-use super::*;
+use crate::knowledge::support::{
+	self, KnowledgeDocChunkSource, KnowledgeDocSource, KnowledgeEventSource, KnowledgeNoteSource,
+	KnowledgeProposalSource, KnowledgeRelationSource, KnowledgeSourceKind, Map, Number,
+	SourceSnapshot, Value, serde_json,
+};
 
 pub(in crate::knowledge) fn doc_source_snapshot(row: KnowledgeDocSource) -> SourceSnapshot {
 	let title = row.title.clone().unwrap_or_else(|| "Untitled source document".to_string());
-	let excerpt = truncate_chars(normalize_whitespace(row.content.as_str()).as_str(), 240);
+	let excerpt =
+		support::truncate_chars(support::normalize_whitespace(row.content.as_str()).as_str(), 240);
 	let line = format!("[doc:{}] {title}: {excerpt}", row.doc_type);
 	let snapshot = serde_json::json!({
 		"kind": "doc",
@@ -35,8 +40,11 @@ pub(in crate::knowledge) fn doc_chunk_source_snapshot(
 	row: KnowledgeDocChunkSource,
 ) -> SourceSnapshot {
 	let title = row.title.clone().unwrap_or_else(|| "Untitled source document".to_string());
-	let excerpt = truncate_chars(normalize_whitespace(row.chunk_text.as_str()).as_str(), 240);
-	let span_id = source_span_id(
+	let excerpt = support::truncate_chars(
+		support::normalize_whitespace(row.chunk_text.as_str()).as_str(),
+		240,
+	);
+	let span_id = support::source_span_id(
 		row.doc_content_hash.as_str(),
 		row.start_offset.max(0) as usize,
 		row.end_offset.max(row.start_offset).max(0) as usize,
@@ -96,8 +104,8 @@ pub(in crate::knowledge) fn doc_chunk_source_snapshot(
 }
 
 pub(in crate::knowledge) fn note_source_snapshot(row: KnowledgeNoteSource) -> SourceSnapshot {
-	let content_hash = hash_text(row.text.as_str());
-	let line = format!("{}{}", note_prefix(&row), row.text);
+	let content_hash = support::hash_text(row.text.as_str());
+	let line = format!("{}{}", support::note_prefix(&row), row.text);
 	let snapshot = serde_json::json!({
 		"kind": "note",
 		"note_id": row.note_id,
@@ -129,7 +137,7 @@ pub(in crate::knowledge) fn note_source_snapshot(row: KnowledgeNoteSource) -> So
 }
 
 pub(in crate::knowledge) fn event_source_snapshot(row: KnowledgeEventSource) -> SourceSnapshot {
-	let content_hash = hash_json_lossy(&row.details);
+	let content_hash = support::hash_json_lossy(&row.details);
 	let line = format!(
 		"add_event audit {} {} for {}{}",
 		row.note_op,
@@ -171,7 +179,7 @@ pub(in crate::knowledge) fn relation_source_snapshot(
 	let object = row.object_entity.clone().or(row.object_value.clone()).unwrap_or_default();
 	let temporal_status = if row.valid_to.is_some() { "historical" } else { "current" };
 	let line = format!("{} {} {} ({temporal_status}).", row.subject, row.predicate, object);
-	let content_hash = hash_text(line.as_str());
+	let content_hash = support::hash_text(line.as_str());
 	let snapshot = serde_json::json!({
 		"kind": "relation",
 		"fact_id": row.fact_id,
@@ -206,7 +214,7 @@ pub(in crate::knowledge) fn relation_source_snapshot(
 pub(in crate::knowledge) fn proposal_source_snapshot(
 	row: KnowledgeProposalSource,
 ) -> SourceSnapshot {
-	let content_hash = hash_json_lossy(&serde_json::json!({
+	let content_hash = support::hash_json_lossy(&serde_json::json!({
 		"diff": row.diff.clone(),
 		"proposed_payload": row.proposed_payload.clone(),
 		"review_state": row.review_state.clone(),

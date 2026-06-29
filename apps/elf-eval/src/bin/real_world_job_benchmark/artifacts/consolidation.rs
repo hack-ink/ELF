@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::{ConsolidationReviewAction, Deserialize, Value};
 
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct ConsolidationFixture {

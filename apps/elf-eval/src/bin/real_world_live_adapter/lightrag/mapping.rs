@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::{CorpusText, LightragSource, SourceMappingEvidence, serde_json};
 
 pub(super) fn lightrag_source_mappings(
 	corpus: &[CorpusText],
@@ -29,6 +29,18 @@ pub(super) fn lightrag_source_mappings(
 	}
 
 	mappings
+}
+
+pub(super) fn lightrag_mapped_evidence_ids(mappings: &[SourceMappingEvidence]) -> Vec<String> {
+	let mut evidence_ids = Vec::new();
+
+	for mapping in mappings {
+		for evidence_id in &mapping.evidence_ids {
+			crate::push_unique(&mut evidence_ids, evidence_id.clone());
+		}
+	}
+
+	evidence_ids
 }
 
 fn lightrag_reference_mapping(
@@ -73,11 +85,11 @@ fn map_lightrag_evidence_ids(
 	sources: &[LightragSource],
 	haystack: &str,
 ) -> Vec<String> {
-	let normalized_haystack = normalize_ascii_alnum_lowercase(haystack);
+	let normalized_haystack = crate::normalize_ascii_alnum_lowercase(haystack);
 	let mut evidence_ids = Vec::new();
 
 	for item in corpus {
-		let evidence_slug = slug(&item.evidence_id);
+		let evidence_slug = crate::slug(&item.evidence_id);
 		let signature = normalized_text_signature(item.text.as_str());
 		let source_match = sources.iter().any(|source| {
 			source.evidence_id == item.evidence_id
@@ -91,7 +103,7 @@ fn map_lightrag_evidence_ids(
 			!signature.is_empty() && normalized_haystack.contains(signature.as_str());
 
 		if source_match || id_match || content_match {
-			push_unique(&mut evidence_ids, item.evidence_id.clone());
+			crate::push_unique(&mut evidence_ids, item.evidence_id.clone());
 		}
 	}
 
@@ -99,17 +111,9 @@ fn map_lightrag_evidence_ids(
 }
 
 fn normalized_text_signature(text: &str) -> String {
-	normalize_ascii_alnum_lowercase(text).split_whitespace().take(8).collect::<Vec<_>>().join(" ")
-}
-
-pub(super) fn lightrag_mapped_evidence_ids(mappings: &[SourceMappingEvidence]) -> Vec<String> {
-	let mut evidence_ids = Vec::new();
-
-	for mapping in mappings {
-		for evidence_id in &mapping.evidence_ids {
-			push_unique(&mut evidence_ids, evidence_id.clone());
-		}
-	}
-
-	evidence_ids
+	crate::normalize_ascii_alnum_lowercase(text)
+		.split_whitespace()
+		.take(8)
+		.collect::<Vec<_>>()
+		.join(" ")
 }

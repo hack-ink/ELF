@@ -1,4 +1,4 @@
-use super::*;
+use crate::{CostReport, Deserialize, Serialize, TypedStatus};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub(super) struct ReportSummary {

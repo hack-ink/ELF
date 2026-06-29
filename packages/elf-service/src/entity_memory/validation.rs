@@ -1,5 +1,7 @@
-use super::types::{EntityMemoryViewRequest, PreparedEntityMemoryRequest};
-use crate::{Error, Result};
+use crate::{
+	Error, Result,
+	entity_memory::types::{EntityMemoryViewRequest, PreparedEntityMemoryRequest},
+};
 
 pub(super) fn validate_entity_memory_request(
 	req: EntityMemoryViewRequest,

@@ -1,6 +1,7 @@
-use super::{
-	super::*,
-	errors::{ApiError, json_error},
+use crate::routes::{
+	HEADER_AGENT_ID, HEADER_PROJECT_ID, HEADER_READ_PROFILE, HEADER_TENANT_ID, HeaderMap,
+	MAX_CONTEXT_HEADER_CHARS, StatusCode, english_gate,
+	support::errors::{self, ApiError},
 };
 
 #[derive(Clone, Debug)]
@@ -24,7 +25,7 @@ pub(in super::super) fn required_header(
 	name: &'static str,
 ) -> Result<String, ApiError> {
 	let raw = headers.get(name).ok_or_else(|| {
-		json_error(
+		errors::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			format!("{name} header is required."),
@@ -32,7 +33,7 @@ pub(in super::super) fn required_header(
 		)
 	})?;
 	let value = raw.to_str().map_err(|_| {
-		json_error(
+		errors::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			format!("{name} header must be a valid string."),
@@ -42,7 +43,7 @@ pub(in super::super) fn required_header(
 	let trimmed = value.trim();
 
 	if trimmed.is_empty() {
-		return Err(json_error(
+		return Err(errors::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			format!("{name} header must be non-empty."),
@@ -50,7 +51,7 @@ pub(in super::super) fn required_header(
 		));
 	}
 	if trimmed.chars().count() > MAX_CONTEXT_HEADER_CHARS {
-		return Err(json_error(
+		return Err(errors::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			format!("{name} header is too long."),
@@ -58,7 +59,7 @@ pub(in super::super) fn required_header(
 		));
 	}
 	if !english_gate::is_english_identifier(trimmed) {
-		return Err(json_error(
+		return Err(errors::json_error(
 			StatusCode::UNPROCESSABLE_ENTITY,
 			"NON_ENGLISH_INPUT",
 			"Non-English input detected; upstream must canonicalize to English before calling ELF."

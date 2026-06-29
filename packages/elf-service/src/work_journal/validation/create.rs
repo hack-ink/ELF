@@ -1,17 +1,20 @@
-use super::*;
+use crate::work_journal::validation::{
+	self, Config, Error, MAX_BODY_CHARS, MAX_SIDE_LIST_ITEMS, Result, Uuid,
+	ValidatedWorkJournalCreate, WorkJournalEntryCreateRequest, serde_json, writegate,
+};
 
 pub(in crate::work_journal) fn validate_work_journal_create(
 	cfg: &Config,
 	req: &WorkJournalEntryCreateRequest,
 ) -> Result<ValidatedWorkJournalCreate> {
-	validate_write_context(
+	validation::validate_write_context(
 		cfg,
 		req.tenant_id.as_str(),
 		req.project_id.as_str(),
 		req.agent_id.as_str(),
 		req.scope.as_str(),
 	)?;
-	validate_identifier(req.session_id.as_str(), "$.session_id")?;
+	validation::validate_identifier(req.session_id.as_str(), "$.session_id")?;
 
 	if req.body.trim().is_empty() {
 		return Err(Error::InvalidRequest { message: "body must be non-empty.".to_string() });
@@ -25,7 +28,7 @@ pub(in crate::work_journal) fn validate_work_journal_create(
 	let title = req.title.as_ref().map(|title| title.trim().to_string()).filter(|s| !s.is_empty());
 
 	if let Some(title) = title.as_ref() {
-		validate_natural_language(title.as_str(), "$.title")?;
+		validation::validate_natural_language(title.as_str(), "$.title")?;
 
 		if writegate::contains_secrets(title.as_str()) {
 			return Err(Error::InvalidRequest { message: "title contains secrets.".to_string() });
@@ -42,7 +45,7 @@ pub(in crate::work_journal) fn validate_work_journal_create(
 		return Err(Error::InvalidRequest { message: "body must be non-empty.".to_string() });
 	}
 
-	validate_natural_language(body.as_str(), "$.body")?;
+	validation::validate_natural_language(body.as_str(), "$.body")?;
 
 	if writegate::contains_secrets(body.as_str()) {
 		return Err(Error::InvalidRequest { message: "body contains secrets.".to_string() });
@@ -52,8 +55,8 @@ pub(in crate::work_journal) fn validate_work_journal_create(
 	validate_text_list(&req.inferred_next_steps, "$.inferred_next_steps")?;
 	validate_text_list(&req.rejected_options, "$.rejected_options")?;
 
-	let source_refs = validate_source_refs(&req.source_refs)?;
-	let promotion_boundary = normalize_promotion_boundary(&req.promotion_boundary)?;
+	let source_refs = validation::validate_source_refs(&req.source_refs)?;
+	let promotion_boundary = validation::normalize_promotion_boundary(&req.promotion_boundary)?;
 	let explicit_next_steps = serde_json::to_value(&req.explicit_next_steps).map_err(|err| {
 		Error::InvalidRequest { message: format!("explicit_next_steps are invalid: {err}") }
 	})?;
@@ -91,7 +94,7 @@ fn validate_text_list(values: &[String], path: &str) -> Result<()> {
 			});
 		}
 
-		validate_natural_language(value.as_str(), format!("{path}[{index}]").as_str())?;
+		validation::validate_natural_language(value.as_str(), format!("{path}[{index}]").as_str())?;
 
 		if writegate::contains_secrets(value.as_str()) {
 			return Err(Error::InvalidRequest {

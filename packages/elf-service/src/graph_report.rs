@@ -1,5 +1,19 @@
 //! Source-backed graph topic-map reports.
 
+mod build;
+mod resolution;
+mod service;
+mod state;
+mod storage;
+mod types;
+mod validation;
+
+pub use types::{
+	GraphReportEntity, GraphReportExplain, GraphReportFact, GraphReportPredicate,
+	GraphReportRequest, GraphReportResponse, GraphReportSummary, GraphTopicEdge, GraphTopicMap,
+	GraphTopicNode,
+};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
@@ -9,30 +23,21 @@ use uuid::Uuid;
 
 use crate::{
 	ElfService, Error, Result,
-	access::{self, ORG_PROJECT_ID},
+	access::ORG_PROJECT_ID,
 	graph::RelationTemporalStatus,
 	graph_query::{
-		self, GraphQueryEntityRef, GraphQueryObject, GraphQueryObjectEntity, GraphQueryPredicateRef,
+		GraphQueryEntityRef, GraphQueryObject, GraphQueryObjectEntity, GraphQueryPredicateRef,
 	},
-	search,
 };
+use build::{build_report_facts, build_topic_map, summarize_report_facts, truncate_report_rows};
 use elf_storage::{graph, models::GraphEntity};
-
-mod build;
-mod resolution;
-mod service;
-mod state;
-mod storage;
-#[cfg(test)] mod tests;
-mod types;
-mod validation;
-
-use build::*;
-use resolution::*;
-use state::*;
-use storage::*;
-pub use types::*;
-use validation::*;
+use resolution::{resolve_predicate, resolve_subject};
+use state::{
+	GraphReportFactRow, GraphReportRowsFetchParams, PreparedGraphReport,
+	ResolvedGraphReportPredicate, ResolvedGraphReportSubject,
+};
+use storage::fetch_graph_report_rows;
+use validation::validate_graph_report_request;
 
 /// Schema identifier for graph report responses.
 pub const ELF_GRAPH_REPORT_SCHEMA_V1: &str = "elf.graph_report/v1";
@@ -127,3 +132,5 @@ WHERE gf.tenant_id = $1
 	)
 ORDER BY gf.valid_from DESC, gf.fact_id ASC
 LIMIT $8";
+
+#[cfg(test)] mod tests;

@@ -1,4 +1,4 @@
-use super::*;
+use crate::{AdapterKind, LoadedJob, Map, OperatorDebugMaterializationEvidence, Uuid, serde_json};
 
 pub(super) fn operator_debug_output(
 	adapter_kind: AdapterKind,
@@ -76,7 +76,7 @@ pub(super) fn operator_debug_output(
 
 	let mut cli_steps = string_array_from_object(object, "cli_steps");
 
-	push_unique(&mut cli_steps, replay_command);
+	crate::push_unique(&mut cli_steps, replay_command);
 
 	object.insert("cli_steps".to_string(), serde_json::json!(cli_steps));
 
@@ -89,6 +89,27 @@ pub(super) fn operator_debug_output(
 			repair_action_clarity: repair_action_clarity.to_string(),
 			raw_sql_needed,
 		}),
+	)
+}
+
+pub(super) fn elf_replay_command(trace_id: Uuid, project_id: &str) -> String {
+	format!(
+		"curl -fsS {} -H {} -H {} -H {}",
+		shell_quote(format!(
+			"http://127.0.0.1:51891/v2/admin/traces/{trace_id}/bundle?mode=full&stage_items_limit=128&candidates_limit=200"
+		)
+		.as_str()),
+		shell_quote("X-ELF-Tenant-Id: elf-live-real-world"),
+		shell_quote(format!("X-ELF-Project-Id: {project_id}").as_str()),
+		shell_quote("X-ELF-Agent-Id: elf-live-real-world-agent")
+	)
+}
+
+pub(super) fn qmd_replay_command(query: &str, collection: &str) -> String {
+	format!(
+		"npx tsx src/cli/qmd.ts query {} -c {} --json --no-rerank --min-score 0 -n 5",
+		shell_quote(format!("lex: {query}\nvec: {query}").as_str()),
+		shell_quote(collection)
 	)
 }
 
@@ -126,27 +147,6 @@ fn string_array_from_object(object: &Map<String, serde_json::Value>, key: &str) 
 			items.iter().filter_map(serde_json::Value::as_str).map(ToString::to_string).collect()
 		})
 		.unwrap_or_default()
-}
-
-pub(super) fn elf_replay_command(trace_id: Uuid, project_id: &str) -> String {
-	format!(
-		"curl -fsS {} -H {} -H {} -H {}",
-		shell_quote(format!(
-			"http://127.0.0.1:51891/v2/admin/traces/{trace_id}/bundle?mode=full&stage_items_limit=128&candidates_limit=200"
-		)
-		.as_str()),
-		shell_quote("X-ELF-Tenant-Id: elf-live-real-world"),
-		shell_quote(format!("X-ELF-Project-Id: {project_id}").as_str()),
-		shell_quote("X-ELF-Agent-Id: elf-live-real-world-agent")
-	)
-}
-
-pub(super) fn qmd_replay_command(query: &str, collection: &str) -> String {
-	format!(
-		"npx tsx src/cli/qmd.ts query {} -c {} --json --no-rerank --min-score 0 -n 5",
-		shell_quote(format!("lex: {query}\nvec: {query}").as_str()),
-		shell_quote(collection)
-	)
 }
 
 fn shell_quote(value: &str) -> String {

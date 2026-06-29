@@ -2,14 +2,15 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use super::types::{DreamingReviewQueueItem, DreamingReviewQueueSummary};
+use crate::dreaming_review_queue::types::{DreamingReviewQueueItem, DreamingReviewQueueSummary};
 
 /// Schema identifier for Dreaming review queue responses.
 pub const ELF_DREAMING_REVIEW_QUEUE_SCHEMA_V1: &str = "elf.dreaming_review_queue/v1";
 
+pub(super) const HIGH_CONFIDENCE_AUTO_APPLY_FLOOR: f32 = 0.9;
+
 const DEFAULT_QUEUE_LIMIT: u32 = 50;
 const MAX_QUEUE_LIMIT: u32 = 200;
-pub(super) const HIGH_CONFIDENCE_AUTO_APPLY_FLOOR: f32 = 0.9;
 const FORBIDDEN_SOURCE_MUTATION_KEYS: [&str; 8] = [
 	"delete_source",
 	"delete_sources",
@@ -94,43 +95,6 @@ pub(super) fn queue_variant_for(
 	}
 }
 
-fn normalize_variant(raw: &str) -> Option<String> {
-	let token = raw.trim().to_ascii_lowercase().replace(['-', ' '], "_");
-
-	if token.is_empty() {
-		return None;
-	}
-	if token.contains("duplicate") || token.contains("dedupe") {
-		return Some("duplicate_merge".to_string());
-	}
-	if token.contains("tag") || token.contains("taxonomy") {
-		return Some("tag".to_string());
-	}
-	if token.contains("knowledge_page") || token.contains("page_rebuild") {
-		return Some("page_rebuild".to_string());
-	}
-	if token.contains("graph_fact") || token.contains("graph_view") {
-		return Some("graph_fact".to_string());
-	}
-	if token.contains("proactive_brief") || token.contains("daily_brief") {
-		return Some("proactive_brief".to_string());
-	}
-	if token.contains("scheduled_memory") || token.contains("weekly_summary") {
-		return Some("scheduled_memory".to_string());
-	}
-	if token.contains("memory_summary") || token.contains("summary") {
-		return Some("memory_summary".to_string());
-	}
-	if token.contains("memory_promotion") || token.contains("derived_note") {
-		return Some("memory_promotion".to_string());
-	}
-	if token.contains("correction") || token.contains("repair") {
-		return Some("correction".to_string());
-	}
-
-	Some(token)
-}
-
 pub(super) fn affected_refs(target_ref: &Value, proposed_payload: &Value) -> Vec<Value> {
 	let mut refs = Vec::new();
 
@@ -151,16 +115,6 @@ pub(super) fn affected_refs(target_ref: &Value, proposed_payload: &Value) -> Vec
 	}
 
 	refs
-}
-
-fn push_non_empty_object(refs: &mut Vec<Value>, value: &Value) {
-	if non_empty_json_object(value) {
-		refs.push(value.clone());
-	}
-}
-
-fn non_empty_json_object(value: &Value) -> bool {
-	value.as_object().is_some_and(|object| !object.is_empty())
 }
 
 pub(super) fn non_empty_json_array(value: &Value) -> bool {
@@ -239,4 +193,51 @@ pub(super) fn policy_reason(
 
 pub(super) fn bounded_queue_limit(limit: Option<u32>) -> i64 {
 	i64::from(limit.unwrap_or(DEFAULT_QUEUE_LIMIT).clamp(1, MAX_QUEUE_LIMIT))
+}
+
+fn normalize_variant(raw: &str) -> Option<String> {
+	let token = raw.trim().to_ascii_lowercase().replace(['-', ' '], "_");
+
+	if token.is_empty() {
+		return None;
+	}
+	if token.contains("duplicate") || token.contains("dedupe") {
+		return Some("duplicate_merge".to_string());
+	}
+	if token.contains("tag") || token.contains("taxonomy") {
+		return Some("tag".to_string());
+	}
+	if token.contains("knowledge_page") || token.contains("page_rebuild") {
+		return Some("page_rebuild".to_string());
+	}
+	if token.contains("graph_fact") || token.contains("graph_view") {
+		return Some("graph_fact".to_string());
+	}
+	if token.contains("proactive_brief") || token.contains("daily_brief") {
+		return Some("proactive_brief".to_string());
+	}
+	if token.contains("scheduled_memory") || token.contains("weekly_summary") {
+		return Some("scheduled_memory".to_string());
+	}
+	if token.contains("memory_summary") || token.contains("summary") {
+		return Some("memory_summary".to_string());
+	}
+	if token.contains("memory_promotion") || token.contains("derived_note") {
+		return Some("memory_promotion".to_string());
+	}
+	if token.contains("correction") || token.contains("repair") {
+		return Some("correction".to_string());
+	}
+
+	Some(token)
+}
+
+fn push_non_empty_object(refs: &mut Vec<Value>, value: &Value) {
+	if non_empty_json_object(value) {
+		refs.push(value.clone());
+	}
+}
+
+fn non_empty_json_object(value: &Value) -> bool {
+	value.as_object().is_some_and(|object| !object.is_empty())
 }

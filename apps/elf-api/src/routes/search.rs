@@ -1,4 +1,11 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, ErrorBody, HeaderMap, Json, JsonRejection, MAX_CANDIDATE_K,
+	MAX_NOTE_IDS_PER_DETAILS, MAX_QUERY_CHARS, MAX_TOP_K, Path, Query, QueryRejection,
+	RequestContext, SearchCreateRequest, SearchCreateResponseV2, SearchDetailsBody,
+	SearchDetailsRequest, SearchDetailsResponseV2, SearchIndexResponseV2, SearchMode,
+	SearchRequest, SearchResponse, SearchSessionGetQuery, SearchSessionGetRequest,
+	SearchTimelineQuery, SearchTimelineRequest, SearchTimelineResponseV2, State, StatusCode, Uuid,
+};
 
 #[utoipa::path(
 	post,
@@ -20,15 +27,20 @@ pub(super) async fn searches_create(
 	payload: Result<Json<SearchCreateRequest>, JsonRejection>,
 ) -> Result<Json<SearchCreateResponseV2>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 
 	if payload.query.chars().count() > MAX_QUERY_CHARS {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Query is too long.",
@@ -36,7 +48,7 @@ pub(super) async fn searches_create(
 		));
 	}
 	if payload.top_k.unwrap_or(state.service.cfg.memory.top_k) > MAX_TOP_K {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"top_k is too large.",
@@ -44,7 +56,7 @@ pub(super) async fn searches_create(
 		));
 	}
 	if payload.candidate_k.unwrap_or(state.service.cfg.memory.candidate_k) > MAX_CANDIDATE_K {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"candidate_k is too large.",
@@ -52,7 +64,7 @@ pub(super) async fn searches_create(
 		));
 	}
 	if payload.ranking.is_some() {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Ranking overrides are only supported on admin endpoints.".to_string(),
@@ -61,7 +73,8 @@ pub(super) async fn searches_create(
 	}
 
 	let mode = payload.mode;
-	let token_id = effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
+	let token_id =
+		routes::effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
 	let build_request = || SearchRequest {
 		tenant_id: ctx.tenant_id,
 		project_id: ctx.project_id,
@@ -137,7 +150,7 @@ pub(super) async fn searches_get(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -201,7 +214,7 @@ pub(super) async fn searches_timeline(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -252,11 +265,16 @@ pub(super) async fn searches_notes(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 
 	if payload.note_ids.len() > MAX_NOTE_IDS_PER_DETAILS {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"note_ids list is too large.",
@@ -304,15 +322,20 @@ pub(super) async fn searches_raw(
 	payload: Result<Json<SearchCreateRequest>, JsonRejection>,
 ) -> Result<Json<SearchResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 
 	if payload.query.chars().count() > MAX_QUERY_CHARS {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Query is too long.",
@@ -320,7 +343,7 @@ pub(super) async fn searches_raw(
 		));
 	}
 	if payload.top_k.unwrap_or(state.service.cfg.memory.top_k) > MAX_TOP_K {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"top_k is too large.",
@@ -328,7 +351,7 @@ pub(super) async fn searches_raw(
 		));
 	}
 	if payload.candidate_k.unwrap_or(state.service.cfg.memory.candidate_k) > MAX_CANDIDATE_K {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"candidate_k is too large.",
@@ -340,7 +363,10 @@ pub(super) async fn searches_raw(
 		tenant_id: ctx.tenant_id,
 		project_id: ctx.project_id,
 		agent_id: ctx.agent_id,
-		token_id: effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers),
+		token_id: routes::effective_token_id(
+			state.service.cfg.security.auth_mode.as_str(),
+			&headers,
+		),
 		read_profile,
 		query: payload.query,
 		filter: payload.filter,

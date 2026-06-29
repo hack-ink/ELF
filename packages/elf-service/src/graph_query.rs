@@ -1,5 +1,19 @@
 //! Structured graph query APIs.
 
+mod build;
+mod resolution;
+mod service;
+mod state;
+mod storage;
+mod types;
+mod validation;
+
+pub use types::{
+	GraphQueryEntity, GraphQueryEntityRef, GraphQueryExplain, GraphQueryFact, GraphQueryObject,
+	GraphQueryObjectEntity, GraphQueryPredicate, GraphQueryPredicateRef, GraphQueryRequest,
+	GraphQueryResponse,
+};
+
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
@@ -7,32 +21,16 @@ use sqlx::{FromRow, PgConnection};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{
-	ElfService, Error, Result,
-	access::{self, ORG_PROJECT_ID},
-	graph::RelationTemporalStatus,
-	search,
-};
-use elf_storage::{graph, models::GraphEntity};
-
-mod build;
-mod resolution;
-mod service;
-mod state;
-mod storage;
-#[cfg(test)] mod tests;
-mod types;
-mod validation;
-
+use crate::{ElfService, Error, Result, access::ORG_PROJECT_ID, graph::RelationTemporalStatus};
 use build::graph_query_facts_from_rows;
-pub(crate) use build::{
-	build_graph_query_explain, resolve_effective_scopes, truncate_graph_query_facts,
+use elf_storage::{graph, models::GraphEntity};
+use resolution::{resolve_predicate, resolve_subject};
+use state::{
+	GraphQueryFactRow, GraphQueryRowsFetchParams, PreparedGraphQuery, ResolvedGraphQueryPredicate,
+	ResolvedGraphQuerySubject,
 };
-use resolution::*;
-use state::*;
-use storage::*;
-pub use types::*;
-use validation::*;
+use storage::fetch_graph_query_rows;
+use validation::validate_graph_query_request;
 
 /// Schema identifier for graph-query responses.
 pub const ELF_GRAPH_QUERY_SCHEMA_V1: &str = "elf.graph_query/v1";
@@ -111,5 +109,41 @@ WHERE gf.tenant_id = $1
 				))
 			)
 	)
-ORDER BY gf.valid_from DESC, gf.fact_id ASC
-LIMIT $8";
+	ORDER BY gf.valid_from DESC, gf.fact_id ASC
+	LIMIT $8";
+
+pub(crate) fn resolve_effective_scopes(
+	allowed_scopes: &[String],
+	requested_scopes: &[String],
+) -> Result<Vec<String>> {
+	build::resolve_effective_scopes(allowed_scopes, requested_scopes)
+}
+
+pub(crate) fn truncate_graph_query_facts(
+	facts: Vec<GraphQueryFact>,
+	limit: usize,
+) -> (Vec<GraphQueryFact>, bool) {
+	build::truncate_graph_query_facts(facts, limit)
+}
+
+pub(crate) fn build_graph_query_explain(
+	as_of: OffsetDateTime,
+	allowed_scopes: &[String],
+	effective_scopes: &[String],
+	requested_limit: usize,
+	queried_rows: usize,
+	returned_rows: usize,
+	truncated: bool,
+) -> GraphQueryExplain {
+	build::build_graph_query_explain(
+		as_of,
+		allowed_scopes,
+		effective_scopes,
+		requested_limit,
+		queried_rows,
+		returned_rows,
+		truncated,
+	)
+}
+
+#[cfg(test)] mod tests;
