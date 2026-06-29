@@ -19,7 +19,7 @@ code_refs:
   - packages/elf-storage/src/models.rs
   - sql/tables/042_work_journal_entries.sql
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
   - packages/elf-service/tests/acceptance/work_journal.rs
 related:
   - docs/spec/system_work_journal_v1.md
@@ -31,7 +31,7 @@ drift_watch:
   - packages/elf-storage/src/models.rs
   - sql/tables/042_work_journal_entries.sql
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
   - docs/spec/system_work_journal_v1.md
 ---
 # Work Journal Drift Audit
@@ -74,7 +74,7 @@ or benchmark competitor interpretation.
   - `POST /v2/work-journal/entries`
   - `GET /v2/work-journal/entries/{entry_id}`
   - `POST /v2/work-journal/readback`
-- `apps/elf-mcp/src/server.rs` exposes:
+- `apps/elf-mcp/src/app/server.rs` exposes:
   - `elf_work_journal_entry_create`
   - `elf_work_journal_entry_get`
   - `elf_work_journal_session_readback`
@@ -114,5 +114,5 @@ pass
 - `packages/elf-storage/src/work_journal.rs`
 - `packages/elf-service/src/work_journal.rs`
 - `apps/elf-api/src/routes.rs`
-- `apps/elf-mcp/src/server.rs`
+- `apps/elf-mcp/src/app/server.rs`
 - `packages/elf-service/tests/acceptance/work_journal.rs`

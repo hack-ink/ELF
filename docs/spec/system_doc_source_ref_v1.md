@@ -12,7 +12,7 @@ tags:
   - spec
 source_refs: []
 code_refs:
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server/tools/docs.rs
   - packages/elf-service/src/docs.rs
   - packages/elf-service/src/knowledge.rs
   - packages/elf-storage/src/docs.rs

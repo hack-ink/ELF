@@ -20,7 +20,7 @@ Notes, Source Library documents, Knowledge Workspace pages, graph facts, and Dre
 review proposals.
 
 Inputs: `packages/elf-service/src/recall_debug.rs`, `apps/elf-api/src/routes.rs`,
-`apps/elf-mcp/src/server.rs`, `docs/spec/system_recall_debug_panel_v1.md`, and
+`apps/elf-mcp/src/app/server.rs`, `docs/spec/system_recall_debug_panel_v1.md`, and
 `apps/elf-eval/fixtures/report_snapshots/2026-06-20-recall-debug-panel-report.json`.
 
 ## Executive Judgment

@@ -20,7 +20,7 @@ correction proposals.
 
 Inputs:
 `packages/elf-service/src/dreaming_review_queue.rs`,
-`apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`,
+`apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/app/server.rs`,
 `docs/spec/system_consolidation_proposals_v1.md`, and
 `apps/elf-eval/fixtures/report_snapshots/2026-06-20-dreaming-review-queue-report.json`.
 

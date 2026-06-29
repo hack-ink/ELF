@@ -18,7 +18,7 @@ code_refs:
   - packages/elf-storage/src/work_journal.rs
   - sql/tables/042_work_journal_entries.sql
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
 related:
   - docs/spec/system_elf_memory_service_v2.md
   - docs/spec/system_consolidation_proposals_v1.md
@@ -27,7 +27,7 @@ drift_watch:
   - packages/elf-service/src/work_journal.rs
   - sql/tables/042_work_journal_entries.sql
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
 ---
 # Work Journal v1 Specification
 

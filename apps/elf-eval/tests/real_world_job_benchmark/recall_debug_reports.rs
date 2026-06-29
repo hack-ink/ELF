@@ -101,8 +101,11 @@ fn recall_debug_panel_report_wires_cross_layer_debug_contract() -> Result<()> {
 	let service_lib = fs::read_to_string(workspace.join("packages/elf-service/src/lib.rs"))?;
 	let routes =
 		rust_module_sources(&workspace, "apps/elf-api/src/routes.rs", "apps/elf-api/src/routes")?;
-	let mcp =
-		rust_module_sources(&workspace, "apps/elf-mcp/src/server.rs", "apps/elf-mcp/src/server")?;
+	let mcp = rust_module_sources(
+		&workspace,
+		"apps/elf-mcp/src/app/server.rs",
+		"apps/elf-mcp/src/app/server",
+	)?;
 	let recall_spec =
 		fs::read_to_string(workspace.join("docs/spec/system_recall_debug_panel_v1.md"))?;
 	let service_spec =
