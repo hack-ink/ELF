@@ -1,10 +1,10 @@
-#[path = "support/auth.rs"] mod auth;
-#[path = "support/errors.rs"] mod errors;
-#[path = "support/headers.rs"] mod headers;
-#[path = "support/request_id.rs"] mod request_id;
-#[path = "support/scope.rs"] mod scope;
-#[path = "support/support_types.rs"] mod support_types;
-#[path = "support/time.rs"] mod time;
+mod auth;
+mod errors;
+mod headers;
+mod request_id;
+mod scope;
+mod support_types;
+mod time;
 
 pub(super) use self::{
 	auth::{
