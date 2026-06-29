@@ -1,6 +1,7 @@
 //! Progressive-search APIs.
 
 mod details;
+mod followup;
 mod service;
 mod storage;
 mod types;
