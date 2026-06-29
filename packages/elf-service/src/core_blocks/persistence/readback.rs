@@ -1,6 +1,6 @@
 use sqlx::PgExecutor;
 
-use crate::{Result, core_blocks::types::CoreBlockJoinedRow};
+use crate::{Result, core_blocks::rows::CoreBlockJoinedRow};
 
 pub(in crate::core_blocks) async fn fetch_attached_block_rows<'e, E>(
 	executor: E,

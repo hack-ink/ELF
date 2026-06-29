@@ -1,6 +1,7 @@
 //! Scoped core memory block APIs.
 
 mod persistence;
+mod rows;
 mod service;
 mod types;
 mod validation;
