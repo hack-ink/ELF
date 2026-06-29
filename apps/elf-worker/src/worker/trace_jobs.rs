@@ -1,5 +1,12 @@
+mod cleanup;
+
+pub(super) use cleanup::{
+	purge_expired_cache, purge_expired_search_sessions, purge_expired_trace_candidates,
+	purge_expired_traces,
+};
+
 use crate::worker::{
-	self, Db, OffsetDateTime, PgConnection, PgExecutor, QueryBuilder, Result, TraceCandidateInsert,
+	self, Db, PgConnection, PgExecutor, QueryBuilder, Result, TraceCandidateInsert,
 	TraceCandidateRecord, TraceItemInsert, TraceItemRecord, TraceOutboxJob, TracePayload,
 	TraceRecord, TraceStageInsert, TraceStageItemInsert, TraceTrajectoryStageRecord, Uuid, Value,
 };
@@ -305,58 +312,6 @@ INSERT INTO search_trace_candidates (
 	});
 	builder.push(" ON CONFLICT (candidate_id) DO NOTHING");
 	builder.build().execute(executor).await?;
-
-	Ok(())
-}
-
-pub(super) async fn purge_expired_trace_candidates(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM search_trace_candidates WHERE expires_at <= $1")
-		.bind(now)
-		.execute(&db.pool)
-		.await?;
-
-	if result.rows_affected() > 0 {
-		tracing::info!(count = result.rows_affected(), "Purged expired search trace candidates.");
-	}
-
-	Ok(())
-}
-
-pub(super) async fn purge_expired_traces(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM search_traces WHERE expires_at <= $1")
-		.bind(now)
-		.execute(&db.pool)
-		.await?;
-
-	if result.rows_affected() > 0 {
-		tracing::info!(count = result.rows_affected(), "Purged expired search traces.");
-	}
-
-	Ok(())
-}
-
-pub(super) async fn purge_expired_cache(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM llm_cache WHERE expires_at <= $1")
-		.bind(now)
-		.execute(&db.pool)
-		.await?;
-
-	if result.rows_affected() > 0 {
-		tracing::info!(count = result.rows_affected(), "Purged expired LLM cache entries.");
-	}
-
-	Ok(())
-}
-
-pub(super) async fn purge_expired_search_sessions(db: &Db, now: OffsetDateTime) -> Result<()> {
-	let result = sqlx::query("DELETE FROM search_sessions WHERE expires_at <= $1")
-		.bind(now)
-		.execute(&db.pool)
-		.await?;
-
-	if result.rows_affected() > 0 {
-		tracing::info!(count = result.rows_affected(), "Purged expired search sessions.");
-	}
 
 	Ok(())
 }
