@@ -37,6 +37,6 @@ pub(super) use self::{
 };
 #[cfg(test)]
 pub(super) use self::{
-	policy::BlendSegment,
+	policy::types::BlendSegment,
 	text::{lexical_overlap_ratio, scope_description_boost},
 };
