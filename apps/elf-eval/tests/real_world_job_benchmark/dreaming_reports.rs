@@ -1,34 +1,45 @@
 use std::{fs, path::Path};
 
-use color_eyre::{self, eyre};
+use color_eyre::{self, Result, eyre};
 use serde_json::Value;
 
 use crate::support;
 
-fn read_rust_module_sources(src_dir: &Path, module_name: &str) -> color_eyre::Result<String> {
+fn read_rust_module_sources(src_dir: &Path, module_name: &str) -> Result<String> {
 	let module_root = src_dir.join(format!("{module_name}.rs"));
 	let module_dir = src_dir.join(module_name);
 	let mut source = fs::read_to_string(module_root)?;
 
 	if module_dir.is_dir() {
-		let mut entries = fs::read_dir(module_dir)?
-			.map(|entry| entry.map(|entry| entry.path()))
-			.collect::<std::io::Result<Vec<_>>>()?;
-
-		entries.retain(|path| path.extension().is_some_and(|extension| extension == "rs"));
-		entries.sort();
-
-		for path in entries {
-			source.push('\n');
-			source.push_str(&fs::read_to_string(path)?);
-		}
+		append_rust_sources(module_dir.as_path(), &mut source)?;
 	}
 
 	Ok(source)
 }
 
+fn append_rust_sources(dir: &Path, source: &mut String) -> Result<()> {
+	let mut entries = Vec::new();
+
+	for entry in fs::read_dir(dir)? {
+		entries.push(entry?.path());
+	}
+
+	entries.sort();
+
+	for path in entries {
+		if path.is_dir() {
+			append_rust_sources(path.as_path(), source)?;
+		} else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+			source.push('\n');
+			source.push_str(fs::read_to_string(path)?.as_str());
+		}
+	}
+
+	Ok(())
+}
+
 #[test]
-fn live_temporal_reconciliation_report_records_xy905_before_after() -> color_eyre::Result<()> {
+fn live_temporal_reconciliation_report_records_xy905_before_after() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		support::live_temporal_reconciliation_report_json_path()?,
 	)?)?;
@@ -117,8 +128,7 @@ fn live_temporal_reconciliation_report_records_xy905_before_after() -> color_eyr
 }
 
 #[test]
-fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims()
--> color_eyre::Result<()> {
+fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		support::dreaming_competitor_strength_retest_report_json_path()?,
 	)?)?;
@@ -177,7 +187,7 @@ fn dreaming_competitor_strength_retest_report_closes_xy955_without_overclaims()
 }
 
 #[test]
-fn qmd_debug_ergonomics_dreaming_retest_report_preserves_qmd_edge() -> color_eyre::Result<()> {
+fn qmd_debug_ergonomics_dreaming_retest_report_preserves_qmd_edge() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		support::qmd_debug_ergonomics_dreaming_retest_report_json_path()?,
 	)?)?;
@@ -195,7 +205,7 @@ fn qmd_debug_ergonomics_dreaming_retest_report_preserves_qmd_edge() -> color_eyr
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_summary(report: &Value) -> color_eyre::Result<()> {
+fn assert_qmd_debug_retest_summary(report: &Value) -> Result<()> {
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
 		Some("elf.qmd_debug_ergonomics_dreaming_retest_report/v1")
@@ -231,7 +241,7 @@ fn assert_qmd_debug_retest_summary(report: &Value) -> color_eyre::Result<()> {
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_command_and_adapters(report: &Value) -> color_eyre::Result<()> {
+fn assert_qmd_debug_retest_command_and_adapters(report: &Value) -> Result<()> {
 	let command = support::find_by_field(
 		support::array_at(report, "/commands")?,
 		"/command",
@@ -263,7 +273,7 @@ fn assert_qmd_debug_retest_command_and_adapters(report: &Value) -> color_eyre::R
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_scenarios(report: &Value) -> color_eyre::Result<()> {
+fn assert_qmd_debug_retest_scenarios(report: &Value) -> Result<()> {
 	let scenarios = support::array_at(report, "/scenario_retests")?;
 	let top10 =
 		support::find_by_field(scenarios, "/scenario_id", "qmd_default_top10_candidate_artifact")?;
@@ -310,7 +320,7 @@ fn assert_qmd_debug_retest_scenarios(report: &Value) -> color_eyre::Result<()> {
 	Ok(())
 }
 
-fn assert_qmd_debug_retest_boundaries(report: &Value) -> color_eyre::Result<()> {
+fn assert_qmd_debug_retest_boundaries(report: &Value) -> Result<()> {
 	assert!(support::array_contains_str(
 		report,
 		"/claim_boundaries/allowed",
@@ -351,8 +361,7 @@ fn assert_qmd_debug_retest_markdown_and_indexes(
 }
 
 #[test]
-fn openviking_trajectory_materialization_report_preserves_blocked_gates() -> color_eyre::Result<()>
-{
+fn openviking_trajectory_materialization_report_preserves_blocked_gates() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		support::openviking_trajectory_materialization_report_json_path()?,
 	)?)?;
@@ -375,7 +384,7 @@ fn openviking_trajectory_materialization_report_preserves_blocked_gates() -> col
 }
 
 #[test]
-fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> color_eyre::Result<()> {
+fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		support::letta_core_archive_export_readback_report_json_path()?,
 	)?)?;
@@ -474,7 +483,7 @@ fn letta_core_archive_export_readback_report_preserves_blocked_gates() -> color_
 }
 
 #[test]
-fn service_native_dreaming_readback_report_materializes_public_jobs() -> color_eyre::Result<()> {
+fn service_native_dreaming_readback_report_materializes_public_jobs() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		support::service_native_dreaming_readback_report_json_path()?,
 	)?)?;
@@ -494,7 +503,7 @@ fn service_native_dreaming_readback_report_materializes_public_jobs() -> color_e
 	Ok(())
 }
 
-fn assert_service_native_dreaming_report_summary(report: &Value) -> color_eyre::Result<()> {
+fn assert_service_native_dreaming_report_summary(report: &Value) -> Result<()> {
 	assert_eq!(
 		report.pointer("/adapter/adapter_id").and_then(Value::as_str),
 		Some("elf_service_native_dreaming")
@@ -540,7 +549,7 @@ fn assert_service_native_dreaming_report_summary(report: &Value) -> color_eyre::
 	Ok(())
 }
 
-fn assert_service_native_dreaming_report_jobs(report: &Value) -> color_eyre::Result<()> {
+fn assert_service_native_dreaming_report_jobs(report: &Value) -> Result<()> {
 	let jobs = support::array_at(report, "/jobs")?;
 	let memory = support::find_by_field(jobs, "/job_id", "memory-summary-source-trace-001")?;
 	let daily = support::find_by_field(jobs, "/job_id", "proactive-daily-project-brief-001")?;
@@ -571,9 +580,7 @@ fn assert_service_native_dreaming_report_jobs(report: &Value) -> color_eyre::Res
 	Ok(())
 }
 
-fn assert_service_native_dreaming_materialization(
-	materialization: &Value,
-) -> color_eyre::Result<()> {
+fn assert_service_native_dreaming_materialization(materialization: &Value) -> Result<()> {
 	assert_eq!(
 		materialization.pointer("/schema").and_then(Value::as_str),
 		Some("elf.real_world_live_adapter_materialization/v1")
@@ -650,7 +657,7 @@ fn assert_service_native_dreaming_docs(markdown: &str, benchmarking_index: &str,
 }
 
 #[test]
-fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> color_eyre::Result<()> {
+fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
 		support::dreaming_review_queue_report_json_path()?,
 	)?)?;
@@ -664,7 +671,7 @@ fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> color_eyre
 	)?;
 	let service_lib = fs::read_to_string(workspace.join("packages/elf-service/src/lib.rs"))?;
 	let routes = read_rust_module_sources(&workspace.join("apps/elf-api/src"), "routes")?;
-	let mcp = fs::read_to_string(workspace.join("apps/elf-mcp/src/app/server.rs"))?;
+	let mcp = read_rust_module_sources(&workspace.join("apps/elf-mcp/src/app"), "server")?;
 	let consolidation_spec =
 		fs::read_to_string(workspace.join("docs/spec/system_consolidation_proposals_v1.md"))?;
 	let service_spec =
@@ -742,7 +749,7 @@ fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> color_eyre
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_summary(report: &Value) -> color_eyre::Result<()> {
+fn assert_openviking_trajectory_materialization_summary(report: &Value) -> Result<()> {
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
 		Some("elf.openviking_trajectory_materialization_report/v1")
@@ -774,7 +781,7 @@ fn assert_openviking_trajectory_materialization_summary(report: &Value) -> color
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_command(report: &Value) -> color_eyre::Result<()> {
+fn assert_openviking_trajectory_materialization_command(report: &Value) -> Result<()> {
 	let command = support::find_by_field(
 		support::array_at(report, "/commands")?,
 		"/command",
@@ -799,9 +806,7 @@ fn assert_openviking_trajectory_materialization_command(report: &Value) -> color
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_scenarios(
-	report: &Value,
-) -> color_eyre::Result<()> {
+fn assert_openviking_trajectory_materialization_scenarios(report: &Value) -> Result<()> {
 	let scenarios = support::array_at(report, "/scenario_materialization")?;
 	let staged = support::find_by_field(
 		scenarios,
@@ -857,9 +862,7 @@ fn assert_openviking_trajectory_materialization_scenarios(
 	Ok(())
 }
 
-fn assert_openviking_trajectory_materialization_boundaries(
-	report: &Value,
-) -> color_eyre::Result<()> {
+fn assert_openviking_trajectory_materialization_boundaries(report: &Value) -> Result<()> {
 	assert_eq!(
 		report.pointer("/improvement_regression_readback/improved").and_then(Value::as_u64),
 		Some(0)
@@ -910,7 +913,7 @@ fn assert_openviking_trajectory_materialization_markdown_and_indexes(
 	assert!(readme.contains("3 typed blockers with 9/9 evidence coverage"));
 }
 
-fn assert_xy955_commands(report: &Value) -> color_eyre::Result<()> {
+fn assert_xy955_commands(report: &Value) -> Result<()> {
 	let commands = support::array_at(report, "/commands")?;
 	let aggregate = support::find_by_field(commands, "/command", "cargo make real-world-memory")?;
 	let graph_rag =
@@ -950,7 +953,7 @@ fn assert_xy955_commands(report: &Value) -> color_eyre::Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_stage_closeout(report: &Value) -> color_eyre::Result<()> {
+fn assert_xy955_stage_closeout(report: &Value) -> Result<()> {
 	let stages = support::array_at(report, "/stage_closeout")?;
 
 	assert_eq!(stages.len(), 8);
@@ -992,7 +995,7 @@ fn assert_xy955_stage_closeout(report: &Value) -> color_eyre::Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_scenario_retests(report: &Value) -> color_eyre::Result<()> {
+fn assert_xy955_scenario_retests(report: &Value) -> Result<()> {
 	let scenarios = support::array_at(report, "/scenario_retests")?;
 	let qmd = support::find_by_field(scenarios, "/scenario_id", "qmd_debug_ergonomics")?;
 	let mem0 = support::find_by_field(
@@ -1036,7 +1039,7 @@ fn assert_xy955_scenario_retests(report: &Value) -> color_eyre::Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_optimization_queue(report: &Value) -> color_eyre::Result<()> {
+fn assert_xy955_optimization_queue(report: &Value) -> Result<()> {
 	let queue = support::array_at(report, "/optimization_queue")?;
 	let qmd = support::find_by_field(queue, "/issue", "XY-923")?;
 	let private_provider = support::find_by_field(queue, "/issue", "XY-930")?;
@@ -1059,7 +1062,7 @@ fn assert_xy955_optimization_queue(report: &Value) -> color_eyre::Result<()> {
 	Ok(())
 }
 
-fn assert_xy955_follow_up_issue_briefs(report: &Value) -> color_eyre::Result<()> {
+fn assert_xy955_follow_up_issue_briefs(report: &Value) -> Result<()> {
 	let existing = support::array_at(report, "/follow_up_issue_briefs/existing")?;
 	let proposed = support::array_at(report, "/follow_up_issue_briefs/proposed")?;
 	let qmd = support::find_by_field(existing, "/issue", "XY-923")?;
