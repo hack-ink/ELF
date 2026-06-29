@@ -1,8 +1,8 @@
+mod qdrant_points;
+
 use crate::worker::{
-	self, BM25_MODEL, BM25_VECTOR_NAME, ChunkRecord, Condition, DENSE_VECTOR_NAME, Db,
-	DeletePointsBuilder, Document, Error, Filter, HashMap, IndexingOutboxEntry, MemoryNote,
-	NoteFieldRow, OffsetDateTime, Payload, PgExecutor, PointStruct, Result, ToString,
-	UpsertPointsBuilder, Uuid, Value, Vector, WorkerState, embedding, queries,
+	self, Db, Error, IndexingOutboxEntry, MemoryNote, NoteFieldRow, OffsetDateTime, PgExecutor,
+	Result, Uuid, WorkerState, embedding, queries,
 };
 
 pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
@@ -120,14 +120,14 @@ pub(super) async fn handle_upsert(state: &WorkerState, job: &IndexingOutboxEntry
 		tx.commit().await?;
 	}
 
-	delete_qdrant_note_points(state, note.note_id).await?;
-	upsert_qdrant_chunks(state, &note, &job.embedding_version, &records, chunk_vectors).await?;
+	qdrant_points::replace_chunks(state, &note, &job.embedding_version, &records, chunk_vectors)
+		.await?;
 
 	Ok(())
 }
 
 pub(super) async fn handle_delete(state: &WorkerState, job: &IndexingOutboxEntry) -> Result<()> {
-	delete_qdrant_note_points(state, job.note_id).await?;
+	qdrant_points::delete_note_points(state, job.note_id).await?;
 
 	Ok(())
 }
@@ -226,85 +226,6 @@ SET
 	.bind(vec_text.as_str())
 	.execute(executor)
 	.await?;
-
-	Ok(())
-}
-
-pub(super) async fn delete_qdrant_note_points(state: &WorkerState, note_id: Uuid) -> Result<()> {
-	let filter = Filter::must([Condition::matches("note_id", note_id.to_string())]);
-	let delete =
-		DeletePointsBuilder::new(state.qdrant.collection.clone()).points(filter).wait(true);
-
-	match state.qdrant.client.delete_points(delete).await {
-		Ok(_) => {},
-		Err(err) =>
-			if worker::is_not_found_error(&err) {
-				tracing::info!(note_id = %note_id, "Qdrant points missing during delete.");
-			} else {
-				return Err(err.into());
-			},
-	}
-
-	Ok(())
-}
-
-pub(super) async fn upsert_qdrant_chunks(
-	state: &WorkerState,
-	note: &MemoryNote,
-	embedding_version: &str,
-	records: &[ChunkRecord],
-	vectors: &[Vec<f32>],
-) -> Result<()> {
-	let mut points = Vec::with_capacity(records.len());
-
-	for (record, vec) in records.iter().zip(vectors.iter()) {
-		let mut payload = Payload::new();
-
-		payload.insert("note_id", note.note_id.to_string());
-		payload.insert("chunk_id", record.chunk_id.to_string());
-		payload.insert("chunk_index", record.chunk_index as i64);
-		payload.insert("start_offset", record.start_offset as i64);
-		payload.insert("end_offset", record.end_offset as i64);
-		payload.insert("tenant_id", note.tenant_id.clone());
-		payload.insert("project_id", note.project_id.clone());
-		payload.insert("agent_id", note.agent_id.clone());
-		payload.insert("scope", note.scope.clone());
-		payload.insert("status", note.status.clone());
-		payload.insert("type", note.r#type.clone());
-
-		match note.key.as_ref() {
-			Some(key) => payload.insert("key", key.clone()),
-			None => payload.insert("key", Value::Null),
-		}
-
-		payload.insert("updated_at", Value::String(worker::format_timestamp(note.updated_at)?));
-		payload.insert(
-			"expires_at",
-			match note.expires_at {
-				Some(ts) => Value::String(worker::format_timestamp(ts)?),
-				None => Value::Null,
-			},
-		);
-		payload.insert("importance", Value::from(note.importance as f64));
-		payload.insert("confidence", Value::from(note.confidence as f64));
-		payload.insert("embedding_version", embedding_version.to_string());
-
-		let mut vector_map = HashMap::new();
-
-		vector_map.insert(DENSE_VECTOR_NAME.to_string(), Vector::from(vec.to_vec()));
-		vector_map.insert(
-			BM25_VECTOR_NAME.to_string(),
-			Vector::from(Document::new(record.text.clone(), BM25_MODEL)),
-		);
-
-		let point = PointStruct::new(record.chunk_id.to_string(), vector_map, payload);
-
-		points.push(point);
-	}
-
-	let upsert = UpsertPointsBuilder::new(state.qdrant.collection.clone(), points).wait(true);
-
-	state.qdrant.client.upsert_points(upsert).await?;
 
 	Ok(())
 }
