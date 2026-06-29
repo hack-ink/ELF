@@ -30,11 +30,19 @@ pub mod update;
 pub mod work_journal;
 
 mod access;
+mod constants;
 mod error;
 mod graph_ingestion;
+mod history;
 mod ingest_audit;
 mod ingestion_profiles;
+mod ops;
+mod providers;
 mod ranking_explain_v2;
+mod service;
+mod update_resolution;
+mod vectors;
+mod write_policy;
 
 pub use self::{
 	add_event::{AddEventRequest, AddEventResponse, AddEventResult, EventMessage},
@@ -53,6 +61,7 @@ pub use self::{
 		ConsolidationRunCreateRequest, ConsolidationRunCreateResponse, ConsolidationRunGetRequest,
 		ConsolidationRunResponse, ConsolidationRunsListRequest, ConsolidationRunsListResponse,
 	},
+	constants::{REJECT_EVIDENCE_MISMATCH, REJECT_WRITE_POLICY_MISMATCH},
 	core_blocks::{
 		CoreBlockAttachRequest, CoreBlockAttachResponse, CoreBlockDetachRequest,
 		CoreBlockDetachResponse, CoreBlockItem, CoreBlockRecord, CoreBlockUpsertRequest,
@@ -111,6 +120,7 @@ pub use self::{
 		MemoryCorrectionAction, MemoryCorrectionRequest, MemoryCorrectionResponse,
 	},
 	notes::{NoteFetchRequest, NoteFetchResponse},
+	ops::NoteOp,
 	progressive_search::{
 		SearchDetailsError, SearchDetailsRequest, SearchDetailsResponse, SearchDetailsResult,
 		SearchIndexItem, SearchIndexPlannedResponse, SearchIndexResponse, SearchSessionGetRequest,
@@ -122,6 +132,7 @@ pub use self::{
 		NoteProvenanceIngestDecision, NoteProvenanceNote, NoteProvenanceNoteVersion,
 		NoteProvenanceRecentTrace,
 	},
+	providers::{BoxFuture, EmbeddingProvider, ExtractorProvider, Providers, RerankProvider},
 	recall_debug::{
 		ELF_RECALL_DEBUG_PANEL_SCHEMA_V1, ELF_RECALL_TRACE_SCHEMA_V1, RecallDebugLayer,
 		RecallDebugPanelRequest, RecallDebugPanelRequestEcho, RecallDebugPanelResponse,
@@ -139,6 +150,7 @@ pub use self::{
 		TraceBundleResponse, TraceGetRequest, TraceGetResponse, TraceRecentListRequest,
 		TraceRecentListResponse, TraceTrajectoryGetRequest,
 	},
+	service::ElfService,
 	sharing::{
 		GranteeKind, PublishNoteRequest, PublishNoteResponse, ShareScope, SpaceGrantItem,
 		SpaceGrantRevokeRequest, SpaceGrantRevokeResponse, SpaceGrantUpsertRequest,
@@ -155,540 +167,11 @@ pub use self::{
 	},
 };
 
-use std::{future::Future, pin::Pin, sync::Arc};
-
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use sqlx::PgExecutor;
-use time::OffsetDateTime;
-use uuid::Uuid;
-
-use elf_config::{Config, EmbeddingProviderConfig, LlmProviderConfig, ProviderConfig};
-use elf_domain::writegate::RejectCode;
-use elf_providers::{embedding, extractor, rerank};
-use elf_storage::{db::Db, models::MemoryNote, qdrant::QdrantStore};
-
-/// Boxed future type used by provider traits.
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-
-/// Rejection code emitted when event evidence quotes do not match the source messages.
-pub const REJECT_EVIDENCE_MISMATCH: &str = "REJECT_EVIDENCE_MISMATCH";
-/// Rejection code emitted when a write policy and extracted output disagree.
-pub const REJECT_WRITE_POLICY_MISMATCH: &str = "REJECT_WRITE_POLICY_MISMATCH";
-
-const RESOLVE_UPDATE_QUERY: &str = "\
-WITH key_match AS (
-	SELECT note_id
-	FROM memory_notes
-	WHERE tenant_id = $1
-		AND project_id = $2
-		AND agent_id = $3
-		AND scope = $4
-		AND type = $5
-		AND $6::text IS NOT NULL
-		AND key = $6
-		AND status = 'active'
-		AND (expires_at IS NULL OR expires_at > $7)
-	LIMIT 1
-),
-existing AS (
-	SELECT note_id
-	FROM memory_notes
-	WHERE tenant_id = $1
-		AND project_id = $2
-		AND agent_id = $3
-		AND scope = $4
-		AND type = $5
-		AND status = 'active'
-		AND (expires_at IS NULL OR expires_at > $7)
-),
-best AS (
-	SELECT
-		note_id,
-		(1 - (vec <=> $8::text::vector))::real AS similarity
-	FROM note_embeddings
-	WHERE note_id = ANY(ARRAY(SELECT note_id FROM existing))
-		AND embedding_version = $9
-	ORDER BY similarity DESC
-	LIMIT 1
-)
-	SELECT
-		(SELECT note_id FROM key_match) AS key_note_id,
-		(SELECT note_id FROM best) AS best_note_id,
-		(SELECT similarity FROM best) AS best_similarity";
-
-/// Embedding provider contract used by the service layer.
-pub trait EmbeddingProvider
-where
-	Self: Send + Sync,
-{
-	/// Embeds one or more texts into dense vectors.
-	fn embed<'a>(
-		&'a self,
-		cfg: &'a EmbeddingProviderConfig,
-		texts: &'a [String],
-	) -> BoxFuture<'a, Result<Vec<Vec<f32>>>>;
-}
-
-/// Rerank provider contract used by the service layer.
-pub trait RerankProvider
-where
-	Self: Send + Sync,
-{
-	/// Scores candidate documents for one query.
-	fn rerank<'a>(
-		&'a self,
-		cfg: &'a ProviderConfig,
-		query: &'a str,
-		docs: &'a [String],
-	) -> BoxFuture<'a, Result<Vec<f32>>>;
-}
-
-/// Extractor provider contract used by the service layer.
-pub trait ExtractorProvider
-where
-	Self: Send + Sync,
-{
-	/// Extracts structured JSON output from a message transcript.
-	fn extract<'a>(
-		&'a self,
-		cfg: &'a LlmProviderConfig,
-		messages: &'a [Value],
-	) -> BoxFuture<'a, Result<Value>>;
-}
-
-/// Note operation emitted by service mutations.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum NoteOp {
-	/// A new note was inserted.
-	Add,
-	/// An existing note was updated.
-	Update,
-	/// No persisted change was required.
-	None,
-	/// A note was deleted.
-	Delete,
-	/// The request was rejected before persistence.
-	Rejected,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum UpdateDecision {
-	Add { note_id: Uuid, metadata: UpdateDecisionMetadata },
-	Update { note_id: Uuid, metadata: UpdateDecisionMetadata },
-	None { note_id: Uuid, metadata: UpdateDecisionMetadata },
-}
-impl UpdateDecision {
-	pub(crate) fn note_id(&self) -> Uuid {
-		match self {
-			Self::Add { note_id, .. }
-			| Self::Update { note_id, .. }
-			| Self::None { note_id, .. } => *note_id,
-		}
-	}
-
-	pub(crate) fn metadata(&self) -> UpdateDecisionMetadata {
-		match self {
-			Self::Add { metadata, .. }
-			| Self::Update { metadata, .. }
-			| Self::None { metadata, .. } => *metadata,
-		}
-	}
-}
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct UpdateDecisionMetadata {
-	pub similarity_best: Option<f32>,
-	pub key_match: bool,
-	pub matched_dup: bool,
-}
-
-/// Provider bundle used by `ElfService`.
-#[derive(Clone)]
-pub struct Providers {
-	/// Dense embedding provider implementation.
-	pub embedding: Arc<dyn EmbeddingProvider>,
-	/// Rerank provider implementation.
-	pub rerank: Arc<dyn RerankProvider>,
-	/// Structured extraction provider implementation.
-	pub extractor: Arc<dyn ExtractorProvider>,
-}
-impl Providers {
-	/// Builds a provider bundle from explicit provider implementations.
-	pub fn new(
-		embedding: Arc<dyn EmbeddingProvider>,
-		rerank: Arc<dyn RerankProvider>,
-		extractor: Arc<dyn ExtractorProvider>,
-	) -> Self {
-		Self { embedding, rerank, extractor }
-	}
-}
-
-impl Default for Providers {
-	fn default() -> Self {
-		let provider = Arc::new(DefaultProviders);
-
-		Self { embedding: provider.clone(), rerank: provider.clone(), extractor: provider }
-	}
-}
-
-/// Main service container for ELF request handling.
-pub struct ElfService {
-	/// Repository configuration snapshot.
-	pub cfg: Config,
-	/// Postgres storage handle.
-	pub db: Db,
-	/// Qdrant storage handle.
-	pub qdrant: QdrantStore,
-	/// External model-provider adapters.
-	pub providers: Providers,
-}
-impl ElfService {
-	/// Builds a service with the default provider adapters.
-	pub fn new(cfg: Config, db: Db, qdrant: QdrantStore) -> Self {
-		Self { cfg, db, qdrant, providers: Providers::default() }
-	}
-
-	/// Builds a service with explicit provider adapters.
-	pub fn with_providers(cfg: Config, db: Db, qdrant: QdrantStore, providers: Providers) -> Self {
-		Self { cfg, db, qdrant, providers }
-	}
-}
-
-struct ResolveUpdateArgs<'a> {
-	pub(crate) cfg: &'a Config,
-	pub(crate) providers: &'a Providers,
-	pub(crate) tenant_id: &'a str,
-	pub(crate) project_id: &'a str,
-	pub(crate) agent_id: &'a str,
-	pub(crate) scope: &'a str,
-	pub(crate) note_type: &'a str,
-	pub(crate) key: Option<&'a str>,
-	pub(crate) text: &'a str,
-	pub(crate) now: OffsetDateTime,
-}
-
-struct InsertVersionArgs<'a> {
-	pub(crate) note_id: Uuid,
-	pub(crate) op: &'a str,
-	pub(crate) prev_snapshot: Option<Value>,
-	pub(crate) new_snapshot: Option<Value>,
-	pub(crate) reason: &'a str,
-	pub(crate) actor: &'a str,
-	pub(crate) ts: OffsetDateTime,
-}
-
-struct DefaultProviders;
-impl EmbeddingProvider for DefaultProviders {
-	fn embed<'a>(
-		&'a self,
-		cfg: &'a EmbeddingProviderConfig,
-		texts: &'a [String],
-	) -> BoxFuture<'a, Result<Vec<Vec<f32>>>> {
-		Box::pin(async move {
-			embedding::embed(cfg, texts)
-				.await
-				.map_err(|err| Error::Provider { message: err.to_string() })
-		})
-	}
-}
-
-impl RerankProvider for DefaultProviders {
-	fn rerank<'a>(
-		&'a self,
-		cfg: &'a ProviderConfig,
-		query: &'a str,
-		docs: &'a [String],
-	) -> BoxFuture<'a, Result<Vec<f32>>> {
-		Box::pin(async move {
-			rerank::rerank(cfg, query, docs)
-				.await
-				.map_err(|err| Error::Provider { message: err.to_string() })
-		})
-	}
-}
-
-impl ExtractorProvider for DefaultProviders {
-	fn extract<'a>(
-		&'a self,
-		cfg: &'a LlmProviderConfig,
-		messages: &'a [Value],
-	) -> BoxFuture<'a, Result<Value>> {
-		Box::pin(async move {
-			extractor::extract(cfg, messages)
-				.await
-				.map_err(|err| Error::Provider { message: err.to_string() })
-		})
-	}
-}
-
-pub(crate) fn embedding_version(cfg: &Config) -> String {
-	format!(
-		"{}:{}:{}",
-		cfg.providers.embedding.provider_id,
-		cfg.providers.embedding.model,
-		cfg.storage.qdrant.vector_dim
-	)
-}
-
-pub(crate) fn writegate_reason_code(code: RejectCode) -> &'static str {
-	match code {
-		RejectCode::RejectNonEnglish => "REJECT_NON_ENGLISH",
-		RejectCode::RejectTooLong => "REJECT_TOO_LONG",
-		RejectCode::RejectSecret => "REJECT_SECRET",
-		RejectCode::RejectInvalidType => "REJECT_INVALID_TYPE",
-		RejectCode::RejectScopeDenied => "REJECT_SCOPE_DENIED",
-		RejectCode::RejectEmpty => "REJECT_EMPTY",
-	}
-}
-
-pub(crate) fn vector_to_pg(vec: &[f32]) -> String {
-	let mut out = String::with_capacity(vec.len() * 8);
-
-	out.push('[');
-
-	for (i, value) in vec.iter().enumerate() {
-		if i > 0 {
-			out.push(',');
-		}
-
-		out.push_str(&value.to_string());
-	}
-
-	out.push(']');
-
-	out
-}
-
-pub(crate) fn parse_pg_vector(text: &str) -> Result<Vec<f32>> {
-	let trimmed = text.trim();
-	let without_brackets =
-		trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')).ok_or_else(|| {
-			Error::InvalidRequest { message: "Vector text is not bracketed.".to_string() }
-		})?;
-
-	if without_brackets.trim().is_empty() {
-		return Ok(Vec::new());
-	}
-
-	let mut vec = Vec::new();
-
-	for part in without_brackets.split(',') {
-		let value: f32 = part.trim().parse().map_err(|_| Error::InvalidRequest {
-			message: "Vector text contains a non-numeric value.".to_string(),
-		})?;
-
-		vec.push(value);
-	}
-
-	Ok(vec)
-}
-
-pub(crate) fn note_snapshot(note: &MemoryNote) -> Value {
-	serde_json::json!({
-		"note_id": note.note_id,
-		"tenant_id": note.tenant_id,
-		"project_id": note.project_id,
-		"agent_id": note.agent_id,
-		"scope": note.scope,
-		"type": note.r#type,
-		"key": note.key,
-		"text": note.text,
-		"importance": note.importance,
-		"confidence": note.confidence,
-		"status": note.status,
-		"created_at": note.created_at,
-		"updated_at": note.updated_at,
-		"expires_at": note.expires_at,
-		"embedding_version": note.embedding_version,
-		"source_ref": note.source_ref,
-		"hit_count": note.hit_count,
-		"last_hit_at": note.last_hit_at,
-	})
-}
-
-pub(crate) async fn resolve_update<'e, E>(
-	executor: E,
-	args: ResolveUpdateArgs<'_>,
-) -> Result<UpdateDecision>
-where
-	E: PgExecutor<'e>,
-{
-	let ResolveUpdateArgs {
-		cfg,
-		providers,
-		tenant_id,
-		project_id,
-		agent_id,
-		scope,
-		note_type,
-		key,
-		text,
-		now,
-	} = args;
-	let embeddings =
-		providers.embedding.embed(&cfg.providers.embedding, &[text.to_string()]).await?;
-	let Some(vec) = embeddings.into_iter().next() else {
-		return Err(Error::Provider {
-			message: "Embedding provider returned no vectors.".to_string(),
-		});
-	};
-
-	if vec.len() != cfg.storage.qdrant.vector_dim as usize {
-		return Err(Error::Provider {
-			message: "Embedding vector dimension mismatch.".to_string(),
-		});
-	}
-
-	let vec_text = vector_to_pg(&vec);
-	let embed_version = embedding_version(cfg);
-	let key = key.map(|value| value.trim()).filter(|value| !value.is_empty());
-	let row: (Option<Uuid>, Option<Uuid>, Option<f32>) = sqlx::query_as(RESOLVE_UPDATE_QUERY)
-		.bind(tenant_id)
-		.bind(project_id)
-		.bind(agent_id)
-		.bind(scope)
-		.bind(note_type)
-		.bind(key)
-		.bind(now)
-		.bind(vec_text.as_str())
-		.bind(embed_version.as_str())
-		.fetch_one(executor)
-		.await?;
-	let (key_note_id, best_note_id, best_similarity) = row;
-
-	if let Some(note_id) = key_note_id {
-		return Ok(UpdateDecision::Update {
-			note_id,
-			metadata: UpdateDecisionMetadata {
-				similarity_best: None,
-				key_match: true,
-				matched_dup: false,
-			},
-		});
-	}
-
-	let Some(best_id) = best_note_id else {
-		return Ok(UpdateDecision::Add {
-			note_id: Uuid::new_v4(),
-			metadata: UpdateDecisionMetadata {
-				similarity_best: None,
-				key_match: false,
-				matched_dup: false,
-			},
-		});
-	};
-	let Some(best_score) = best_similarity else {
-		return Ok(UpdateDecision::Add {
-			note_id: Uuid::new_v4(),
-			metadata: UpdateDecisionMetadata {
-				similarity_best: None,
-				key_match: false,
-				matched_dup: false,
-			},
-		});
-	};
-
-	if best_score >= cfg.memory.dup_sim_threshold {
-		return Ok(UpdateDecision::None {
-			note_id: best_id,
-			metadata: UpdateDecisionMetadata {
-				similarity_best: Some(best_score),
-				key_match: false,
-				matched_dup: true,
-			},
-		});
-	}
-	if best_score >= cfg.memory.update_sim_threshold {
-		return Ok(UpdateDecision::Update {
-			note_id: best_id,
-			metadata: UpdateDecisionMetadata {
-				similarity_best: Some(best_score),
-				key_match: false,
-				matched_dup: false,
-			},
-		});
-	}
-
-	Ok(UpdateDecision::Add {
-		note_id: Uuid::new_v4(),
-		metadata: UpdateDecisionMetadata {
-			similarity_best: Some(best_score),
-			key_match: false,
-			matched_dup: false,
-		},
-	})
-}
-
-pub(crate) async fn insert_version<'e, E>(executor: E, args: InsertVersionArgs<'_>) -> Result<Uuid>
-where
-	E: PgExecutor<'e>,
-{
-	let InsertVersionArgs { note_id, op, prev_snapshot, new_snapshot, reason, actor, ts } = args;
-	let version_id = Uuid::new_v4();
-
-	sqlx::query(
-		"\
-INSERT INTO memory_note_versions (
-	version_id,
-	note_id,
-	op,
-	prev_snapshot,
-	new_snapshot,
-	reason,
-	actor,
-	ts
-)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
-	)
-	.bind(version_id)
-	.bind(note_id)
-	.bind(op)
-	.bind(prev_snapshot)
-	.bind(new_snapshot)
-	.bind(reason)
-	.bind(actor)
-	.bind(ts)
-	.execute(executor)
-	.await?;
-
-	Ok(version_id)
-}
-
-pub(crate) async fn enqueue_outbox_tx<'e, E>(
-	executor: E,
-	note_id: Uuid,
-	op: &str,
-	embedding_version: &str,
-	now: OffsetDateTime,
-) -> Result<()>
-where
-	E: PgExecutor<'e>,
-{
-	sqlx::query(
-		"\
-INSERT INTO indexing_outbox (
-	outbox_id,
-	note_id,
-	op,
-	embedding_version,
-	status,
-	created_at,
-	updated_at,
-	available_at
-)
-VALUES ($1,$2,$3,$4,'PENDING',$5,$6,$7)",
-	)
-	.bind(Uuid::new_v4())
-	.bind(note_id)
-	.bind(op)
-	.bind(embedding_version)
-	.bind(now)
-	.bind(now)
-	.bind(now)
-	.execute(executor)
-	.await?;
-
-	Ok(())
-}
+use self::{
+	history::{InsertVersionArgs, enqueue_outbox_tx, insert_version, note_snapshot},
+	update_resolution::{
+		ResolveUpdateArgs, UpdateDecision, UpdateDecisionMetadata, resolve_update,
+	},
+	vectors::{embedding_version, parse_pg_vector, vector_to_pg},
+	write_policy::writegate_reason_code,
+};
