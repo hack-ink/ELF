@@ -17,6 +17,14 @@ fn graph_report_service_sources(workspace: &Path) -> Result<String> {
 	Ok(source)
 }
 
+fn mcp_server_sources(workspace: &Path) -> Result<String> {
+	let mut source = fs::read_to_string(workspace.join("apps/elf-mcp/src/app/server.rs"))?;
+
+	append_rust_sources(workspace.join("apps/elf-mcp/src/app/server").as_path(), &mut source)?;
+
+	Ok(source)
+}
+
 fn append_rust_sources(dir: &Path, source: &mut String) -> Result<()> {
 	let mut entries = Vec::new();
 
@@ -47,8 +55,7 @@ fn graph_topic_map_report_wires_source_backed_graph_lite_readback() -> Result<()
 	let graph_report_service = graph_report_service_sources(&workspace)?;
 	let api_routes =
 		fs::read_to_string(support::workspace_root()?.join("apps/elf-api/src/routes.rs"))?;
-	let mcp_server =
-		fs::read_to_string(support::workspace_root()?.join("apps/elf-mcp/src/app/server.rs"))?;
+	let mcp_server = mcp_server_sources(&workspace)?;
 	let graph_spec = fs::read_to_string(
 		support::workspace_root()?.join("docs/spec/system_graph_memory_postgres_v1.md"),
 	)?;
