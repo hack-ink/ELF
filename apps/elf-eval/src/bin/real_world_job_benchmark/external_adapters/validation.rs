@@ -2,14 +2,10 @@ use std::{collections::BTreeSet, path::Path};
 
 use color_eyre::{Result, eyre};
 
-use super::{
-	super::{
-		AdapterCoverageStatus, AdapterScenarioJudgment, EXTERNAL_ADAPTER_MANIFEST_SCHEMA,
-		ElfScenarioPosition, ExternalAdapterManifest, ExternalAdapterReport,
-		ExternalDockerIsolation, SUITES, ScenarioComparisonOutcome,
-		formatting::{adapter_status_str, scenario_comparison_outcome_str, scenario_position_str},
-	},
-	outcome::{position_supports_outcome, scenario_comparison_outcome},
+use crate::{
+	AdapterCoverageStatus, AdapterScenarioJudgment, EXTERNAL_ADAPTER_MANIFEST_SCHEMA,
+	ElfScenarioPosition, ExternalAdapterManifest, ExternalAdapterReport, ExternalDockerIsolation,
+	SUITES, ScenarioComparisonOutcome, external_adapters::outcome, formatting,
 };
 
 pub(super) fn validate_external_adapter_manifest(
@@ -204,7 +200,7 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 			));
 		}
 
-		let outcome = scenario_comparison_outcome(scenario);
+		let outcome = outcome::scenario_comparison_outcome(scenario);
 
 		if blocked_status_missing_blocked_outcome(scenario.status, scenario.comparison_outcome) {
 			return Err(eyre::eyre!(
@@ -220,8 +216,8 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 				path.display(),
 				adapter.adapter_id,
 				scenario.scenario_id,
-				adapter_status_str(scenario.status),
-				scenario_comparison_outcome_str(outcome)
+				formatting::adapter_status_str(scenario.status),
+				formatting::scenario_comparison_outcome_str(outcome)
 			));
 		}
 		if unmeasured_status_has_measured_position(scenario.status, scenario.elf_position) {
@@ -230,8 +226,8 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 				path.display(),
 				adapter.adapter_id,
 				scenario.scenario_id,
-				adapter_status_str(scenario.status),
-				scenario_position_str(scenario.elf_position)
+				formatting::adapter_status_str(scenario.status),
+				formatting::scenario_position_str(scenario.elf_position)
 			));
 		}
 		if explicit_outcome_conflicts_with_position(scenario) {
@@ -240,8 +236,8 @@ fn validate_adapter_scenarios(path: &Path, adapter: &ExternalAdapterReport) -> R
 				path.display(),
 				adapter.adapter_id,
 				scenario.scenario_id,
-				scenario_position_str(scenario.elf_position),
-				scenario_comparison_outcome_str(outcome)
+				formatting::scenario_position_str(scenario.elf_position),
+				formatting::scenario_comparison_outcome_str(outcome)
 			));
 		}
 	}
@@ -295,7 +291,7 @@ fn explicit_outcome_conflicts_with_position(scenario: &AdapterScenarioJudgment) 
 		return false;
 	};
 
-	!position_supports_outcome(scenario.elf_position, outcome)
+	!outcome::position_supports_outcome(scenario.elf_position, outcome)
 }
 
 fn validate_adapter_evidence(path: &Path, adapter: &ExternalAdapterReport) -> Result<()> {

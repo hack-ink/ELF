@@ -25,26 +25,6 @@
 #[path = "real_world_job_benchmark/summary_reports.rs"] mod summary_reports;
 #[path = "real_world_job_benchmark/validation.rs"] mod validation;
 
-use artifacts::*;
-use cli::*;
-use commands::{publish_command, run_command};
-use diagnostic_reports::*;
-use enums::*;
-use external_adapter_reports::*;
-use external_adapters::{external_adapter_section, scenario_comparison_outcome};
-use fixtures::*;
-use job_reports::*;
-use markdown::render_markdown;
-use operational::operational_evidence_report;
-use operational_reports::*;
-use report_root::*;
-use scoreboard::scoreboard_report;
-use scoreboard_reports::*;
-use scoring::{job_report, score_job};
-use summary::{evolution_summary, follow_up_reports, report_summary, suite_reports};
-use summary_reports::*;
-use validation::validate_job;
-
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	fs,
@@ -57,7 +37,67 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
+use artifacts::{
+	AuthorityRecordCount, AuthorityRecoveryDrillArtifact, ConsolidationFixture,
+	ConsolidationProposalFixture, CostReport, DerivedPageArtifact, DerivedPageRebuild,
+	DerivedPageSection, MemorySummaryArtifact, MemorySummaryEntry, MemorySummarySourceTrace,
+	ProactiveBriefArtifact, ProactiveSuggestion, ProducedAnswer, ProducedClaim, RecoveryBackupPitr,
+	RecoveryDeadLetterHandling, RecoveryDegradedRead, RecoveryDrillTopology, RecoveryMeasurement,
+	RecoveryMigrationRepair, RecoveryOutboxReplay, RecoveryQdrantRebuild,
+	ScheduledMemoryExecutionTrace, ScheduledMemoryOutput, ScheduledMemoryTaskArtifact,
+	WorkContinuityObserved, WorkJournalEntryArtifact, WorkJournalJanitorCandidateArtifact,
+	WorkJournalNextStepArtifact, WorkJournalReadbackArtifact, WorkJournalRejectedOptionArtifact,
+	WorkJournalWhereStoppedArtifact,
+};
+use cli::{Args, Command, PublishArgs, RunArgs};
+use diagnostic_reports::{
+	OperatorDebugEvidence, OperatorUxGap, TraceExplainability, TraceStageExplainability,
+};
 use elf_cli::VERSION;
+use enums::{
+	AdapterCoverageStatus, ConsolidationReviewAction, CorpusProfile, ElfScenarioPosition,
+	EvidenceLink, ExpectedClaim, ScenarioComparisonOutcome, TypedStatus,
+};
+use external_adapter_reports::{
+	AdapterReport, AdapterScenarioJudgment, AdapterSource, AdapterStatusCounts,
+	AdapterSuiteCoverage, CaptureIntegrationReport, ExternalAdapterManifest, ExternalAdapterReport,
+	ExternalAdapterSection, ExternalAdapterSummary, ExternalDockerIsolation, ScenarioOutcomeCounts,
+	ScenarioPositionCounts,
+};
+use external_adapters::{external_adapter_section, scenario_comparison_outcome};
+use fixtures::{
+	EvolutionConflict, FollowUpInput, MemoryEvolution, NegativeTrap, RealWorldJob,
+	RequiredEvidence, TemporalValidity, UpdateRationale, WorkContinuityExpectation,
+};
+use job_reports::{
+	ConsolidationExecutableGapReport, ConsolidationJobReport, ConsolidationProposalReport,
+	DimensionScoreReport, EvolutionJobReport, EvolutionSummary, ExpectedEvidenceReport,
+	FailureCounts, FollowUpReport, JobMetrics, JobReport, JobScoring, KnowledgeJobMetrics,
+	MemorySummaryJobMetrics, PrivateCorpusRedaction, ProactiveBriefJobMetrics,
+	RetrievalQualityReport, ScheduledMemoryJobMetrics, ScoreboardRankedMetrics,
+	UnsupportedClaimReport, WorkContinuityJobMetrics,
+};
+use markdown::render_markdown;
+use operational::operational_evidence_report;
+use operational_reports::{
+	OperationalAuthorityRecoveryReport, OperationalColdStartRestoreRebuild, OperationalCostSummary,
+	OperationalEvidenceReport, OperationalEvidenceTierReport, OperationalLatencyReport,
+	OperationalResourceSummary,
+};
+use report_root::RealWorldReport;
+use scoreboard::scoreboard_report;
+use scoreboard_reports::{
+	ScoreboardAnswerSafetyMetrics, ScoreboardCoverageMetrics, ScoreboardLifecycleMetrics,
+	ScoreboardMetrics, ScoreboardOperationalMetrics, ScoreboardReport, ScoreboardRetrievalMetrics,
+	ScoreboardRow,
+};
+use scoring::{job_report, score_job};
+use summary::{evolution_summary, follow_up_reports, report_summary, suite_reports};
+use summary_reports::{
+	ConsolidationSummaryReport, KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport,
+	ReportSummary, ScheduledMemorySummaryReport, SuiteReport, WorkContinuitySummaryReport,
+};
+use validation::validate_job;
 
 const JOB_SCHEMA: &str = "elf.real_world_job/v1";
 const REPORT_SCHEMA: &str = "elf.real_world_job_report/v1";
@@ -127,7 +167,7 @@ fn main() -> Result<()> {
 	color_eyre::install()?;
 
 	match Args::parse().command {
-		Command::Run(args) => run_command(args),
-		Command::Publish(args) => publish_command(args),
+		Command::Run(args) => commands::run_command(args),
+		Command::Publish(args) => commands::publish_command(args),
 	}
 }

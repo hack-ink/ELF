@@ -1,4 +1,7 @@
-use super::*;
+use crate::docs::validation::{
+	DEFAULT_L0_MAX_BYTES, DEFAULT_L1_MAX_BYTES, DEFAULT_L2_MAX_BYTES, DEFAULT_MAX_CHUNKS_PER_DOC,
+	DocChunkingProfile, DocType, Error, Result, TextQuoteSelector, english_gate,
+};
 
 pub(in crate::docs) fn resolve_doc_chunking_profile(doc_type: DocType) -> DocChunkingProfile {
 	match doc_type {

@@ -1,4 +1,9 @@
-use super::super::*;
+use crate::{
+	access,
+	search::{
+		ElfService, HashMap, MemoryNote, NoteMeta, ORG_PROJECT_ID, OffsetDateTime, Result, Uuid,
+	},
+};
 
 impl ElfService {
 	pub(in crate::search) async fn fetch_note_meta_for_candidates(

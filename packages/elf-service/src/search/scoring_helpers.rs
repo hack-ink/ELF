@@ -1,4 +1,7 @@
-use super::*;
+use crate::search::{
+	ChunkSnippet, HashMap, NormalizationKind, Ordering, ScoreCandidateCtx, ScoredChunk, Uuid,
+	ranking,
+};
 
 pub(super) fn select_best_scored_chunks(scored: Vec<ScoredChunk>) -> Vec<ScoredChunk> {
 	let mut best_by_note: HashMap<Uuid, ScoredChunk> = HashMap::new();

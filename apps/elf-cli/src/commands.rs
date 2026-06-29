@@ -4,12 +4,12 @@ use serde_json::Value;
 
 use crate::{
 	args::{AddNoteArgs, SearchArgs, StatusArgs},
-	http::{JsonRequest, header_string, join_url, redact_url, request_json},
-	json::{search_body, source_ref, write_json},
+	http::{self, JsonRequest, redact_url},
+	json::{self},
 };
 
 pub(crate) async fn run_add_note(client: &Client, args: AddNoteArgs) -> Result<()> {
-	let source_ref = source_ref(&args.source_id, args.source_ref_json.as_deref())?;
+	let source_ref = json::source_ref(&args.source_id, args.source_ref_json.as_deref())?;
 	let body = serde_json::json!({
 		"scope": args.scope,
 		"notes": [{
@@ -22,7 +22,7 @@ pub(crate) async fn run_add_note(client: &Client, args: AddNoteArgs) -> Result<(
 			"source_ref": source_ref,
 		}],
 	});
-	let response = request_json(
+	let response = http::request_json(
 		client,
 		JsonRequest {
 			method: Method::POST,
@@ -49,11 +49,11 @@ pub(crate) async fn run_add_note(client: &Client, args: AddNoteArgs) -> Result<(
 		"response": response,
 	});
 
-	write_json(&output, args.output.pretty)
+	json::write_json(&output, args.output.pretty)
 }
 
 pub(crate) async fn run_search(client: &Client, args: SearchArgs) -> Result<()> {
-	let body = search_body(
+	let body = json::search_body(
 		args.query,
 		args.mode,
 		args.top_k,
@@ -61,7 +61,7 @@ pub(crate) async fn run_search(client: &Client, args: SearchArgs) -> Result<()> 
 		args.payload_level,
 		args.filter_json.as_deref(),
 	)?;
-	let response = request_json(
+	let response = http::request_json(
 		client,
 		JsonRequest {
 			method: Method::POST,
@@ -90,11 +90,11 @@ pub(crate) async fn run_search(client: &Client, args: SearchArgs) -> Result<()> 
 		"response": response,
 	});
 
-	write_json(&output, args.output.pretty)
+	json::write_json(&output, args.output.pretty)
 }
 
 pub(crate) async fn run_status(client: &Client, args: StatusArgs) -> Result<()> {
-	let url = join_url(&args.endpoint.api_url, "/health");
+	let url = http::join_url(&args.endpoint.api_url, "/health");
 	let mut request = client.get(&url);
 
 	if let Some(token) = args.endpoint.token.as_deref() {
@@ -103,7 +103,7 @@ pub(crate) async fn run_status(client: &Client, args: StatusArgs) -> Result<()> 
 
 	let response = request.send().await?;
 	let status = response.status();
-	let request_id = header_string(response.headers(), "x-elf-request-id");
+	let request_id = http::header_string(response.headers(), "x-elf-request-id");
 	let body = response.text().await?;
 	let output = serde_json::json!({
 		"schema": "elf.cli.status/v1",
@@ -116,7 +116,7 @@ pub(crate) async fn run_status(client: &Client, args: StatusArgs) -> Result<()> 
 		},
 	});
 
-	write_json(&output, args.output.pretty)?;
+	json::write_json(&output, args.output.pretty)?;
 
 	if status.is_success() {
 		Ok(())

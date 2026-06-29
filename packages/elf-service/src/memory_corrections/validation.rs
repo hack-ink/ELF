@@ -2,11 +2,9 @@ use serde_json::{Map, Value};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{Error, Result};
+use crate::{Error, Result, memory_corrections::types::MemoryCorrectionAction};
 use elf_config::Scopes;
 use elf_storage::models::MemoryNote;
-
-use super::types::MemoryCorrectionAction;
 
 pub(super) fn validate_correction_request(
 	tenant_id: &str,

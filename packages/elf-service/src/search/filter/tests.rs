@@ -4,11 +4,14 @@ use serde_json::{Map, Value};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::search::{ChunkCandidate, NoteMeta};
-
-use super::{
-	SearchFilter,
-	parser::{MAX_FILTER_NODES, MAX_IN_LIST_ITEMS, MAX_STRING_BYTES, SEARCH_FILTER_EXPR_SCHEMA_V1},
+use crate::search::{
+	ChunkCandidate, NoteMeta,
+	filter::{
+		SearchFilter,
+		parser::{
+			MAX_FILTER_NODES, MAX_IN_LIST_ITEMS, MAX_STRING_BYTES, SEARCH_FILTER_EXPR_SCHEMA_V1,
+		},
+	},
 };
 
 fn note_meta() -> NoteMeta {

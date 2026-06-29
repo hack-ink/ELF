@@ -1,4 +1,9 @@
-use super::*;
+use crate::validation::{
+	self, AUTHORITY_RECOVERY_DRILL_SCHEMA, AuthorityRecoveryDrillArtifact, BTreeSet, Path,
+	REQUIRED_AUTHORITY_PLANES, RecoveryBackupPitr, RecoveryDeadLetterHandling,
+	RecoveryDegradedRead, RecoveryDrillTopology, RecoveryMeasurement, RecoveryMigrationRepair,
+	RecoveryOutboxReplay, RecoveryQdrantRebuild, Result, eyre,
+};
 
 pub(super) fn validate_authority_recovery_drill_artifact(
 	drill: &AuthorityRecoveryDrillArtifact,
@@ -12,7 +17,8 @@ pub(super) fn validate_authority_recovery_drill_artifact(
 		return Err(eyre::eyre!("{} has an incomplete authority recovery drill.", path.display()));
 	}
 
-	validate_optional_rfc3339(&drill.generated_at, path, drill.drill_id.as_str())?;
+	validation::validate_optional_rfc3339(&drill.generated_at, path, drill.drill_id.as_str())?;
+
 	validate_recovery_topology(&drill.topology, path, drill.drill_id.as_str())?;
 	validate_recovery_backup_pitr(&drill.backup_pitr, path, evidence_ids)?;
 	validate_recovery_degraded_read(&drill.degraded_read, path, evidence_ids)?;
@@ -39,9 +45,17 @@ pub(super) fn validate_authority_recovery_drill_artifact(
 			));
 		}
 
-		validate_optional_rfc3339(&injection.started_at, path, injection.injection_id.as_str())?;
-		validate_optional_rfc3339(&injection.completed_at, path, injection.injection_id.as_str())?;
-		ensure_known_evidence_refs(path, evidence_ids, &injection.evidence_refs)?;
+		validation::validate_optional_rfc3339(
+			&injection.started_at,
+			path,
+			injection.injection_id.as_str(),
+		)?;
+		validation::validate_optional_rfc3339(
+			&injection.completed_at,
+			path,
+			injection.injection_id.as_str(),
+		)?;
+		validation::ensure_known_evidence_refs(path, evidence_ids, &injection.evidence_refs)?;
 	}
 
 	if drill.failure_injections.is_empty() {
@@ -87,9 +101,13 @@ fn validate_recovery_backup_pitr(
 		return Err(eyre::eyre!("{} has incomplete backup/PITR drill evidence.", path.display()));
 	}
 
-	validate_optional_rfc3339(&backup_pitr.pitr_target, path, backup_pitr.backup_ref.as_str())?;
+	validation::validate_optional_rfc3339(
+		&backup_pitr.pitr_target,
+		path,
+		backup_pitr.backup_ref.as_str(),
+	)?;
 
-	ensure_known_evidence_refs(path, evidence_ids, &backup_pitr.evidence_refs)
+	validation::ensure_known_evidence_refs(path, evidence_ids, &backup_pitr.evidence_refs)
 }
 
 fn validate_recovery_degraded_read(
@@ -107,7 +125,7 @@ fn validate_recovery_degraded_read(
 		));
 	}
 
-	ensure_known_evidence_refs(path, evidence_ids, &degraded_read.evidence_refs)
+	validation::ensure_known_evidence_refs(path, evidence_ids, &degraded_read.evidence_refs)
 }
 
 fn validate_recovery_measurement(
@@ -124,11 +142,11 @@ fn validate_recovery_measurement(
 	{
 		return Err(eyre::eyre!("{} has invalid {label} recovery measurement.", path.display()));
 	}
-	if !recovery_measurement_met(measurement) {
+	if !validation::recovery_measurement_met(measurement) {
 		return Err(eyre::eyre!("{} exceeded {label} recovery target.", path.display()));
 	}
 
-	ensure_known_evidence_refs(path, evidence_ids, &measurement.evidence_refs)
+	validation::ensure_known_evidence_refs(path, evidence_ids, &measurement.evidence_refs)
 }
 
 fn validate_recovery_authority_record_counts(
@@ -185,7 +203,7 @@ fn validate_recovery_authority_record_counts(
 			));
 		}
 
-		ensure_known_evidence_refs(path, evidence_ids, &count.evidence_refs)?;
+		validation::ensure_known_evidence_refs(path, evidence_ids, &count.evidence_refs)?;
 	}
 
 	Ok(())
@@ -196,11 +214,11 @@ fn validate_recovery_outbox_replay(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if replay.evidence_refs.is_empty() || !recovery_outbox_replay_succeeded(replay) {
+	if replay.evidence_refs.is_empty() || !validation::recovery_outbox_replay_succeeded(replay) {
 		return Err(eyre::eyre!("{} has incomplete outbox replay drill evidence.", path.display()));
 	}
 
-	ensure_known_evidence_refs(path, evidence_ids, &replay.evidence_refs)
+	validation::ensure_known_evidence_refs(path, evidence_ids, &replay.evidence_refs)
 }
 
 fn validate_recovery_qdrant_rebuild(
@@ -208,14 +226,14 @@ fn validate_recovery_qdrant_rebuild(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if rebuild.evidence_refs.is_empty() || !recovery_qdrant_rebuild_succeeded(rebuild) {
+	if rebuild.evidence_refs.is_empty() || !validation::recovery_qdrant_rebuild_succeeded(rebuild) {
 		return Err(eyre::eyre!(
 			"{} has incomplete Qdrant rebuild drill evidence.",
 			path.display()
 		));
 	}
 
-	ensure_known_evidence_refs(path, evidence_ids, &rebuild.evidence_refs)
+	validation::ensure_known_evidence_refs(path, evidence_ids, &rebuild.evidence_refs)
 }
 
 fn validate_recovery_migration_repair(
@@ -223,14 +241,14 @@ fn validate_recovery_migration_repair(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if repair.evidence_refs.is_empty() || !recovery_migration_repair_succeeded(repair) {
+	if repair.evidence_refs.is_empty() || !validation::recovery_migration_repair_succeeded(repair) {
 		return Err(eyre::eyre!(
 			"{} has incomplete migration repair drill evidence.",
 			path.display()
 		));
 	}
 
-	ensure_known_evidence_refs(path, evidence_ids, &repair.evidence_refs)
+	validation::ensure_known_evidence_refs(path, evidence_ids, &repair.evidence_refs)
 }
 
 fn validate_recovery_dead_letter(
@@ -238,12 +256,14 @@ fn validate_recovery_dead_letter(
 	path: &Path,
 	evidence_ids: &BTreeSet<String>,
 ) -> Result<()> {
-	if dead_letter.evidence_refs.is_empty() || !recovery_dead_letter_succeeded(dead_letter) {
+	if dead_letter.evidence_refs.is_empty()
+		|| !validation::recovery_dead_letter_succeeded(dead_letter)
+	{
 		return Err(eyre::eyre!(
 			"{} has incomplete dead-letter handling drill evidence.",
 			path.display()
 		));
 	}
 
-	ensure_known_evidence_refs(path, evidence_ids, &dead_letter.evidence_refs)
+	validation::ensure_known_evidence_refs(path, evidence_ids, &dead_letter.evidence_refs)
 }

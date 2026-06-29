@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::watch::{
+	BTreeMap, BTreeSet, KnowledgePageChangedSource, KnowledgePageRebuildOutput,
+	KnowledgePageSection, KnowledgePageSectionRebuildState, KnowledgePageSectionResponse,
+	KnowledgePageSourceRef, KnowledgeSourceKind, LintDraft, Uuid, Value, serde_json,
+};
 
 pub(in crate::knowledge) fn rebuild_outputs(
 	sections: &[KnowledgePageSection],

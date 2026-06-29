@@ -1,5 +1,7 @@
-use super::types::{AddEventResult, NoteProcessingData};
-use crate::{NoteOp, UpdateDecision};
+use crate::{
+	NoteOp, UpdateDecision,
+	add_event::types::{AddEventResult, NoteProcessingData},
+};
 use elf_config::Config;
 use elf_domain::memory_policy::{self, MemoryPolicyDecision};
 

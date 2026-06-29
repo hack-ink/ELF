@@ -1,4 +1,4 @@
-use super::*;
+use crate::consolidation::{ConsolidationValidationError, Deserialize, Serialize};
 
 /// Derived-output apply intent for a reviewable proposal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]

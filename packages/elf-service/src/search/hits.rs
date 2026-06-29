@@ -1,4 +1,4 @@
-use super::*;
+use crate::search::{OffsetDateTime, PgExecutor, Result, ScoredChunk, Uuid, ranking};
 
 pub(super) async fn record_hits<'e, E>(
 	executor: E,

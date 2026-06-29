@@ -1,4 +1,7 @@
-use super::*;
+use crate::evidence_selection::{
+	self, BTreeSet, CorpusText, IngestedCorpus, LiveExpectedClaim, LoadedJob, SelectedEvidenceText,
+	TemporalReconciliationMaterializationEvidence, TraceStageOutput,
+};
 
 pub(super) fn required_evidence_satisfied_impl(
 	loaded: &LoadedJob,
@@ -30,12 +33,12 @@ pub(super) fn selected_required_corpus_texts_impl(
 
 	if required_ids.is_empty() {
 		for evidence_id in retrieved_evidence_ids.iter().take(1) {
-			push_unique(&mut selected_ids, evidence_id.clone());
+			evidence_selection::push_unique(&mut selected_ids, evidence_id.clone());
 		}
 	} else {
 		for evidence in &loaded.job.required_evidence {
 			if retrieved_evidence_ids.iter().any(|id| id == &evidence.evidence_id) {
-				push_unique(&mut selected_ids, evidence.evidence_id.clone());
+				evidence_selection::push_unique(&mut selected_ids, evidence.evidence_id.clone());
 			}
 		}
 	}
@@ -62,13 +65,13 @@ pub(super) fn live_required_evidence_ids_impl(
 
 	for evidence in &loaded.job.required_evidence {
 		if ingested.note_ids_by_evidence.contains_key(&evidence.evidence_id) {
-			push_unique(&mut selected, evidence.evidence_id.clone());
+			evidence_selection::push_unique(&mut selected, evidence.evidence_id.clone());
 		}
 	}
 
 	if selected.is_empty() {
 		for evidence_id in ingested.note_ids_by_evidence.keys() {
-			push_unique(&mut selected, evidence_id.clone());
+			evidence_selection::push_unique(&mut selected, evidence_id.clone());
 		}
 
 		selected.sort();
@@ -111,11 +114,18 @@ pub(super) fn elf_selected_evidence_text_impl(
 			None,
 		);
 	}
-	if let Some(selection) =
-		temporal_reconciliation_selection(loaded, stored_corpus, evidence_ids, ingested)
-	{
+	if let Some(selection) = evidence_selection::temporal_reconciliation_selection(
+		loaded,
+		stored_corpus,
+		evidence_ids,
+		ingested,
+	) {
 		return (selection.selected, Some(selection.evidence), Some(selection.trace_stages));
 	}
 
-	(selected_required_corpus_texts(loaded, stored_corpus, evidence_ids), None, None)
+	(
+		evidence_selection::selected_required_corpus_texts(loaded, stored_corpus, evidence_ids),
+		None,
+		None,
+	)
 }

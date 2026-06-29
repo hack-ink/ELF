@@ -1,4 +1,6 @@
-use super::*;
+use crate::search::{
+	ChunkRow, HashMap, HashSet, NoteVectorRow, PgExecutor, QueryBuilder, Result, ScoredChunk, Uuid,
+};
 
 pub(super) async fn fetch_chunks_by_pair<'e, E>(
 	executor: E,

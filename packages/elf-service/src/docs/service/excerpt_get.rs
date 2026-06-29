@@ -1,4 +1,7 @@
-use super::*;
+use crate::docs::service::{
+	self, DocExcerptRange, DocTrajectoryBuilder, DocsExcerptResponse, DocsExcerptVerification,
+	DocsExcerptsGetRequest, ElfService, Result, Uuid,
+};
 
 impl ElfService {
 	/// Resolves and verifies an excerpt window from quote, position, or chunk selectors.
@@ -22,7 +25,7 @@ impl ElfService {
 			}),
 		);
 
-		validate_docs_excerpts_get(
+		service::validate_docs_excerpts_get(
 			tenant_id,
 			project_id,
 			agent_id,
@@ -30,7 +33,7 @@ impl ElfService {
 			req.quote.as_ref(),
 		)?;
 
-		let doc = load_docs_excerpt_context(
+		let doc = service::load_docs_excerpt_context(
 			&self.cfg,
 			&self.db.pool,
 			tenant_id,
@@ -40,7 +43,7 @@ impl ElfService {
 			req.doc_id,
 		)
 		.await?;
-		let level_max = excerpt_level_max(req.level.as_str())?;
+		let level_max = service::excerpt_level_max(req.level.as_str())?;
 
 		trajectory.push(
 			"level_selection",
@@ -58,7 +61,7 @@ impl ElfService {
 			match_end_offset,
 			start_offset,
 			end_offset,
-		} = docs_excerpts_resolve_windowed_match(
+		} = service::docs_excerpts_resolve_windowed_match(
 			&self.db.pool,
 			&doc,
 			&req,
@@ -92,7 +95,7 @@ impl ElfService {
 			excerpt,
 			start_offset,
 			end_offset,
-			locator: docs_excerpt_locator(
+			locator: service::docs_excerpt_locator(
 				&req,
 				&selector_kind,
 				match_start_offset,

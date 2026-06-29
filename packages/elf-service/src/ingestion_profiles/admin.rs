@@ -1,23 +1,20 @@
 use time::OffsetDateTime;
 
-use super::{
-	ADD_EVENT_PIPELINE,
-	profile::parse_profile,
-	storage::{
-		insert_profile_metadata, list_latest_profile_summaries, list_profile_version_summaries,
-		next_profile_version, seed_default_profile, select_default_row, select_default_selector,
-		select_profile_metadata, upsert_default_row,
-	},
-	types::{
-		AdminIngestionProfileCreateRequest, AdminIngestionProfileDefaultGetRequest,
-		AdminIngestionProfileDefaultResponse, AdminIngestionProfileDefaultSetRequest,
-		AdminIngestionProfileGetRequest, AdminIngestionProfileListRequest,
-		AdminIngestionProfileResponse, AdminIngestionProfileSummary,
-		AdminIngestionProfileVersionsListRequest, AdminIngestionProfileVersionsListResponse,
-		AdminIngestionProfilesListResponse, IngestionProfileSelector,
+use crate::{
+	ElfService, Error, Result,
+	ingestion_profiles::{
+		ADD_EVENT_PIPELINE, profile,
+		storage::{self},
+		types::{
+			AdminIngestionProfileCreateRequest, AdminIngestionProfileDefaultGetRequest,
+			AdminIngestionProfileDefaultResponse, AdminIngestionProfileDefaultSetRequest,
+			AdminIngestionProfileGetRequest, AdminIngestionProfileListRequest,
+			AdminIngestionProfileResponse, AdminIngestionProfileSummary,
+			AdminIngestionProfileVersionsListRequest, AdminIngestionProfileVersionsListResponse,
+			AdminIngestionProfilesListResponse, IngestionProfileSelector,
+		},
 	},
 };
-use crate::{ElfService, Error, Result};
 
 impl ElfService {
 	/// Creates a new ingestion profile version.
@@ -44,7 +41,7 @@ impl ElfService {
 			});
 		}
 
-		let _ = parse_profile(req.profile.clone())?;
+		let _ = profile::parse_profile(req.profile.clone())?;
 		let version = match req.version {
 			Some(version) if version > 0 => version,
 			Some(_) => {
@@ -53,7 +50,7 @@ impl ElfService {
 				});
 			},
 			None =>
-				next_profile_version(
+				storage::next_profile_version(
 					&self.db.pool,
 					req.tenant_id.as_str(),
 					req.project_id.as_str(),
@@ -61,7 +58,7 @@ impl ElfService {
 				)
 				.await?,
 		};
-		let row = insert_profile_metadata(
+		let row = storage::insert_profile_metadata(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -92,7 +89,7 @@ impl ElfService {
 		&self,
 		req: AdminIngestionProfileListRequest,
 	) -> Result<AdminIngestionProfilesListResponse> {
-		let rows = list_latest_profile_summaries(
+		let rows = storage::list_latest_profile_summaries(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -135,7 +132,7 @@ impl ElfService {
 			});
 		}
 
-		let row = select_profile_metadata(
+		let row = storage::select_profile_metadata(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -165,7 +162,7 @@ impl ElfService {
 			});
 		}
 
-		let rows = list_profile_version_summaries(
+		let rows = storage::list_profile_version_summaries(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -190,16 +187,23 @@ impl ElfService {
 		&self,
 		req: AdminIngestionProfileDefaultGetRequest,
 	) -> Result<AdminIngestionProfileDefaultResponse> {
-		seed_default_profile(&self.db.pool, req.tenant_id.as_str(), req.project_id.as_str())
-			.await?;
+		storage::seed_default_profile(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+		)
+		.await?;
 
-		let row =
-			select_default_row(&self.db.pool, req.tenant_id.as_str(), req.project_id.as_str())
-				.await?;
+		let row = storage::select_default_row(
+			&self.db.pool,
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+		)
+		.await?;
 		let row = match row {
 			Some(row) => row,
 			None => {
-				let selector = select_default_selector(
+				let selector = storage::select_default_selector(
 					&self.db.pool,
 					req.tenant_id.as_str(),
 					req.project_id.as_str(),
@@ -243,7 +247,7 @@ impl ElfService {
 		}
 
 		let selector = IngestionProfileSelector { id: profile_id.clone(), version: req.version };
-		let row = select_profile_metadata(
+		let row = storage::select_profile_metadata(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -251,7 +255,7 @@ impl ElfService {
 		)
 		.await?;
 		let version = row.version;
-		let row = upsert_default_row(
+		let row = storage::upsert_default_row(
 			&self.db.pool,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),

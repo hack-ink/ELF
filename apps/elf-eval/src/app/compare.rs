@@ -1,5 +1,5 @@
-use super::{
-	metrics::churn_against_baseline_at_k,
+use crate::app::{
+	metrics,
 	types::{
 		CompareQueryReport, EvalSummary, EvalSummaryDelta, PolicyChurn, PolicyStabilitySummary,
 		QueryReport, QueryStabilityDelta, QueryVariantDelta, QueryVariantReport,
@@ -46,7 +46,7 @@ pub(super) fn build_compare_queries(
 				}),
 				_ => None,
 			};
-			let (positional_churn_at_k, set_churn_at_k) = churn_against_baseline_at_k(
+			let (positional_churn_at_k, set_churn_at_k) = metrics::churn_against_baseline_at_k(
 				&qa.retrieved_note_ids,
 				&qb.retrieved_note_ids,
 				k_usize,

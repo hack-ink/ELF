@@ -1,4 +1,7 @@
-use super::*;
+use crate::worker::{
+	ChunkingConfig, Db, Deserialize, EmbeddingProviderConfig, FromRow, OffsetDateTime, QdrantStore,
+	Tokenizer, Uuid, Value,
+};
 
 pub(super) type ProjectDocRefFields = (String, Option<String>, Option<String>, Option<String>);
 

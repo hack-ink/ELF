@@ -1,8 +1,8 @@
-use super::types::{
-	AddEventRequest, AddEventResult, EventMessage, EvidenceQuote, ProcessedEventOutput,
-};
 use crate::{
 	Error, NoteOp, REJECT_EVIDENCE_MISMATCH, REJECT_WRITE_POLICY_MISMATCH, Result,
+	add_event::types::{
+		AddEventRequest, AddEventResult, EventMessage, EvidenceQuote, ProcessedEventOutput,
+	},
 	structured_fields::{self, StructuredFields},
 };
 use elf_config::Config;

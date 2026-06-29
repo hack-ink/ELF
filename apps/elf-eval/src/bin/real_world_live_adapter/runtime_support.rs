@@ -1,6 +1,23 @@
-use super::*;
+use std::{
+	collections::BTreeSet,
+	fs::{self, OpenOptions},
+	io::Write as _,
+	path::Path,
+	process::{Command, Stdio},
+	sync::Arc,
+};
 
-pub(super) fn runtime_config(runtime: &BaselineRuntime) -> color_eyre::Result<Config> {
+use blake3::Hasher;
+use color_eyre::{Result, eyre};
+
+use crate::{
+	BaselineRuntime, DeterministicEmbedding, ELF_NOTE_CHUNK_CHARS, NoopExtractor, QmdArgs,
+	TokenOverlapRerank,
+};
+use elf_config::Config;
+use elf_service::Providers;
+
+pub(super) fn runtime_config(runtime: &BaselineRuntime) -> Result<Config> {
 	let mut cfg = elf_config::load(&runtime.config_path)?;
 
 	cfg.storage.postgres.dsn = runtime.dsn.clone();
@@ -34,7 +51,7 @@ pub(super) fn run_qmd_command(
 	home_dir: &Path,
 	qmd_args: &[&str],
 	log_path: &Path,
-) -> color_eyre::Result<String> {
+) -> Result<String> {
 	let mut command = Command::new("npx");
 
 	command
@@ -57,7 +74,7 @@ pub(super) fn run_logged_shell(
 	cwd: &Path,
 	script: &str,
 	log_path: &Path,
-) -> color_eyre::Result<()> {
+) -> Result<()> {
 	let mut command = Command::new("bash");
 
 	command.current_dir(cwd).arg("-lc").arg(script);
@@ -69,7 +86,7 @@ pub(super) fn run_logged_command(
 	label: &str,
 	command: &mut Command,
 	log_path: &Path,
-) -> color_eyre::Result<String> {
+) -> Result<String> {
 	if let Some(parent) = log_path.parent() {
 		fs::create_dir_all(parent)?;
 	}

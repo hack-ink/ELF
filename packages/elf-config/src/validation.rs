@@ -1,5 +1,3 @@
-use crate::{Config, Result};
-
 mod chunking;
 mod context;
 mod mcp;
@@ -10,6 +8,8 @@ mod search;
 mod security;
 mod service;
 mod storage;
+
+use crate::{Config, Result};
 
 /// Validates a deserialized ELF configuration against repository runtime rules.
 pub fn validate(cfg: &Config) -> Result<()> {

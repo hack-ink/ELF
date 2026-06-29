@@ -2,14 +2,14 @@ use std::collections::HashSet;
 
 use serde_json::Value;
 
-use super::types::{
-	CoreBlockAttachRequest, CoreBlockAttachmentRow, CoreBlockDetachRequest, CoreBlockJoinedRow,
-	CoreBlockRow, CoreBlockUpsertRequest, CoreBlocksGetRequest, MAX_CORE_BLOCK_CONTENT_CHARS,
-	PreparedAttachRequest, PreparedDetachRequest, PreparedGetRequest, PreparedUpsertRequest,
-};
 use crate::{
 	Error, Result,
 	access::{self, ORG_PROJECT_ID},
+	core_blocks::types::{
+		CoreBlockAttachRequest, CoreBlockAttachmentRow, CoreBlockDetachRequest, CoreBlockJoinedRow,
+		CoreBlockRow, CoreBlockUpsertRequest, CoreBlocksGetRequest, MAX_CORE_BLOCK_CONTENT_CHARS,
+		PreparedAttachRequest, PreparedDetachRequest, PreparedGetRequest, PreparedUpsertRequest,
+	},
 	search,
 };
 use elf_config::Config;

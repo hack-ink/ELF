@@ -1,4 +1,4 @@
-use super::*;
+use crate::evidence_selection::{self, BTreeSet};
 
 pub(super) fn push_if_selected(
 	out: &mut Vec<String>,
@@ -6,6 +6,6 @@ pub(super) fn push_if_selected(
 	selected: &BTreeSet<&str>,
 ) {
 	if selected.contains(evidence_id) {
-		push_unique(out, evidence_id.to_string());
+		evidence_selection::push_unique(out, evidence_id.to_string());
 	}
 }

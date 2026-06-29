@@ -17,7 +17,6 @@ SELECT
 FROM consolidation_runs
 WHERE tenant_id = $1 AND project_id = $2 AND run_id = $3
 LIMIT 1";
-
 pub(super) const CONSOLIDATION_PROPOSAL_SELECT: &str = "\
 SELECT
 	proposal_id,

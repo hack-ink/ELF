@@ -1,4 +1,9 @@
-use super::super::*;
+use crate::search::{
+	DynamicGateSummary, ElfService, ExpansionMode, FinishSearchArgs, MaybeDynamicSearchArgs,
+	OffsetDateTime, QueryEmbedding, RecursiveRetrievalArgs, Result, RetrievalSourceCandidates,
+	RetrievalSourceKind, SearchResponse, SearchRetrievalArgs, SearchRetrievalResult,
+	StructuredFieldRetrievalArgs, StructuredFieldRetrievalResult, ranking,
+};
 
 impl ElfService {
 	pub(in crate::search) async fn maybe_finish_dynamic_search(

@@ -1,4 +1,4 @@
-use super::*;
+use crate::{BTreeMap, Deserialize, EmbeddingMode, Parser, PathBuf, Serialize, Uuid, Value};
 
 #[derive(Debug, Parser)]
 #[command(version = elf_cli::VERSION, rename_all = "kebab", styles = elf_cli::styles())]
@@ -50,7 +50,7 @@ impl QueryCase {
 			id,
 			task: None,
 			query,
-			expected_evidence_ids: vec![evidence_id_for_doc(&expected_doc)],
+			expected_evidence_ids: vec![crate::evidence_id_for_doc(&expected_doc)],
 			allowed_alternate_docs: Vec::new(),
 			allowed_alternate_evidence_ids: Vec::new(),
 			expected_doc,

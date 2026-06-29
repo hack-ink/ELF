@@ -1,7 +1,9 @@
 use uuid::Uuid;
 
-use super::{types::NoteProvenanceGetRequest, validation};
-use crate::Error;
+use crate::{
+	Error,
+	provenance::{types::NoteProvenanceGetRequest, validation},
+};
 
 #[test]
 fn normalize_note_provenance_request_trims_ids() {

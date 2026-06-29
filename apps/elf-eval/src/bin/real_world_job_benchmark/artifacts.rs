@@ -8,12 +8,24 @@
 #[path = "artifacts/scheduled.rs"] mod scheduled;
 #[path = "artifacts/work.rs"] mod work;
 
-pub(super) use answer::*;
-pub(super) use consolidation::*;
-pub(super) use cost::*;
-pub(super) use knowledge::*;
-pub(super) use memory::*;
-pub(super) use proactive::*;
-pub(super) use recovery::*;
-pub(super) use scheduled::*;
-pub(super) use work::*;
+pub(super) use self::{
+	answer::{ProducedAnswer, ProducedClaim},
+	consolidation::{ConsolidationFixture, ConsolidationProposalFixture},
+	cost::CostReport,
+	knowledge::{DerivedPageArtifact, DerivedPageRebuild, DerivedPageSection},
+	memory::{MemorySummaryArtifact, MemorySummaryEntry, MemorySummarySourceTrace},
+	proactive::{ProactiveBriefArtifact, ProactiveSuggestion},
+	recovery::{
+		AuthorityRecordCount, AuthorityRecoveryDrillArtifact, RecoveryBackupPitr,
+		RecoveryDeadLetterHandling, RecoveryDegradedRead, RecoveryDrillTopology,
+		RecoveryMeasurement, RecoveryMigrationRepair, RecoveryOutboxReplay, RecoveryQdrantRebuild,
+	},
+	scheduled::{
+		ScheduledMemoryExecutionTrace, ScheduledMemoryOutput, ScheduledMemoryTaskArtifact,
+	},
+	work::{
+		WorkContinuityObserved, WorkJournalEntryArtifact, WorkJournalJanitorCandidateArtifact,
+		WorkJournalNextStepArtifact, WorkJournalReadbackArtifact,
+		WorkJournalRejectedOptionArtifact, WorkJournalWhereStoppedArtifact,
+	},
+};

@@ -1,11 +1,17 @@
+use std::path::PathBuf;
+
 use serde_json::Value;
 
-use crate::search::{
-	self, BlendRankingOverride, ChunkCandidate, ChunkMeta, ChunkSnippet, HashMap, NoteMeta,
-	OffsetDateTime, RankingRequestOverride, RerankCacheCandidate, RerankCacheItem,
-	RerankCachePayload, RetrievalSourceCandidates, RetrievalSourceKind,
-	RetrievalSourcesRankingOverride, ScoredChunk, TraceReplayCandidate, TraceReplayContext, Uuid,
-	ranking,
+use crate::{
+	ElfService,
+	search::{
+		self, BlendRankingOverride, ChunkCandidate, ChunkMeta, ChunkSnippet, HashMap, NoteMeta,
+		OffsetDateTime, RankingRequestOverride, RerankCacheCandidate, RerankCacheItem,
+		RerankCachePayload, RetrievalSourceCandidates, RetrievalSourceKind,
+		RetrievalSourcesRankingOverride, ScoredChunk, TraceReplayCandidate, TraceReplayContext,
+		Uuid,
+		ranking::{self, ResolvedDiversityPolicy},
+	},
 };
 use elf_config::{Config, SearchDynamic};
 
@@ -97,7 +103,7 @@ fn relation_context_rows_without_evidence_are_suppressed() {
 	let now = OffsetDateTime::from_unix_timestamp(100).expect("valid timestamp");
 	let note_id = Uuid::from_u128(1);
 	let contexts =
-		crate::ElfService::group_relation_context_rows(vec![search::SearchRelationContextRow {
+		ElfService::group_relation_context_rows(vec![search::SearchRelationContextRow {
 			note_id,
 			fact_id: Uuid::from_u128(2),
 			scope: "project_shared".to_string(),
@@ -579,7 +585,7 @@ fn diversity_selection_skips_high_similarity_when_alternative_exists() {
 	vectors.insert(note_b, vec![0.99, 0.01]);
 	vectors.insert(note_c, vec![0.0, 1.0]);
 
-	let policy = ranking::ResolvedDiversityPolicy {
+	let policy = ResolvedDiversityPolicy {
 		enabled: true,
 		sim_threshold: 0.9,
 		mmr_lambda: 0.7,
@@ -606,7 +612,7 @@ fn diversity_selection_backfills_when_max_skips_is_reached() {
 	vectors.insert(note_a, vec![1.0, 0.0]);
 	vectors.insert(note_b, vec![0.99, 0.01]);
 
-	let policy = ranking::ResolvedDiversityPolicy {
+	let policy = ResolvedDiversityPolicy {
 		enabled: true,
 		sim_threshold: 0.9,
 		mmr_lambda: 0.7,
@@ -677,7 +683,7 @@ fn replay_diversity_decisions_prefer_selected_entry_for_same_note() {
 }
 
 fn parse_example_config() -> Config {
-	let root_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+	let root_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
 	let path = root_dir.join("elf.example.toml");
 
 	elf_config::load(&path).expect("elf.example.toml must remain parseable and valid.")

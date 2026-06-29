@@ -3,14 +3,10 @@ use sqlx::{FromRow, PgConnection, PgExecutor};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::types::PreparedEntityMemoryRequest;
-use crate::{Error, Result, access::ORG_PROJECT_ID};
+use crate::{
+	Error, Result, access::ORG_PROJECT_ID, entity_memory::types::PreparedEntityMemoryRequest,
+};
 use elf_storage::{graph, models::GraphEntity};
-
-#[derive(Clone, Debug, FromRow)]
-struct EntityAliasRow {
-	alias: String,
-}
 
 #[derive(Clone, Debug, FromRow)]
 pub(super) struct EntityNoteRow {
@@ -45,6 +41,11 @@ pub(super) struct EntityCoreBlockRow {
 	pub(super) content: String,
 	pub(super) source_ref: Value,
 	pub(super) updated_at: OffsetDateTime,
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct EntityAliasRow {
+	alias: String,
 }
 
 pub(super) async fn resolve_entity(

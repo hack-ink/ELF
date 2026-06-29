@@ -1,4 +1,10 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, ErrorBody, Extension, HeaderMap, Json, JsonRejection, Path,
+	RequestContext, SecurityAuthRole, ShareScope, SpaceGrantItemV2, SpaceGrantRevokeRequest,
+	SpaceGrantRevokeResponse, SpaceGrantUpsertBody, SpaceGrantUpsertRequest,
+	SpaceGrantUpsertResponseV2, SpaceGrantsListRequest, SpaceGrantsListResponseV2, State,
+	StatusCode,
+};
 
 #[utoipa::path(
 	get,
@@ -19,7 +25,7 @@ pub(super) async fn space_grants_list(
 	Path(space): Path<String>,
 ) -> Result<Json<SpaceGrantsListResponseV2>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let scope = parse_space(space.as_str())?;
+	let scope = routes::parse_space(space.as_str())?;
 	let response = state
 		.service
 		.space_grants_list(SpaceGrantsListRequest {
@@ -35,7 +41,7 @@ pub(super) async fn space_grants_list(
 			.grants
 			.into_iter()
 			.map(|item| SpaceGrantItemV2 {
-				space: format_space(item.scope).to_string(),
+				space: routes::format_space(item.scope).to_string(),
 				grantee_kind: item.grantee_kind,
 				grantee_agent_id: item.grantee_agent_id,
 				granted_by_agent_id: item.granted_by_agent_id,
@@ -70,13 +76,21 @@ pub(super) async fn space_grant_upsert(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let scope = parse_space(space.as_str())?;
+	let scope = routes::parse_space(space.as_str())?;
 	let role = role.map(|Extension(role)| role);
 
 	if matches!(scope, ShareScope::OrgShared) {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 
 	let response = state
@@ -92,7 +106,7 @@ pub(super) async fn space_grant_upsert(
 		.await?;
 
 	Ok(Json(SpaceGrantUpsertResponseV2 {
-		space: format_scope(response.scope.as_str())?.to_string(),
+		space: routes::format_scope(response.scope.as_str())?.to_string(),
 		grantee_kind: response.grantee_kind,
 		grantee_agent_id: response.grantee_agent_id,
 		granted: response.granted,
@@ -124,13 +138,21 @@ pub(super) async fn space_grant_revoke(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let scope = parse_space(space.as_str())?;
+	let scope = routes::parse_space(space.as_str())?;
 	let role = role.map(|Extension(role)| role);
 
 	if matches!(scope, ShareScope::OrgShared) {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 
 	let response = state

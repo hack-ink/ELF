@@ -1,4 +1,7 @@
-use super::*;
+use crate::validation::{
+	self, BTreeSet, Path, Result, ScheduledMemoryExecutionTrace, ScheduledMemoryOutput,
+	ScheduledMemoryTaskArtifact, eyre,
+};
 
 pub(super) fn validate_scheduled_memory_artifact(
 	task: &ScheduledMemoryTaskArtifact,
@@ -18,7 +21,7 @@ pub(super) fn validate_scheduled_memory_artifact(
 	{
 		return Err(eyre::eyre!("{} has an incomplete scheduled memory task.", path.display()));
 	}
-	if !is_scheduled_task_kind(task.task_kind.as_str()) {
+	if !validation::is_scheduled_task_kind(task.task_kind.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown scheduled task kind {}.",
 			path.display(),
@@ -26,8 +29,8 @@ pub(super) fn validate_scheduled_memory_artifact(
 		));
 	}
 
-	validate_optional_rfc3339(&task.generated_at, path, task.task_run_id.as_str())?;
-	validate_optional_rfc3339(&task.scheduled_for, path, task.task_run_id.as_str())?;
+	validation::validate_optional_rfc3339(&task.generated_at, path, task.task_run_id.as_str())?;
+	validation::validate_optional_rfc3339(&task.scheduled_for, path, task.task_run_id.as_str())?;
 
 	for output in &task.outputs {
 		validate_scheduled_memory_output(output, path, evidence_ids)?;
@@ -49,7 +52,7 @@ pub(super) fn validate_scheduled_memory_artifact(
 		}
 	}
 
-	validate_memory_summary_source_trace(&task.source_trace, path, evidence_ids)?;
+	validation::validate_memory_summary_source_trace(&task.source_trace, path, evidence_ids)?;
 
 	if let Some(trace) = &task.execution_trace {
 		validate_scheduled_memory_trace(trace, path, evidence_ids)?;
@@ -69,21 +72,21 @@ fn validate_scheduled_memory_output(
 	{
 		return Err(eyre::eyre!("{} has an incomplete scheduled memory output.", path.display()));
 	}
-	if !is_scheduled_task_kind(output.output_kind.as_str()) {
+	if !validation::is_scheduled_task_kind(output.output_kind.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown scheduled output kind {}.",
 			path.display(),
 			output.output_kind
 		));
 	}
-	if !is_memory_summary_freshness_status(output.freshness.status.as_str()) {
+	if !validation::is_memory_summary_freshness_status(output.freshness.status.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown scheduled output freshness status {}.",
 			path.display(),
 			output.freshness.status
 		));
 	}
-	if !is_proactive_action_decision(output.action.decision.as_str()) {
+	if !validation::is_proactive_action_decision(output.action.decision.as_str()) {
 		return Err(eyre::eyre!(
 			"{} has unknown scheduled output action decision {}.",
 			path.display(),
@@ -98,10 +101,10 @@ fn validate_scheduled_memory_output(
 	}
 
 	for evidence_id in &output.evidence_refs {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 	for evidence_id in &output.freshness.tombstone_refs {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 	for flag in &output.unsupported_claim_flags {
 		if !flag.is_object() {
@@ -112,22 +115,22 @@ fn validate_scheduled_memory_output(
 		}
 	}
 
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		output.freshness.observed_at.as_deref(),
 		output.output_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		output.freshness.valid_from.as_deref(),
 		output.output_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		output.freshness.valid_to.as_deref(),
 		output.output_id.as_str(),
 	)?;
-	validate_optional_summary_time(
+	validation::validate_optional_summary_time(
 		path,
 		output.freshness.last_confirmed_at.as_deref(),
 		output.output_id.as_str(),
@@ -154,8 +157,8 @@ fn validate_scheduled_memory_trace(
 		));
 	}
 
-	validate_optional_rfc3339(&trace.started_at, path, trace.trace_id.as_str())?;
-	validate_optional_rfc3339(&trace.completed_at, path, trace.trace_id.as_str())?;
+	validation::validate_optional_rfc3339(&trace.started_at, path, trace.trace_id.as_str())?;
+	validation::validate_optional_rfc3339(&trace.completed_at, path, trace.trace_id.as_str())?;
 
 	for stage in &trace.stages {
 		if stage.stage_name.trim().is_empty() || stage.summary.trim().is_empty() {
@@ -166,7 +169,7 @@ fn validate_scheduled_memory_trace(
 		}
 
 		for evidence_id in &stage.evidence_refs {
-			ensure_known_evidence(path, evidence_ids, evidence_id)?;
+			validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 		}
 	}
 

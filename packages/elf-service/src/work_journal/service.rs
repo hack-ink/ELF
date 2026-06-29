@@ -3,23 +3,19 @@ use std::collections::HashSet;
 use serde_json;
 use time::OffsetDateTime;
 
-use super::{
-	types::{
-		DEFAULT_SESSION_READBACK_LIMIT, ELF_WORK_JOURNAL_SCHEMA_V1, MAX_SESSION_READBACK_LIMIT,
-		MAX_STORAGE_SCAN_ROWS, WorkJournalEntryCreateRequest, WorkJournalEntryCreateResponse,
-		WorkJournalEntryFamily, WorkJournalEntryGetRequest, WorkJournalEntryResponse,
-		WorkJournalSessionReadbackRequest, WorkJournalSessionReadbackResponse,
-	},
-	validation::{
-		build_where_stopped, load_work_journal_shared_grants, resolve_promotion_boundary_authority,
-		row_to_response, validate_identifier, validate_read_context, validate_work_journal_create,
-		work_journal_read_allowed,
-	},
-};
 use crate::{
 	ElfService, Error, Result,
 	access::{self, ORG_PROJECT_ID},
 	search,
+	work_journal::{
+		types::{
+			DEFAULT_SESSION_READBACK_LIMIT, ELF_WORK_JOURNAL_SCHEMA_V1, MAX_SESSION_READBACK_LIMIT,
+			MAX_STORAGE_SCAN_ROWS, WorkJournalEntryCreateRequest, WorkJournalEntryCreateResponse,
+			WorkJournalEntryFamily, WorkJournalEntryGetRequest, WorkJournalEntryResponse,
+			WorkJournalSessionReadbackRequest, WorkJournalSessionReadbackResponse,
+		},
+		validation::{self},
+	},
 };
 use elf_storage::{models::WorkJournalEntry, work_journal};
 
@@ -29,7 +25,7 @@ impl ElfService {
 		&self,
 		req: WorkJournalEntryCreateRequest,
 	) -> Result<WorkJournalEntryCreateResponse> {
-		let mut validated = validate_work_journal_create(&self.cfg, &req)?;
+		let mut validated = validation::validate_work_journal_create(&self.cfg, &req)?;
 		let now = OffsetDateTime::now_utc();
 		let effective_project_id = if validated.scope == "org_shared" {
 			ORG_PROJECT_ID.to_string()
@@ -38,7 +34,7 @@ impl ElfService {
 		};
 		let mut tx = self.db.pool.begin().await?;
 
-		validated.promotion_boundary = resolve_promotion_boundary_authority(
+		validated.promotion_boundary = validation::resolve_promotion_boundary_authority(
 			&mut tx,
 			&self.cfg,
 			validated.promotion_boundary,
@@ -87,7 +83,7 @@ impl ElfService {
 
 		tx.commit().await?;
 
-		Ok(WorkJournalEntryCreateResponse { entry: row_to_response(entry)? })
+		Ok(WorkJournalEntryCreateResponse { entry: validation::row_to_response(entry)? })
 	}
 
 	/// Reads one source-adjacent Work Journal entry.
@@ -95,7 +91,7 @@ impl ElfService {
 		&self,
 		req: WorkJournalEntryGetRequest,
 	) -> Result<WorkJournalEntryResponse> {
-		validate_read_context(
+		validation::validate_read_context(
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
 			req.agent_id.as_str(),
@@ -104,7 +100,7 @@ impl ElfService {
 
 		let allowed_scopes =
 			search::resolve_read_profile_scopes(&self.cfg, req.read_profile.trim())?;
-		let shared_grants = load_work_journal_shared_grants(
+		let shared_grants = validation::load_work_journal_shared_grants(
 			self,
 			req.tenant_id.trim(),
 			req.project_id.trim(),
@@ -122,13 +118,18 @@ impl ElfService {
 		if row.project_id != req.project_id.trim() && row.project_id != ORG_PROJECT_ID {
 			return Err(Error::NotFound { message: "Work Journal entry not found.".to_string() });
 		}
-		if !work_journal_read_allowed(&row, req.agent_id.trim(), &allowed_scopes, &shared_grants) {
+		if !validation::work_journal_read_allowed(
+			&row,
+			req.agent_id.trim(),
+			&allowed_scopes,
+			&shared_grants,
+		) {
 			return Err(Error::ScopeDenied {
 				message: "Work Journal entry is not readable by this agent.".to_string(),
 			});
 		}
 
-		row_to_response(row)
+		validation::row_to_response(row)
 	}
 
 	/// Reads newest-first Work Journal entries for one session.
@@ -136,13 +137,13 @@ impl ElfService {
 		&self,
 		req: WorkJournalSessionReadbackRequest,
 	) -> Result<WorkJournalSessionReadbackResponse> {
-		validate_read_context(
+		validation::validate_read_context(
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
 			req.agent_id.as_str(),
 			req.read_profile.as_str(),
 		)?;
-		validate_identifier(req.session_id.as_str(), "$.session_id")?;
+		validation::validate_identifier(req.session_id.as_str(), "$.session_id")?;
 
 		let limit = req
 			.limit
@@ -150,7 +151,7 @@ impl ElfService {
 			.clamp(1, MAX_SESSION_READBACK_LIMIT);
 		let allowed_scopes =
 			search::resolve_read_profile_scopes(&self.cfg, req.read_profile.trim())?;
-		let shared_grants = load_work_journal_shared_grants(
+		let shared_grants = validation::load_work_journal_shared_grants(
 			self,
 			req.tenant_id.trim(),
 			req.project_id.trim(),
@@ -177,7 +178,7 @@ impl ElfService {
 			{
 				continue;
 			}
-			if !work_journal_read_allowed(
+			if !validation::work_journal_read_allowed(
 				&row,
 				req.agent_id.trim(),
 				&allowed_scopes,
@@ -186,14 +187,14 @@ impl ElfService {
 				continue;
 			}
 
-			items.push(row_to_response(row)?);
+			items.push(validation::row_to_response(row)?);
 
 			if items.len() >= limit as usize {
 				break;
 			}
 		}
 
-		let where_stopped = build_where_stopped(&items);
+		let where_stopped = validation::build_where_stopped(&items);
 
 		Ok(WorkJournalSessionReadbackResponse {
 			schema: ELF_WORK_JOURNAL_SCHEMA_V1.to_string(),

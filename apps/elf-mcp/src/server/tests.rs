@@ -10,16 +10,23 @@ use axum::{
 	http::{HeaderMap, Method, Uri},
 	routing,
 };
-use serde_json::Value;
-use tokio::{net::TcpListener, sync::oneshot, time};
+use serde_json::Map;
+use tokio::{
+	net::TcpListener,
+	sync::{
+		oneshot,
+		oneshot::{Receiver, Sender},
+	},
+	time,
+};
 
 use crate::app::{
 	McpAuthState,
-	server::{ElfContextHeaders, ElfMcp, HttpMethod},
+	server::{ElfContextHeaders, ElfMcp, HEADER_AUTHORIZATION, HttpMethod},
 };
 use elf_config::McpContext;
 
-type RequestRecorder = Arc<Mutex<Option<oneshot::Sender<RecordedRequest>>>>;
+type RequestRecorder = Arc<Mutex<Option<Sender<RecordedRequest>>>>;
 
 const ALL_TOOL_DEFINITIONS: [ToolDefinition; 37] = [
 	ToolDefinition::new(
@@ -254,13 +261,6 @@ struct ToolDefinition {
 	description: &'static str,
 	streaming: bool,
 }
-
-struct RecordedRequest {
-	method: Method,
-	path: String,
-	body: Value,
-}
-
 impl ToolDefinition {
 	const fn new(
 		name: &'static str,
@@ -270,6 +270,12 @@ impl ToolDefinition {
 	) -> Self {
 		Self { name, method, path, description, streaming: true }
 	}
+}
+
+struct RecordedRequest {
+	method: Method,
+	path: String,
+	body: serde_json::Value,
 }
 
 fn build_tools() -> HashMap<&'static str, ToolDefinition> {
@@ -437,10 +443,10 @@ fn recall_debug_panel_schema_rejects_context_override_fields() {
 	let schema = super::recall_debug_panel_schema();
 	let properties = schema
 		.get("properties")
-		.and_then(Value::as_object)
+		.and_then(serde_json::Value::as_object)
 		.expect("recall debug panel schema is missing properties.");
 
-	assert_eq!(schema.get("additionalProperties"), Some(&Value::Bool(false)));
+	assert_eq!(schema.get("additionalProperties"), Some(&serde_json::Value::Bool(false)));
 
 	for key in ["tenant_id", "project_id", "agent_id", "read_profile"] {
 		assert!(!properties.contains_key(key), "{key} must not be a tool param.");
@@ -448,16 +454,16 @@ fn recall_debug_panel_schema_rejects_context_override_fields() {
 	for key in ["graph_subject", "graph_predicate"] {
 		let one_of = properties
 			.get(key)
-			.and_then(Value::as_object)
+			.and_then(serde_json::Value::as_object)
 			.and_then(|schema| schema.get("oneOf"))
-			.and_then(Value::as_array)
+			.and_then(serde_json::Value::as_array)
 			.expect("selector schema is missing oneOf.");
 
-		for branch in one_of.iter().filter_map(Value::as_object) {
-			if branch.get("type").and_then(Value::as_str) == Some("object") {
+		for branch in one_of.iter().filter_map(serde_json::Value::as_object) {
+			if branch.get("type").and_then(serde_json::Value::as_str) == Some("object") {
 				assert_eq!(
 					branch.get("additionalProperties"),
-					Some(&Value::Bool(false)),
+					Some(&serde_json::Value::Bool(false)),
 					"{key} selector object branches must be closed."
 				);
 			}
@@ -476,7 +482,7 @@ fn off_mode_allows_requests_without_auth_header() {
 fn static_keys_mode_requires_authorization_bearer_header() {
 	let mut headers = HeaderMap::new();
 
-	headers.insert(super::HEADER_AUTHORIZATION, "Bearer token-a".parse().expect("valid header"));
+	headers.insert(HEADER_AUTHORIZATION, "Bearer token-a".parse().expect("valid header"));
 
 	assert!(super::is_authorized(
 		&headers,
@@ -488,7 +494,7 @@ fn static_keys_mode_requires_authorization_bearer_header() {
 fn static_keys_mode_rejects_non_bearer_schemes() {
 	let mut headers = HeaderMap::new();
 
-	headers.insert(super::HEADER_AUTHORIZATION, "bearer token-a".parse().expect("valid header"));
+	headers.insert(HEADER_AUTHORIZATION, "bearer token-a".parse().expect("valid header"));
 
 	assert!(!super::is_authorized(
 		&headers,
@@ -705,9 +711,9 @@ async fn recall_debug_panel_rejects_context_override_params() {
 		ElfContextHeaders::new(&context),
 		McpAuthState::Off,
 	);
-	let params = serde_json::Map::from_iter([(
+	let params = Map::from_iter([(
 		"tenant_id".to_string(),
-		Value::String("tenant-override".to_string()),
+		serde_json::Value::String("tenant-override".to_string()),
 	)]);
 	let result = mcp.elf_recall_debug_panel(params).await;
 	let err = result.expect_err("context override params must fail before forwarding.");
@@ -730,9 +736,9 @@ async fn default_ingestion_profile_set_uses_put_admin_default_path() {
 		ElfContextHeaders::new(&context),
 		McpAuthState::Off,
 	);
-	let params = serde_json::Map::from_iter([
-		("profile_id".to_string(), Value::String("profile-a".to_string())),
-		("version".to_string(), Value::Number(2.into())),
+	let params = Map::from_iter([
+		("profile_id".to_string(), serde_json::Value::String("profile-a".to_string())),
+		("version".to_string(), serde_json::Value::Number(2.into())),
 	]);
 	let result = mcp.elf_admin_events_ingestion_profile_default_set(params).await;
 
@@ -742,11 +748,14 @@ async fn default_ingestion_profile_set_uses_put_admin_default_path() {
 
 	assert_eq!(request.method, Method::PUT);
 	assert_eq!(request.path, "/v2/admin/events/ingestion-profiles/default");
-	assert_eq!(request.body.get("profile_id").and_then(Value::as_str), Some("profile-a"));
-	assert_eq!(request.body.get("version").and_then(Value::as_i64), Some(2));
+	assert_eq!(
+		request.body.get("profile_id").and_then(serde_json::Value::as_str),
+		Some("profile-a")
+	);
+	assert_eq!(request.body.get("version").and_then(serde_json::Value::as_i64), Some(2));
 }
 
-async fn spawn_recording_admin_server() -> (String, oneshot::Receiver<RecordedRequest>) {
+async fn spawn_recording_admin_server() -> (String, Receiver<RecordedRequest>) {
 	let (tx, rx) = oneshot::channel();
 	let app = Router::new()
 		.route("/v2/admin/events/ingestion-profiles/default", routing::any(record_request))
@@ -773,8 +782,8 @@ async fn record_request(
 	State(recorder): State<RequestRecorder>,
 	method: Method,
 	uri: Uri,
-	Json(body): Json<Value>,
-) -> Json<Value> {
+	Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
 	let mut sender = match recorder.lock() {
 		Ok(sender) => sender,
 		Err(err) => panic!("MCP recording admin server mutex was poisoned: {err}."),
@@ -787,7 +796,7 @@ async fn record_request(
 	Json(serde_json::json!({ "ok": true }))
 }
 
-async fn receive_recorded_request(received: oneshot::Receiver<RecordedRequest>) -> RecordedRequest {
+async fn receive_recorded_request(received: Receiver<RecordedRequest>) -> RecordedRequest {
 	match time::timeout(Duration::from_secs(3), received).await {
 		Ok(Ok(request)) => request,
 		Ok(Err(err)) => panic!("MCP recording admin server closed before recording: {err}."),

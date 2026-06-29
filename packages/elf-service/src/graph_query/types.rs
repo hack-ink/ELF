@@ -1,4 +1,4 @@
-use super::*;
+use crate::graph_query::{Deserialize, OffsetDateTime, RelationTemporalStatus, Serialize, Uuid};
 
 /// Subject selector used by graph-query APIs.
 #[derive(Clone, Debug, Deserialize, Serialize)]

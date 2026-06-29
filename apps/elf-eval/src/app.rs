@@ -1,6 +1,3 @@
-use color_eyre::{Result, eyre};
-use tracing_subscriber::EnvFilter;
-
 mod cli;
 mod compare;
 mod dataset;
@@ -10,6 +7,9 @@ mod trace_compare;
 mod types;
 
 pub use cli::{Args, SearchMode};
+
+use color_eyre::{Result, eyre};
+use tracing_subscriber::EnvFilter;
 
 use types::{CompareOutput, EvalOutput};
 

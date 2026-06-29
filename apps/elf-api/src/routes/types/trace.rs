@@ -1,4 +1,4 @@
-use super::*;
+use crate::routes::types::{Deserialize, TraceBundleMode, Uuid};
 
 #[derive(Clone, Debug, Deserialize)]
 pub(in crate::routes) struct TraceRecentListQuery {

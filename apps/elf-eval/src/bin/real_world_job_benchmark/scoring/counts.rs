@@ -1,4 +1,8 @@
-use super::*;
+use crate::scoring::{
+	ConsolidationJobReport, DimensionScoreReport, EvolutionJobReport, FailureCounts, JobScoring,
+	MemorySummaryJobMetrics, ProactiveBriefJobMetrics, RealWorldJob, ScheduledMemoryJobMetrics,
+	TypedStatus, WorkContinuityJobMetrics,
+};
 
 pub(super) fn apply_memory_summary_failure_counts(
 	counts: &mut FailureCounts,
@@ -188,19 +192,6 @@ pub(super) fn operator_debug_failure_counts(job: &RealWorldJob) -> FailureCounts
 	}
 }
 
-fn declared_not_encoded_dimension_scores(job: &RealWorldJob) -> Vec<DimensionScoreReport> {
-	job.scoring_rubric
-		.dimensions
-		.iter()
-		.map(|(dimension_id, dimension)| DimensionScoreReport {
-			dimension: dimension_id.clone(),
-			score: 0.0,
-			max_points: dimension.max_points,
-			weight: dimension.weight,
-		})
-		.collect()
-}
-
 pub(super) fn wrong_result_signal_count(counts: &FailureCounts) -> usize {
 	counts.missing_claims
 		+ counts.forbidden_claims
@@ -257,4 +248,17 @@ pub(super) fn work_continuity_wrong_result_count(counts: &FailureCounts) -> usiz
 		+ counts.work_continuity_sensitive_marker_persistence
 		+ counts.work_continuity_janitor_false_promotion
 		+ counts.work_continuity_journal_only_authority_claim
+}
+
+fn declared_not_encoded_dimension_scores(job: &RealWorldJob) -> Vec<DimensionScoreReport> {
+	job.scoring_rubric
+		.dimensions
+		.iter()
+		.map(|(dimension_id, dimension)| DimensionScoreReport {
+			dimension: dimension_id.clone(),
+			score: 0.0,
+			max_points: dimension.max_points,
+			weight: dimension.weight,
+		})
+		.collect()
 }

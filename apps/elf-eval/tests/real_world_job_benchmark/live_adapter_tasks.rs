@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use color_eyre::Result;
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 fn real_world_live_adapter_sources(workspace: &Path) -> Result<String> {
 	let mut source =
@@ -52,7 +52,7 @@ fn append_rust_sources(dir: &Path, source: &mut String) -> Result<()> {
 
 #[test]
 fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
-	let workspace = workspace_root()?;
+	let workspace = support::workspace_root()?;
 	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 
@@ -98,7 +98,7 @@ fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
 
 #[test]
 fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
-	let workspace_root = workspace_root()?;
+	let workspace_root = support::workspace_root()?;
 	let makefile = fs::read_to_string(workspace_root.join("Makefile.toml"))?;
 	let docker_script = fs::read_to_string(workspace_root.join("scripts/baseline-docker.sh"))?;
 	let compose = fs::read_to_string(workspace_root.join("docker-compose.baseline.yml"))?;
@@ -143,7 +143,7 @@ fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 
 #[test]
 fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
-	let workspace = workspace_root()?;
+	let workspace = support::workspace_root()?;
 	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 	let script = fs::read_to_string(
@@ -180,7 +180,7 @@ fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 
 #[test]
 fn live_adapter_supports_elf_capture_write_policy_without_external_hook_claims() -> Result<()> {
-	let workspace = workspace_root()?;
+	let workspace = support::workspace_root()?;
 	let live_adapter = real_world_live_adapter_sources(&workspace)?;
 	let live_script =
 		fs::read_to_string(workspace.join("scripts").join("real-world-live-adapters.sh"))?;

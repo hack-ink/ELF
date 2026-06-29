@@ -2,7 +2,6 @@
 
 mod promotion;
 mod service;
-#[cfg(test)] mod tests;
 mod types;
 mod validation;
 
@@ -13,3 +12,5 @@ pub use types::{
 	ConsolidationRunCreateRequest, ConsolidationRunCreateResponse, ConsolidationRunGetRequest,
 	ConsolidationRunResponse, ConsolidationRunsListRequest, ConsolidationRunsListResponse,
 };
+
+#[cfg(test)] mod tests;

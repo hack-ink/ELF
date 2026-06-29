@@ -1,4 +1,11 @@
-use super::*;
+use crate::{
+	graph,
+	graph_report::{
+		BTreeMap, GraphQueryObject, GraphQueryObjectEntity, GraphReportFact, GraphReportFactRow,
+		GraphReportSummary, GraphTopicEdge, GraphTopicMap, GraphTopicNode, OffsetDateTime,
+		RelationTemporalStatus, ResolvedGraphReportSubject,
+	},
+};
 
 pub(super) fn truncate_report_rows(
 	mut rows: Vec<GraphReportFactRow>,
@@ -24,7 +31,7 @@ pub(super) fn build_report_facts(
 	rows.into_iter()
 		.map(|row| {
 			let temporal_status =
-				crate::graph::relation_temporal_status(row.valid_from, row.valid_to, as_of);
+				graph::relation_temporal_status(row.valid_from, row.valid_to, as_of);
 			let object = graph_object(&row);
 			let predicate_key = predicate_group_key(&row);
 			let ambiguous = temporal_status == RelationTemporalStatus::Current
@@ -51,77 +58,6 @@ pub(super) fn build_report_facts(
 			}
 		})
 		.collect()
-}
-
-fn current_single_predicate_counts(
-	rows: &[GraphReportFactRow],
-	as_of: OffsetDateTime,
-) -> BTreeMap<String, usize> {
-	let mut counts = BTreeMap::new();
-
-	for row in rows {
-		if row.predicate_cardinality.as_deref() != Some("single") {
-			continue;
-		}
-		if crate::graph::relation_temporal_status(row.valid_from, row.valid_to, as_of)
-			!= RelationTemporalStatus::Current
-		{
-			continue;
-		}
-
-		*counts.entry(predicate_group_key(row)).or_insert(0) += 1;
-	}
-
-	counts
-}
-
-fn predicate_group_key(row: &GraphReportFactRow) -> String {
-	row.predicate_id
-		.map(|id| id.to_string())
-		.unwrap_or_else(|| format!("surface:{}", row.predicate))
-}
-
-fn graph_object(row: &GraphReportFactRow) -> GraphQueryObject {
-	if let Some(entity_id) = row.object_entity_id {
-		return GraphQueryObject {
-			entity: Some(GraphQueryObjectEntity {
-				entity_id,
-				canonical: row.object_canonical.clone().unwrap_or_default(),
-				kind: row.object_kind.clone(),
-			}),
-			value: None,
-		};
-	}
-
-	GraphQueryObject { entity: None, value: row.object_value.clone() }
-}
-
-fn report_status_markers(
-	row: &GraphReportFactRow,
-	temporal_status: RelationTemporalStatus,
-	ambiguous: bool,
-) -> Vec<String> {
-	let mut markers = Vec::new();
-
-	if row.evidence_note_ids.is_empty() {
-		markers.push("unsupported".to_string());
-	} else {
-		markers.push("sourced".to_string());
-	}
-	if row.predicate_status.as_deref() != Some("active") {
-		markers.push("inferred".to_string());
-	}
-	if temporal_status == RelationTemporalStatus::Historical {
-		markers.push("stale".to_string());
-	}
-	if !row.superseded_by_fact_ids.is_empty() {
-		markers.push("superseded".to_string());
-	}
-	if ambiguous {
-		markers.push("ambiguous".to_string());
-	}
-
-	markers
 }
 
 pub(super) fn summarize_report_facts(facts: &[GraphReportFact]) -> GraphReportSummary {
@@ -210,4 +146,75 @@ pub(super) fn build_topic_map(
 		.collect();
 
 	GraphTopicMap { nodes: nodes.into_values().collect(), edges }
+}
+
+fn current_single_predicate_counts(
+	rows: &[GraphReportFactRow],
+	as_of: OffsetDateTime,
+) -> BTreeMap<String, usize> {
+	let mut counts = BTreeMap::new();
+
+	for row in rows {
+		if row.predicate_cardinality.as_deref() != Some("single") {
+			continue;
+		}
+		if graph::relation_temporal_status(row.valid_from, row.valid_to, as_of)
+			!= RelationTemporalStatus::Current
+		{
+			continue;
+		}
+
+		*counts.entry(predicate_group_key(row)).or_insert(0) += 1;
+	}
+
+	counts
+}
+
+fn predicate_group_key(row: &GraphReportFactRow) -> String {
+	row.predicate_id
+		.map(|id| id.to_string())
+		.unwrap_or_else(|| format!("surface:{}", row.predicate))
+}
+
+fn graph_object(row: &GraphReportFactRow) -> GraphQueryObject {
+	if let Some(entity_id) = row.object_entity_id {
+		return GraphQueryObject {
+			entity: Some(GraphQueryObjectEntity {
+				entity_id,
+				canonical: row.object_canonical.clone().unwrap_or_default(),
+				kind: row.object_kind.clone(),
+			}),
+			value: None,
+		};
+	}
+
+	GraphQueryObject { entity: None, value: row.object_value.clone() }
+}
+
+fn report_status_markers(
+	row: &GraphReportFactRow,
+	temporal_status: RelationTemporalStatus,
+	ambiguous: bool,
+) -> Vec<String> {
+	let mut markers = Vec::new();
+
+	if row.evidence_note_ids.is_empty() {
+		markers.push("unsupported".to_string());
+	} else {
+		markers.push("sourced".to_string());
+	}
+	if row.predicate_status.as_deref() != Some("active") {
+		markers.push("inferred".to_string());
+	}
+	if temporal_status == RelationTemporalStatus::Historical {
+		markers.push("stale".to_string());
+	}
+	if !row.superseded_by_fact_ids.is_empty() {
+		markers.push("superseded".to_string());
+	}
+	if ambiguous {
+		markers.push("ambiguous".to_string());
+	}
+
+	markers
 }

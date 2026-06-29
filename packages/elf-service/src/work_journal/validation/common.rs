@@ -1,4 +1,4 @@
-use super::*;
+use crate::work_journal::validation::{Error, Map, Result, Value, english_gate, writegate};
 
 pub(in crate::work_journal) fn validate_identifier(text: &str, field: &str) -> Result<()> {
 	if text.trim().is_empty() || !english_gate::is_english_identifier(text.trim()) {

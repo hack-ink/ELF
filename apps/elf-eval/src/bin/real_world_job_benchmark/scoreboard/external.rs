@@ -1,4 +1,8 @@
-use super::*;
+use crate::scoreboard::{
+	self, AdapterCoverageStatus, BTreeMap, BTreeSet, ExternalAdapterReport, SCOREBOARD_RETRIEVAL_K,
+	ScenarioComparisonOutcome, ScoreboardCoverageMetrics, ScoreboardMetrics,
+	ScoreboardRetrievalMetrics, ScoreboardRow, common,
+};
 
 pub(super) fn external_project_scoreboard_rows(
 	adapters: &[ExternalAdapterReport],
@@ -310,12 +314,13 @@ fn external_project_strengths(adapters: &[&ExternalAdapterReport]) -> Vec<String
 				strengths.insert(format!(
 					"{} capability is {}.",
 					capability.capability,
-					adapter_status_str(capability.status)
+					scoreboard::adapter_status_str(capability.status)
 				));
 			}
 		}
 		for scenario in &adapter.scenarios {
-			if scenario_comparison_outcome(scenario) == ScenarioComparisonOutcome::Loss {
+			if scoreboard::scenario_comparison_outcome(scenario) == ScenarioComparisonOutcome::Loss
+			{
 				strengths.insert(format!(
 					"Scenario {} is recorded as a competitor strength.",
 					scenario.scenario_id
@@ -335,7 +340,7 @@ fn external_project_weaknesses(adapters: &[&ExternalAdapterReport]) -> Vec<Strin
 			weaknesses.insert(format!(
 				"Adapter {} overall status is {}.",
 				adapter.adapter_id,
-				adapter_status_str(adapter.overall_status)
+				scoreboard::adapter_status_str(adapter.overall_status)
 			));
 		}
 
@@ -344,7 +349,7 @@ fn external_project_weaknesses(adapters: &[&ExternalAdapterReport]) -> Vec<Strin
 				weaknesses.insert(format!(
 					"Suite {} is {}.",
 					suite.suite_id,
-					adapter_status_str(suite.status)
+					scoreboard::adapter_status_str(suite.status)
 				));
 			}
 		}

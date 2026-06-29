@@ -1,4 +1,13 @@
-use super::*;
+use crate::routes::{
+	self, AdminGraphPredicateAliasAddBody, AdminGraphPredicateAliasAddRequest,
+	AdminGraphPredicateAliasesListRequest, AdminGraphPredicateAliasesResponse,
+	AdminGraphPredicatePatchBody, AdminGraphPredicatePatchRequest, AdminGraphPredicateResponse,
+	AdminGraphPredicatesListQuery, AdminGraphPredicatesListRequest,
+	AdminGraphPredicatesListResponse, ApiError, AppState, ErrorBody, GraphQueryBody,
+	GraphQueryRequest, GraphQueryResponse, GraphReportBody, GraphReportRequest,
+	GraphReportResponse, HeaderMap, Json, JsonRejection, Path, Query, QueryRejection,
+	RequestContext, State, StatusCode, Uuid,
+};
 
 #[utoipa::path(
 	post,
@@ -20,13 +29,18 @@ pub(super) async fn graph_query(
 	payload: Result<Json<GraphQueryBody>, JsonRejection>,
 ) -> Result<Json<GraphQueryResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let as_of = parse_optional_rfc3339(payload.as_of.as_ref(), "$.as_of")?;
+	let as_of = routes::parse_optional_rfc3339(payload.as_of.as_ref(), "$.as_of")?;
 	let response = state
 		.service
 		.graph_query(GraphQueryRequest {
@@ -66,13 +80,18 @@ pub(super) async fn graph_report(
 	payload: Result<Json<GraphReportBody>, JsonRejection>,
 ) -> Result<Json<GraphReportResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let as_of = parse_optional_rfc3339(payload.as_of.as_ref(), "$.as_of")?;
+	let as_of = routes::parse_optional_rfc3339(payload.as_of.as_ref(), "$.as_of")?;
 	let response = state
 		.service
 		.graph_report(GraphReportRequest {
@@ -114,7 +133,7 @@ pub(super) async fn admin_graph_predicates_list(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -160,9 +179,15 @@ pub(super) async fn admin_graph_predicate_patch(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let token_id = effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
+	let token_id =
+		routes::effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
 	let response = state
 		.service
 		.admin_graph_predicate_patch(AdminGraphPredicatePatchRequest {
@@ -205,9 +230,15 @@ pub(super) async fn admin_graph_predicate_alias_add(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let token_id = effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
+	let token_id =
+		routes::effective_token_id(state.service.cfg.security.auth_mode.as_str(), &headers);
 	let response = state
 		.service
 		.admin_graph_predicate_alias_add(AdminGraphPredicateAliasAddRequest {

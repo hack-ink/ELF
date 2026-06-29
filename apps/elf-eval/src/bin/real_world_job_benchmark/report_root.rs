@@ -1,4 +1,8 @@
-use super::*;
+use crate::{
+	AdapterReport, CaptureIntegrationReport, Deserialize, EvolutionSummary, ExternalAdapterSection,
+	FollowUpReport, JobReport, OperationalEvidenceReport, PrivateCorpusRedaction, ReportSummary,
+	ScoreboardReport, Serialize, SuiteReport, UnsupportedClaimReport,
+};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RealWorldReport {

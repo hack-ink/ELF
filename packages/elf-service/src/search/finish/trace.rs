@@ -1,4 +1,9 @@
-use super::super::*;
+use crate::search::{
+	self, BuildSearchItemArgs, BuildTraceArgs, Duration, ElfService, OffsetDateTime, Result,
+	ScoredChunk, SearchItem, SearchTraceBuilder, SearchTrajectoryStage, SearchTrajectoryStageItem,
+	SearchTrajectorySummary, TraceCandidateRecord, TraceContext, TracePayload,
+	TraceTrajectoryStageItemRecord, Uuid, ranking,
+};
 
 impl ElfService {
 	pub(in crate::search) async fn build_items_and_write_trace(
@@ -28,7 +33,7 @@ impl ElfService {
 		scored
 			.iter()
 			.map(|scored_chunk| {
-				build_trace_candidate_record(scored_chunk, now, candidate_expires_at)
+				search::build_trace_candidate_record(scored_chunk, now, candidate_expires_at)
 			})
 			.collect()
 	}
@@ -37,7 +42,7 @@ impl ElfService {
 		&self,
 		args: BuildTraceArgs<'_>,
 	) -> (Vec<SearchItem>, SearchTrajectorySummary, TracePayload) {
-		let mut trajectory_stages = build_trace_trajectory_stages(&args);
+		let mut trajectory_stages = search::build_trace_trajectory_stages(&args);
 		let trace_context = TraceContext {
 			trace_id: args.trace_id,
 			tenant_id: args.tenant_id,
@@ -62,7 +67,10 @@ impl ElfService {
 		);
 
 		if let Some(object) = config_snapshot.as_object_mut() {
-			object.insert("audit".to_string(), build_trace_audit(args.agent_id, args.token_id));
+			object.insert(
+				"audit".to_string(),
+				search::build_trace_audit(args.agent_id, args.token_id),
+			);
 		}
 
 		let mut items = Vec::with_capacity(args.selected_results.len());
@@ -79,19 +87,20 @@ impl ElfService {
 		}
 		for (idx, scored_chunk) in args.selected_results.into_iter().enumerate() {
 			let rank = idx as u32 + 1;
-			let (item, trace_item) = build_search_item_and_trace_item(BuildSearchItemArgs {
-				cfg: &self.cfg,
-				policy_id: args.policies.policy_id.as_str(),
-				blend_policy: &args.policies.blend_policy,
-				diversity_policy: &args.policies.diversity_policy,
-				diversity_decisions: args.diversity_decisions,
-				query_tokens: args.query_tokens,
-				structured_matches: args.structured_matches,
-				relation_contexts: &args.relation_contexts,
-				scored_chunk,
-				rank,
-			});
-			let item = apply_payload_level_to_search_item(item, args.payload_level);
+			let (item, trace_item) =
+				search::build_search_item_and_trace_item(BuildSearchItemArgs {
+					cfg: &self.cfg,
+					policy_id: args.policies.policy_id.as_str(),
+					blend_policy: &args.policies.blend_policy,
+					diversity_policy: &args.policies.diversity_policy,
+					diversity_decisions: args.diversity_decisions,
+					query_tokens: args.query_tokens,
+					structured_matches: args.structured_matches,
+					relation_contexts: &args.relation_contexts,
+					scored_chunk,
+					rank,
+				});
+			let item = search::apply_payload_level_to_search_item(item, args.payload_level);
 
 			final_stage_items.push(TraceTrajectoryStageItemRecord {
 				id: Uuid::new_v4(),
@@ -113,7 +122,7 @@ impl ElfService {
 			stage.items = final_stage_items;
 		}
 
-		let trajectory_summary = build_trajectory_summary_from_stages(
+		let trajectory_summary = search::build_trajectory_summary_from_stages(
 			&trajectory_stages
 				.iter()
 				.map(|stage| SearchTrajectoryStage {
@@ -150,12 +159,12 @@ impl ElfService {
 			"inline" => {
 				let mut tx = self.db.pool.begin().await?;
 
-				persist_trace_inline(&mut tx, trace_payload).await?;
+				search::persist_trace_inline(&mut tx, trace_payload).await?;
 
 				tx.commit().await?;
 			},
 			_ =>
-				if let Err(err) = enqueue_trace(&self.db.pool, trace_payload).await {
+				if let Err(err) = search::enqueue_trace(&self.db.pool, trace_payload).await {
 					tracing::error!(
 						error = %err,
 						trace_id = %trace_id,

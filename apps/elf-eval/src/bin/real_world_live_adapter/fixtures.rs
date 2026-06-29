@@ -1,12 +1,14 @@
-use super::*;
+use crate::{
+	CorpusText, JOB_SCHEMA, LiveJob, LoadedJob, Path, PathBuf, Result, Value, eyre, fs, serde_json,
+};
 
-pub(super) fn load_jobs(path: &Path) -> color_eyre::Result<Vec<LoadedJob>> {
+pub(super) fn load_jobs(path: &Path) -> Result<Vec<LoadedJob>> {
 	let paths = fixture_paths(path)?;
 	let mut jobs = Vec::with_capacity(paths.len());
 
 	for fixture in paths {
 		let raw = fs::read_to_string(&fixture)?;
-		let value = serde_json::from_str::<serde_json::Value>(&raw)
+		let value = serde_json::from_str::<Value>(&raw)
 			.map_err(|err| eyre::eyre!("Failed to parse {} as JSON: {err}", fixture.display()))?;
 		let job = serde_json::from_value::<LiveJob>(value.clone()).map_err(|err| {
 			eyre::eyre!("Failed to parse {} as real_world_job: {err}", fixture.display())
@@ -29,34 +31,7 @@ pub(super) fn load_jobs(path: &Path) -> color_eyre::Result<Vec<LoadedJob>> {
 	Ok(jobs)
 }
 
-fn fixture_paths(path: &Path) -> color_eyre::Result<Vec<PathBuf>> {
-	let mut paths = Vec::new();
-
-	collect_fixture_paths(path, &mut paths)?;
-
-	paths.sort();
-
-	Ok(paths)
-}
-
-fn collect_fixture_paths(path: &Path, paths: &mut Vec<PathBuf>) -> color_eyre::Result<()> {
-	if path.is_dir() {
-		for entry in fs::read_dir(path)? {
-			let entry_path = entry?.path();
-
-			collect_fixture_paths(entry_path.as_path(), paths)?;
-		}
-
-		return Ok(());
-	}
-	if path.extension().and_then(|ext| ext.to_str()) == Some("json") {
-		paths.push(path.to_path_buf());
-	}
-
-	Ok(())
-}
-
-pub(super) fn corpus_texts(loaded: &LoadedJob) -> color_eyre::Result<Vec<CorpusText>> {
+pub(super) fn corpus_texts(loaded: &LoadedJob) -> Result<Vec<CorpusText>> {
 	loaded
 		.job
 		.corpus
@@ -88,7 +63,7 @@ pub(super) fn corpus_texts(loaded: &LoadedJob) -> color_eyre::Result<Vec<CorpusT
 		.collect()
 }
 
-pub(super) fn read_dir_paths(path: &Path) -> color_eyre::Result<Vec<PathBuf>> {
+pub(super) fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
 	if !path.exists() {
 		return Ok(Vec::new());
 	}
@@ -100,4 +75,31 @@ pub(super) fn read_dir_paths(path: &Path) -> color_eyre::Result<Vec<PathBuf>> {
 	}
 
 	Ok(paths)
+}
+
+fn fixture_paths(path: &Path) -> Result<Vec<PathBuf>> {
+	let mut paths = Vec::new();
+
+	collect_fixture_paths(path, &mut paths)?;
+
+	paths.sort();
+
+	Ok(paths)
+}
+
+fn collect_fixture_paths(path: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
+	if path.is_dir() {
+		for entry in fs::read_dir(path)? {
+			let entry_path = entry?.path();
+
+			collect_fixture_paths(entry_path.as_path(), paths)?;
+		}
+
+		return Ok(());
+	}
+	if path.extension().and_then(|ext| ext.to_str()) == Some("json") {
+		paths.push(path.to_path_buf());
+	}
+
+	Ok(())
 }

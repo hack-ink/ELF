@@ -1,4 +1,9 @@
-use super::*;
+use std::{fs, path::Path};
+
+use color_eyre::Result;
+use serde_json::Value;
+
+use crate::support::{self, RecallDebugSourceContract};
 
 fn rust_module_sources(workspace: &Path, root_file: &str, module_dir: &str) -> Result<String> {
 	let mut source = fs::read_to_string(workspace.join(root_file))?;
@@ -82,12 +87,12 @@ fn assert_recall_debug_source_contract(sources: &RecallDebugSourceContract<'_>) 
 #[test]
 fn recall_debug_panel_report_wires_cross_layer_debug_contract() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		recall_debug_panel_report_json_path()?,
+		support::recall_debug_panel_report_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(recall_debug_panel_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
-	let workspace = workspace_root()?;
+	let markdown = fs::read_to_string(support::recall_debug_panel_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
+	let workspace = support::workspace_root()?;
 	let service = rust_module_sources(
 		&workspace,
 		"packages/elf-service/src/recall_debug.rs",
@@ -128,7 +133,7 @@ fn recall_debug_panel_report_wires_cross_layer_debug_contract() -> Result<()> {
 	);
 	assert_eq!(report.pointer("/layer_contract/layer_count").and_then(Value::as_u64), Some(5));
 
-	let layers = array_at(&report, "/layer_contract/layers")?;
+	let layers = support::array_at(&report, "/layer_contract/layers")?;
 
 	for (layer, authority, replay) in [
 		("memory_notes", "memory_note", "elf_admin_trace_bundle_get"),
@@ -137,18 +142,18 @@ fn recall_debug_panel_report_wires_cross_layer_debug_contract() -> Result<()> {
 		("graph_facts", "graph_fact", "elf_graph_report"),
 		("dreaming_proposals", "reviewable_dreaming_proposal", "elf_dreaming_review_queue"),
 	] {
-		let row = find_by_field(layers, "/layer", layer)?;
+		let row = support::find_by_field(layers, "/layer", layer)?;
 
 		assert_eq!(row.pointer("/authority_layer").and_then(Value::as_str), Some(authority));
 		assert_eq!(row.pointer("/replay_surface").and_then(Value::as_str), Some(replay));
 		assert_eq!(row.pointer("/evidence_class").and_then(Value::as_str), Some("pass"));
 	}
 
-	let memory = find_by_field(layers, "/layer", "memory_notes")?;
-	let docs = find_by_field(layers, "/layer", "source_documents")?;
+	let memory = support::find_by_field(layers, "/layer", "memory_notes")?;
+	let docs = support::find_by_field(layers, "/layer", "source_documents")?;
 
-	assert!(array_contains_str(memory, "/selection_states", "selected")?);
-	assert!(array_contains_str(memory, "/selection_states", "dropped")?);
+	assert!(support::array_contains_str(memory, "/selection_states", "selected")?);
+	assert!(support::array_contains_str(memory, "/selection_states", "dropped")?);
 	assert_eq!(docs.pointer("/effective_limit").and_then(Value::as_u64), Some(32));
 	assert_eq!(
 		report.pointer("/debug_invariants/not_requested_layers_preserved").and_then(Value::as_bool),

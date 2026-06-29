@@ -7,12 +7,13 @@ use serde_json::Value;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use crate::search::{ChunkCandidate, NoteMeta};
-
-use super::{
-	expr::{FilterExpr, FilterField},
-	impact::SearchFilterImpact,
-	value::FilterValue,
+use crate::search::{
+	ChunkCandidate, NoteMeta,
+	filter::{
+		expr::{FilterExpr, FilterField},
+		impact::SearchFilterImpact,
+		value::FilterValue,
+	},
 };
 
 pub(super) const SEARCH_FILTER_EXPR_SCHEMA_V1: &str = "search_filter_expr/v1";
@@ -182,22 +183,6 @@ pub(super) fn parse_expr(
 	}
 }
 
-fn parse_string(path: &str, raw: &Value) -> Result<String, FilterParseError> {
-	let value = raw.as_str().ok_or_else(|| FilterParseError {
-		path: path.to_string(),
-		message: "string value expected.".to_string(),
-	})?;
-
-	if value.len() > MAX_STRING_BYTES {
-		return Err(FilterParseError {
-			path: path.to_string(),
-			message: format!("string value exceeds maximum bytes ({}).", MAX_STRING_BYTES),
-		});
-	}
-
-	Ok(value.to_string())
-}
-
 pub(super) fn parse_value(
 	field: &FilterField,
 	raw: &Value,
@@ -242,4 +227,20 @@ pub(super) fn parse_value(
 					})
 			},
 	}
+}
+
+fn parse_string(path: &str, raw: &Value) -> Result<String, FilterParseError> {
+	let value = raw.as_str().ok_or_else(|| FilterParseError {
+		path: path.to_string(),
+		message: "string value expected.".to_string(),
+	})?;
+
+	if value.len() > MAX_STRING_BYTES {
+		return Err(FilterParseError {
+			path: path.to_string(),
+			message: format!("string value exceeds maximum bytes ({}).", MAX_STRING_BYTES),
+		});
+	}
+
+	Ok(value.to_string())
 }

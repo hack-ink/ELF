@@ -1,4 +1,8 @@
-use super::*;
+use crate::feature_metrics::{
+	self, BTreeSet, ProducedAnswer, RealWorldJob, ScheduledMemoryExecutionTrace,
+	ScheduledMemoryJobMetrics, ScheduledMemoryOutput, ScheduledMemoryTaskArtifact,
+	UnsupportedClaimReport, forbidden_diff_key_count,
+};
 
 pub(super) fn scheduled_memory_metrics_impl(
 	job: &RealWorldJob,
@@ -29,13 +33,50 @@ pub(super) fn scheduled_memory_metrics_impl(
 	metrics.covered_required_task_kind_count = covered_required_task_kind_count;
 	metrics.missing_required_task_kind_count =
 		metrics.required_task_kind_count.saturating_sub(covered_required_task_kind_count);
-	metrics.evidence_ref_coverage =
-		ratio(metrics.evidence_ref_output_count, metrics.evidence_ref_required_count);
-	metrics.freshness_coverage = ratio(metrics.freshness_marker_count, metrics.output_count);
-	metrics.action_rationale_coverage = ratio(metrics.action_rationale_count, metrics.output_count);
-	metrics.trace_coverage = ratio(metrics.trace_complete_count, metrics.trace_required_count);
+	metrics.evidence_ref_coverage = feature_metrics::ratio(
+		metrics.evidence_ref_output_count,
+		metrics.evidence_ref_required_count,
+	);
+	metrics.freshness_coverage =
+		feature_metrics::ratio(metrics.freshness_marker_count, metrics.output_count);
+	metrics.action_rationale_coverage =
+		feature_metrics::ratio(metrics.action_rationale_count, metrics.output_count);
+	metrics.trace_coverage =
+		feature_metrics::ratio(metrics.trace_complete_count, metrics.trace_required_count);
 
 	Some(metrics)
+}
+
+pub(super) fn unsupported_scheduled_outputs_impl(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Vec<UnsupportedClaimReport> {
+	answer
+		.scheduled_tasks
+		.iter()
+		.flat_map(|task| {
+			task.outputs.iter().filter_map(|output| {
+				if output.evidence_refs.is_empty() {
+					return Some(scheduled_unsupported_claim_report(
+						job,
+						task,
+						output,
+						"scheduled task output has no evidence refs",
+					));
+				}
+				if scheduled_output_is_unsupported_current(output) {
+					return Some(scheduled_unsupported_claim_report(
+						job,
+						task,
+						output,
+						"unsupported scheduled task claim is still recommended or marked current",
+					));
+				}
+
+				None
+			})
+		})
+		.collect()
 }
 
 fn accumulate_scheduled_memory_metrics(
@@ -58,8 +99,9 @@ fn accumulate_scheduled_memory_metrics(
 		metrics.trace_complete_count += 1;
 	}
 
-	let non_current_refs = memory_summary_non_current_trace_refs(&task.source_trace);
-	let tombstone_refs = proactive_tombstone_trace_refs(&task.source_trace);
+	let non_current_refs =
+		feature_metrics::memory_summary_non_current_trace_refs(&task.source_trace);
+	let tombstone_refs = feature_metrics::proactive_tombstone_trace_refs(&task.source_trace);
 
 	for output in &task.outputs {
 		metrics.output_count += 1;
@@ -156,38 +198,6 @@ fn scheduled_output_is_tombstone_violation(
 				.any(|evidence_id| tombstone_refs.contains(evidence_id.as_str())))
 }
 
-pub(super) fn unsupported_scheduled_outputs_impl(
-	job: &RealWorldJob,
-	answer: &ProducedAnswer,
-) -> Vec<UnsupportedClaimReport> {
-	answer
-		.scheduled_tasks
-		.iter()
-		.flat_map(|task| {
-			task.outputs.iter().filter_map(|output| {
-				if output.evidence_refs.is_empty() {
-					return Some(scheduled_unsupported_claim_report(
-						job,
-						task,
-						output,
-						"scheduled task output has no evidence refs",
-					));
-				}
-				if scheduled_output_is_unsupported_current(output) {
-					return Some(scheduled_unsupported_claim_report(
-						job,
-						task,
-						output,
-						"unsupported scheduled task claim is still recommended or marked current",
-					));
-				}
-
-				None
-			})
-		})
-		.collect()
-}
-
 fn scheduled_unsupported_claim_report(
 	job: &RealWorldJob,
 	task: &ScheduledMemoryTaskArtifact,
@@ -198,7 +208,7 @@ fn scheduled_unsupported_claim_report(
 		suite_id: job.suite.clone(),
 		job_id: job.job_id.clone(),
 		claim_id: Some(format!("{}:{}", task.task_run_id, output.output_id)),
-		claim_text: bounded_text(output.text.as_str(), 240),
+		claim_text: feature_metrics::bounded_text(output.text.as_str(), 240),
 		reason: reason.to_string(),
 		evidence_ids: output.evidence_refs.clone(),
 	}

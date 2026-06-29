@@ -4,9 +4,9 @@ use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::search::{ChunkCandidate, NoteMeta, SEARCH_FILTER_IMPACT_SCHEMA_V1};
-
-use super::parser::SearchFilter;
+use crate::search::{
+	ChunkCandidate, NoteMeta, SEARCH_FILTER_IMPACT_SCHEMA_V1, filter::parser::SearchFilter,
+};
 
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct SearchFilterImpact {

@@ -1,7 +1,11 @@
-use super::{
-	super::*,
-	access::doc_read_allowed,
-	text::{bounded_window, locate_quote},
+use crate::{
+	access,
+	docs::{
+		Config, DocDocument, DocExcerptMatch, DocExcerptRange, DocTrajectoryBuilder,
+		DocsExcerptsGetRequest, Error, ExcerptsSelectorKind, ORG_PROJECT_ID, PgExecutor, PgPool,
+		Result, Uuid, docs, excerpts::text,
+	},
+	search,
 };
 
 pub(in crate::docs) async fn load_docs_excerpt_context(
@@ -28,7 +32,7 @@ pub(in crate::docs) async fn load_docs_excerpt_context(
 		.ok_or_else(|| Error::NotFound { message: "Doc not found.".to_string() })?;
 
 	if doc.status != "active"
-		|| !doc_read_allowed(
+		|| !crate::docs::excerpts::access::doc_read_allowed(
 			agent_id,
 			&allowed_scopes,
 			&shared_grants,
@@ -63,7 +67,7 @@ pub(in crate::docs) async fn docs_excerpts_resolve_windowed_match(
 	);
 
 	let (start_offset, end_offset) =
-		bounded_window(match_start_offset, match_end_offset, doc.content.as_str(), level_max);
+		text::bounded_window(match_start_offset, match_end_offset, doc.content.as_str(), level_max);
 
 	trajectory.push(
 		"window_projection",
@@ -162,7 +166,7 @@ pub(in crate::docs) async fn resolve_excerpts_match_range(
 		));
 	}
 	if let Some(quote) = req.quote.as_ref() {
-		return Ok(match locate_quote(&doc.content, quote) {
+		return Ok(match text::locate_quote(&doc.content, quote) {
 			Some((s, e)) => (s, e, ExcerptsSelectorKind::Quote),
 			None => {
 				*verified = false;

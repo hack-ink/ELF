@@ -1,4 +1,10 @@
-use super::*;
+use crate::{
+	access,
+	work_journal::validation::{
+		self, Config, Error, Map, MemoryNote, ORG_PROJECT_ID, OffsetDateTime, PgConnection, Result,
+		Uuid, Value, WORK_JOURNAL_PROMOTION_BOUNDARY_SCHEMA_V1, consolidation, serde_json,
+	},
+};
 
 pub(in crate::work_journal) fn normalize_promotion_boundary(input: &Value) -> Result<Value> {
 	let map = match input {
@@ -11,7 +17,7 @@ pub(in crate::work_journal) fn normalize_promotion_boundary(input: &Value) -> Re
 		},
 	};
 
-	validate_json_strings(&Value::Object(map.clone()), "$.promotion_boundary")?;
+	validation::validate_json_strings(&Value::Object(map.clone()), "$.promotion_boundary")?;
 
 	let accepted_memory_authority_ref = map.get("accepted_memory_authority_ref").cloned();
 	let accepted_dreaming_review_ref = map.get("accepted_dreaming_review_ref").cloned();
@@ -111,36 +117,36 @@ fn is_valid_memory_authority_ref(value: &Value) -> bool {
 	let Some(map) = value.as_object() else {
 		return false;
 	};
-	let Some(id) = object_string(map, "id") else {
+	let Some(id) = validation::object_string(map, "id") else {
 		return false;
 	};
 
-	object_string(map, "schema") == Some("elf.memory_record_ref/v1")
-		&& object_string(map, "kind") == Some("note")
-		&& object_string(map, "status") == Some("active")
+	validation::object_string(map, "schema") == Some("elf.memory_record_ref/v1")
+		&& validation::object_string(map, "kind") == Some("note")
+		&& validation::object_string(map, "status") == Some("active")
 		&& Uuid::parse_str(id).is_ok()
 }
 
 fn memory_ref_id(value: &Value) -> Option<Uuid> {
-	Uuid::parse_str(object_string(value.as_object()?, "id")?).ok()
+	Uuid::parse_str(validation::object_string(value.as_object()?, "id")?).ok()
 }
 
 fn is_valid_dreaming_review_ref(value: &Value) -> bool {
 	let Some(map) = value.as_object() else {
 		return false;
 	};
-	let Some(proposal_id) = object_string(map, "proposal_id") else {
+	let Some(proposal_id) = validation::object_string(map, "proposal_id") else {
 		return false;
 	};
-	let review_state = object_string(map, "review_state");
+	let review_state = validation::object_string(map, "review_state");
 
-	object_string(map, "schema") == Some("elf.dreaming_review_queue/v1")
+	validation::object_string(map, "schema") == Some("elf.dreaming_review_queue/v1")
 		&& Uuid::parse_str(proposal_id).is_ok()
 		&& matches!(review_state, Some("approved" | "applied"))
 }
 
 fn dreaming_ref_proposal_id(value: &Value) -> Option<Uuid> {
-	Uuid::parse_str(object_string(value.as_object()?, "proposal_id")?).ok()
+	Uuid::parse_str(validation::object_string(value.as_object()?, "proposal_id")?).ok()
 }
 
 async fn accepted_memory_authority_ref_is_readable(
@@ -210,5 +216,5 @@ async fn accepted_dreaming_review_ref_exists(
 	};
 
 	Ok(matches!(proposal.review_state.as_str(), "approved" | "applied")
-		&& object_string(map, "review_state") == Some(proposal.review_state.as_str()))
+		&& validation::object_string(map, "review_state") == Some(proposal.review_state.as_str()))
 }

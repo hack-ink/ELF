@@ -3,13 +3,15 @@ use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{Error, InsertVersionArgs, Result, access::ORG_PROJECT_ID};
-use elf_storage::models::MemoryNote;
-
-use super::{
-	types::MemoryCorrectionAction,
-	validation::{apply_restore_snapshot, correction_source_ref_for},
+use crate::{
+	Error, InsertVersionArgs, Result,
+	access::ORG_PROJECT_ID,
+	memory_corrections::{
+		types::MemoryCorrectionAction,
+		validation::{self},
+	},
 };
+use elf_storage::models::MemoryNote;
 
 pub(super) struct RestoreNoteArgs<'a> {
 	pub(super) actor_agent_id: &'a str,
@@ -63,7 +65,7 @@ pub(super) async fn supersede_note(
 
 	note.status = "deprecated".to_string();
 	note.updated_at = now;
-	note.source_ref = correction_source_ref_for(
+	note.source_ref = validation::correction_source_ref_for(
 		MemoryCorrectionAction::Supersede,
 		&prev_snapshot,
 		correction_source_ref,
@@ -108,7 +110,7 @@ pub(super) async fn delete_note(
 
 	note.status = "deleted".to_string();
 	note.updated_at = now;
-	note.source_ref = correction_source_ref_for(
+	note.source_ref = validation::correction_source_ref_for(
 		MemoryCorrectionAction::Delete,
 		&prev_snapshot,
 		correction_source_ref,
@@ -143,10 +145,10 @@ pub(super) async fn restore_note(
 		load_restore_snapshot(tx, note.note_id, args.restore_version_id).await?;
 	let prev_snapshot = crate::note_snapshot(note);
 
-	apply_restore_snapshot(note, &restore_snapshot, args.now)?;
+	validation::apply_restore_snapshot(note, &restore_snapshot, args.now)?;
 
 	note.embedding_version = args.embedding_version.to_string();
-	note.source_ref = correction_source_ref_for(
+	note.source_ref = validation::correction_source_ref_for(
 		MemoryCorrectionAction::Restore,
 		&restore_snapshot,
 		args.correction_source_ref,

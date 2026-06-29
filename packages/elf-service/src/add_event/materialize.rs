@@ -1,12 +1,13 @@
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
-use super::{
-	persistence::{insert_memory_note_tx, update_memory_note_tx, upsert_structured_fields_tx},
-	types::{AddEventPersistOutput, AddEventResult, PersistExtractedNoteArgs},
-};
 use crate::{
-	InsertVersionArgs, NoteOp, Result, UpdateDecision, access, graph_ingestion, structured_fields,
+	InsertVersionArgs, NoteOp, Result, UpdateDecision, access,
+	add_event::{
+		persistence::{self},
+		types::{AddEventPersistOutput, AddEventResult, PersistExtractedNoteArgs},
+	},
+	graph_ingestion, structured_fields,
 };
 use elf_domain::memory_policy::MemoryPolicyDecision;
 use elf_storage::models::MemoryNote;
@@ -63,7 +64,7 @@ async fn persist_extracted_note_add(
 		last_hit_at: None,
 	};
 
-	insert_memory_note_tx(tx, &memory_note).await?;
+	persistence::insert_memory_note_tx(tx, &memory_note).await?;
 
 	let note_version_id = crate::insert_version(
 		&mut **tx,
@@ -87,8 +88,8 @@ async fn persist_extracted_note_add(
 		args.now,
 	)
 	.await?;
-
-	upsert_structured_fields_tx(tx, args.structured, memory_note.note_id, args.now).await?;
+	persistence::upsert_structured_fields_tx(tx, args.structured, memory_note.note_id, args.now)
+		.await?;
 
 	if let Some(structured) = args.structured
 		&& structured.has_graph_fields()
@@ -150,7 +151,7 @@ async fn persist_extracted_note_update(
 	existing.expires_at = args.expires_at;
 	existing.source_ref = args.source_ref;
 
-	update_memory_note_tx(tx, &existing).await?;
+	persistence::update_memory_note_tx(tx, &existing).await?;
 
 	let note_version_id = crate::insert_version(
 		&mut **tx,
@@ -174,8 +175,8 @@ async fn persist_extracted_note_update(
 		args.now,
 	)
 	.await?;
-
-	upsert_structured_fields_tx(tx, args.structured, existing.note_id, args.now).await?;
+	persistence::upsert_structured_fields_tx(tx, args.structured, existing.note_id, args.now)
+		.await?;
 
 	if let Some(structured) = args.structured
 		&& structured.has_graph_fields()

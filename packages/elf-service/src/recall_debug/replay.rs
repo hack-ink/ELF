@@ -1,4 +1,7 @@
-use super::*;
+use crate::recall_debug::{
+	self, BTreeMap, BTreeSet, NoteDebugSourceRow, RecallDebugRow, SearchExplainItem, SearchTrace,
+	SearchTrajectoryStage, TraceReplayCandidate, Uuid, Value,
+};
 
 pub(super) fn candidate_debug_row(
 	trace_id: Uuid,
@@ -25,8 +28,8 @@ pub(super) fn candidate_debug_row(
 		}),
 		selection_state: "dropped".to_string(),
 		authority_layer: "memory_note".to_string(),
-		freshness_state: freshness_from_note_source(source),
-		source_refs: source_ref_from_note_source(source),
+		freshness_state: recall_debug::freshness_from_note_source(source),
+		source_refs: recall_debug::source_ref_from_note_source(source),
 		score: candidate.retrieval_score,
 		rank: Some(candidate.retrieval_rank),
 		rationale: Some(
@@ -119,7 +122,7 @@ pub(super) fn compact_candidate_replay(
 	let rows = candidates
 		.iter()
 		.map(|candidate| {
-			let key = candidate_identity(candidate.note_id, candidate.chunk_id);
+			let key = recall_debug::candidate_identity(candidate.note_id, candidate.chunk_id);
 			let rerank_rank = rerank_ranks.get(&key).copied();
 			let selection_state =
 				if selected_candidate_keys.contains(&key) { "selected" } else { "dropped" };
@@ -176,7 +179,10 @@ pub(super) fn candidate_rerank_ranks(
 		.into_iter()
 		.enumerate()
 		.map(|(index, candidate)| {
-			(candidate_identity(candidate.note_id, candidate.chunk_id), index as u32 + 1)
+			(
+				recall_debug::candidate_identity(candidate.note_id, candidate.chunk_id),
+				index as u32 + 1,
+			)
 		})
 		.collect()
 }
@@ -210,7 +216,7 @@ pub(super) fn compact_selected_context(
 				"chunk_id": item.chunk_id,
 				"source_ref": source.map(|row| row.source_ref.clone()),
 				"source_ref_available": source.is_some(),
-				"freshness_state": freshness_from_note_source(source),
+				"freshness_state": recall_debug::freshness_from_note_source(source),
 				"final_rank": item.rank,
 				"final_score": item.explain.ranking.final_score,
 				"policy_id": item.explain.ranking.policy_id,

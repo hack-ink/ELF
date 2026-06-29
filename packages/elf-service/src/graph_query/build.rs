@@ -1,4 +1,10 @@
-use super::*;
+use crate::{
+	graph,
+	graph_query::{
+		ELF_GRAPH_QUERY_SCHEMA_V1, Error, GraphQueryExplain, GraphQueryFact, GraphQueryFactRow,
+		GraphQueryObject, GraphQueryObjectEntity, OffsetDateTime, Result,
+	},
+};
 
 pub(crate) fn resolve_effective_scopes(
 	allowed_scopes: &[String],
@@ -105,7 +111,7 @@ pub(super) fn graph_query_facts_from_rows(
 				predicate_id: row.predicate_id,
 				valid_from: row.valid_from,
 				valid_to: row.valid_to,
-				temporal_status: crate::graph::relation_temporal_status(
+				temporal_status: graph::relation_temporal_status(
 					row.valid_from,
 					row.valid_to,
 					read_at,

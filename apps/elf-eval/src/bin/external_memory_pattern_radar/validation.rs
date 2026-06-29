@@ -2,14 +2,13 @@ use std::{collections::BTreeSet, path::Path};
 
 use color_eyre::{Result, eyre};
 
-use super::{
-	CURSOR_SCHEMA, RUN_SCHEMA,
-	io::read_cursor,
+use crate::{
+	CURSOR_SCHEMA, RUN_SCHEMA, io,
 	types::{ElfVerdict, IssueAction, RadarCursor, RadarDecision, RadarProject, RadarRun},
 };
 
 pub(super) fn validate_command(path: &Path) -> Result<()> {
-	let cursor = read_cursor(path)?;
+	let cursor = io::read_cursor(path)?;
 
 	validate_cursor(&cursor)
 }

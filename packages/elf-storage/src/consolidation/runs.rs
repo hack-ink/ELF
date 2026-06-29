@@ -1,8 +1,11 @@
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
-use super::{sql::CONSOLIDATION_RUN_SELECT, types::ConsolidationRunStateUpdate};
-use crate::{Result, models::ConsolidationRun};
+use crate::{
+	Result,
+	consolidation::{sql::CONSOLIDATION_RUN_SELECT, types::ConsolidationRunStateUpdate},
+	models::ConsolidationRun,
+};
 
 /// Inserts one consolidation run.
 pub async fn insert_consolidation_run<'e, E>(executor: E, run: &ConsolidationRun) -> Result<()>

@@ -3,33 +3,28 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use super::{
-	super::*,
-	api::{
-		insert_lightrag_texts, query_lightrag_context, wait_for_lightrag, wait_for_lightrag_index,
-	},
-	corpus::write_lightrag_corpus,
-	mapping::{lightrag_mapped_evidence_ids, lightrag_source_mappings},
-	metadata::lightrag_metadata,
-	status::{lightrag_failure_jobs, lightrag_not_encoded_job},
+use crate::{
+	AdapterKind, CommandEvidence, LightragArgs, LoadedJob, MaterializedJob, MaterializedJobInput,
+	MaterializedOutput, Result, Uuid,
+	lightrag::{api, corpus, mapping, metadata, status},
 };
 
-pub(crate) async fn run_lightrag_async(args: LightragArgs) -> color_eyre::Result<()> {
-	let jobs = load_jobs(&args.fixtures)?;
-	let run_slug = short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
+pub(crate) async fn run_lightrag_async(args: LightragArgs) -> Result<()> {
+	let jobs = crate::load_jobs(&args.fixtures)?;
+	let run_slug = crate::short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
 	let result = materialize_lightrag_jobs(&args, &jobs, &run_slug).await;
 	let materialized = match result {
 		Ok(jobs) => jobs,
-		Err(err) => lightrag_failure_jobs(
+		Err(err) => status::lightrag_failure_jobs(
 			&args.adapter_id,
 			&jobs,
 			"lightrag_api_context_export",
 			err.to_string(),
 		),
 	};
-	let status = aggregate_status(&materialized);
+	let status = crate::aggregate_status(&materialized);
 
-	write_materialized_output(MaterializedOutput {
+	crate::write_materialized_output(MaterializedOutput {
 		adapter_id: &args.adapter_id,
 		adapter_kind: AdapterKind::LightragApiContextExport,
 		fixtures: &args.fixtures,
@@ -45,7 +40,7 @@ pub(crate) async fn run_lightrag_async(args: LightragArgs) -> color_eyre::Result
 			artifact: Some(args.evidence_out.display().to_string()),
 			reason: "LightRAG adapter used /documents/texts, /documents/track_status, and /query with only_need_context plus chunk references.".to_string(),
 		}],
-		metadata: Some(lightrag_metadata(&args, &run_slug)),
+		metadata: Some(metadata::lightrag_metadata(&args, &run_slug)),
 	})
 }
 
@@ -53,12 +48,12 @@ async fn materialize_lightrag_jobs(
 	args: &LightragArgs,
 	jobs: &[LoadedJob],
 	run_slug: &str,
-) -> color_eyre::Result<Vec<MaterializedJob>> {
+) -> Result<Vec<MaterializedJob>> {
 	fs::create_dir_all(&args.work_dir)?;
 
 	let client = reqwest::Client::builder().timeout(Duration::from_secs(180)).build()?;
 
-	wait_for_lightrag(args, &client).await?;
+	api::wait_for_lightrag(args, &client).await?;
 
 	let mut out = Vec::with_capacity(jobs.len());
 
@@ -74,30 +69,30 @@ async fn materialize_lightrag_job(
 	client: &reqwest::Client,
 	loaded: &LoadedJob,
 	run_slug: &str,
-) -> color_eyre::Result<MaterializedJob> {
-	if let Some(job) = declared_encoding_job(&args.adapter_id, loaded) {
+) -> Result<MaterializedJob> {
+	if let Some(job) = crate::declared_encoding_job(&args.adapter_id, loaded) {
 		return Ok(job);
 	}
-	if let Some(job) = lightrag_not_encoded_job(&args.adapter_id, loaded) {
+	if let Some(job) = status::lightrag_not_encoded_job(&args.adapter_id, loaded) {
 		return Ok(job);
 	}
 
-	let corpus = corpus_texts(loaded)?;
-	let sources = write_lightrag_corpus(args, loaded, &corpus, run_slug)?;
+	let corpus = crate::corpus_texts(loaded)?;
+	let sources = corpus::write_lightrag_corpus(args, loaded, &corpus, run_slug)?;
 	let indexed_at = Instant::now();
-	let insert_response = insert_lightrag_texts(args, client, &corpus, &sources).await?;
+	let insert_response = api::insert_lightrag_texts(args, client, &corpus, &sources).await?;
 
-	wait_for_lightrag_index(args, client, &insert_response, corpus.len()).await?;
+	api::wait_for_lightrag_index(args, client, &insert_response, corpus.len()).await?;
 
 	let indexing_latency_ms = indexed_at.elapsed().as_secs_f64() * 1_000.0;
 	let queried_at = Instant::now();
-	let query_response = query_lightrag_context(args, client, loaded).await?;
+	let query_response = api::query_lightrag_context(args, client, loaded).await?;
 	let latency_ms = queried_at.elapsed().as_secs_f64() * 1_000.0;
-	let source_mappings = lightrag_source_mappings(&corpus, &sources, &query_response);
-	let evidence_ids = lightrag_mapped_evidence_ids(&source_mappings);
-	let selected = selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
+	let source_mappings = mapping::lightrag_source_mappings(&corpus, &sources, &query_response);
+	let evidence_ids = mapping::lightrag_mapped_evidence_ids(&source_mappings);
+	let selected = crate::selected_required_corpus_texts(loaded, &corpus, &evidence_ids);
 
-	Ok(materialized_job(
+	Ok(crate::materialized_job(
 		loaded,
 		&args.adapter_id,
 		MaterializedJobInput {

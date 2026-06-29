@@ -1,4 +1,7 @@
-use super::*;
+use crate::docs::{
+	self, DEFAULT_L0_MAX_BYTES, DocSearchRow, DocTrajectoryBuilder, DocsSearchL0Item, HashMap,
+	HashSet, OffsetDateTime, Result, ScoredPoint, SharedSpaceGrantKey, Uuid,
+};
 
 pub(super) fn docs_search_l0_deduplicated_chunks(
 	scored: &[ScoredPoint],
@@ -8,7 +11,7 @@ pub(super) fn docs_search_l0_deduplicated_chunks(
 	let mut chunks = Vec::new();
 
 	for point in scored.iter().take(candidate_k) {
-		let chunk_id = parse_scored_point_uuid_id(point)?;
+		let chunk_id = docs::parse_scored_point_uuid_id(point)?;
 
 		if seen.insert(chunk_id) {
 			chunks.push((chunk_id, point.score));
@@ -30,7 +33,7 @@ pub(super) fn docs_search_l0_project_items(
 	for (chunk_id, score) in scored_chunks {
 		let Some(row) = rows.get(chunk_id) else { continue };
 
-		if !doc_read_allowed(
+		if !docs::doc_read_allowed(
 			caller_agent_id,
 			allowed_scopes,
 			shared_grants,
@@ -43,9 +46,9 @@ pub(super) fn docs_search_l0_project_items(
 		items.push(DocsSearchL0Item {
 			doc_id: row.doc_id,
 			chunk_id: *chunk_id,
-			pointer: build_docs_l0_pointer(row, *chunk_id),
+			pointer: docs::build_docs_l0_pointer(row, *chunk_id),
 			score: *score,
-			snippet: truncate_bytes(row.chunk_text.as_str(), DEFAULT_L0_MAX_BYTES),
+			snippet: docs::truncate_bytes(row.chunk_text.as_str(), DEFAULT_L0_MAX_BYTES),
 			scope: row.scope.clone(),
 			doc_type: row.doc_type.clone(),
 			project_id: row.project_id.clone(),

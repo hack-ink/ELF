@@ -1,11 +1,9 @@
 use color_eyre::Result;
 
-use super::{
+use crate::{
 	cli::Args,
 	rows::{CandidateRow, ItemRow, StageItemRow, StageRow, TraceRow},
-	sql::{
-		sql_f32, sql_jsonb, sql_opt_timestamptz, sql_opt_uuid, sql_text, sql_timestamptz, sql_uuid,
-	},
+	sql::{self},
 };
 
 pub(super) fn render_fixture_sql(
@@ -64,35 +62,35 @@ fn render_traces(out: &mut String, traces: &[TraceRow]) -> Result<()> {
 
 	for (idx, row) in traces.iter().enumerate() {
 		out.push_str("	(");
-		out.push_str(&sql_uuid(&row.trace_id));
+		out.push_str(&sql::sql_uuid(&row.trace_id));
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.tenant_id));
+		out.push_str(&sql::sql_text(&row.tenant_id));
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.project_id));
+		out.push_str(&sql::sql_text(&row.project_id));
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.agent_id));
+		out.push_str(&sql::sql_text(&row.agent_id));
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.read_profile));
+		out.push_str(&sql::sql_text(&row.read_profile));
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.query));
+		out.push_str(&sql::sql_text(&row.query));
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.expansion_mode));
+		out.push_str(&sql::sql_text(&row.expansion_mode));
 		out.push_str(", ");
-		out.push_str(&sql_jsonb(&row.expanded_queries)?);
+		out.push_str(&sql::sql_jsonb(&row.expanded_queries)?);
 		out.push_str(", ");
-		out.push_str(&sql_jsonb(&row.allowed_scopes)?);
+		out.push_str(&sql::sql_jsonb(&row.allowed_scopes)?);
 		out.push_str(", ");
 		out.push_str(&row.candidate_count.to_string());
 		out.push_str(", ");
 		out.push_str(&row.top_k.to_string());
 		out.push_str(", ");
-		out.push_str(&sql_jsonb(&row.config_snapshot)?);
+		out.push_str(&sql::sql_jsonb(&row.config_snapshot)?);
 		out.push_str(", ");
 		out.push_str(&row.trace_version.to_string());
 		out.push_str(", ");
-		out.push_str(&sql_timestamptz(&row.created_at)?);
+		out.push_str(&sql::sql_timestamptz(&row.created_at)?);
 		out.push_str(", ");
-		out.push_str(&sql_timestamptz(&row.expires_at)?);
+		out.push_str(&sql::sql_timestamptz(&row.expires_at)?);
 		out.push(')');
 
 		if idx + 1 == traces.len() {
@@ -131,37 +129,37 @@ fn render_candidates(out: &mut String, candidates: &[CandidateRow]) -> Result<()
 
 	for (idx, row) in candidates.iter().enumerate() {
 		out.push_str("	(");
-		out.push_str(&sql_uuid(&row.candidate_id));
+		out.push_str(&sql::sql_uuid(&row.candidate_id));
 		out.push_str(", ");
-		out.push_str(&sql_uuid(&row.trace_id));
+		out.push_str(&sql::sql_uuid(&row.trace_id));
 		out.push_str(", ");
-		out.push_str(&sql_uuid(&row.note_id));
+		out.push_str(&sql::sql_uuid(&row.note_id));
 		out.push_str(", ");
-		out.push_str(&sql_uuid(&row.chunk_id));
+		out.push_str(&sql::sql_uuid(&row.chunk_id));
 		out.push_str(", ");
 		out.push_str(&row.chunk_index.to_string());
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.snippet));
+		out.push_str(&sql::sql_text(&row.snippet));
 		out.push_str(", ");
-		out.push_str(&sql_jsonb(&row.candidate_snapshot)?);
+		out.push_str(&sql::sql_jsonb(&row.candidate_snapshot)?);
 		out.push_str(", ");
 		out.push_str(&row.retrieval_rank.to_string());
 		out.push_str(", ");
-		out.push_str(&sql_f32(row.rerank_score));
+		out.push_str(&sql::sql_f32(row.rerank_score));
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.note_scope));
+		out.push_str(&sql::sql_text(&row.note_scope));
 		out.push_str(", ");
-		out.push_str(&sql_f32(row.note_importance));
+		out.push_str(&sql::sql_f32(row.note_importance));
 		out.push_str(", ");
-		out.push_str(&sql_timestamptz(&row.note_updated_at)?);
+		out.push_str(&sql::sql_timestamptz(&row.note_updated_at)?);
 		out.push_str(", ");
 		out.push_str(&row.note_hit_count.to_string());
 		out.push_str(", ");
-		out.push_str(&sql_opt_timestamptz(&row.note_last_hit_at)?);
+		out.push_str(&sql::sql_opt_timestamptz(&row.note_last_hit_at)?);
 		out.push_str(", ");
-		out.push_str(&sql_timestamptz(&row.created_at)?);
+		out.push_str(&sql::sql_timestamptz(&row.created_at)?);
 		out.push_str(", ");
-		out.push_str(&sql_timestamptz(&row.expires_at)?);
+		out.push_str(&sql::sql_timestamptz(&row.expires_at)?);
 		out.push(')');
 
 		if idx + 1 == candidates.len() {
@@ -191,19 +189,19 @@ fn render_items(out: &mut String, items: &[ItemRow]) -> Result<()> {
 
 	for (idx, row) in items.iter().enumerate() {
 		out.push_str("	(");
-		out.push_str(&sql_uuid(&row.item_id));
+		out.push_str(&sql::sql_uuid(&row.item_id));
 		out.push_str(", ");
-		out.push_str(&sql_uuid(&row.trace_id));
+		out.push_str(&sql::sql_uuid(&row.trace_id));
 		out.push_str(", ");
-		out.push_str(&sql_uuid(&row.note_id));
+		out.push_str(&sql::sql_uuid(&row.note_id));
 		out.push_str(", ");
-		out.push_str(&sql_opt_uuid(&row.chunk_id));
+		out.push_str(&sql::sql_opt_uuid(&row.chunk_id));
 		out.push_str(", ");
 		out.push_str(&row.rank.to_string());
 		out.push_str(", ");
-		out.push_str(&sql_f32(row.final_score));
+		out.push_str(&sql::sql_f32(row.final_score));
 		out.push_str(", ");
-		out.push_str(&sql_jsonb(&row.explain)?);
+		out.push_str(&sql::sql_jsonb(&row.explain)?);
 		out.push(')');
 
 		if idx + 1 == items.len() {
@@ -232,17 +230,17 @@ fn render_stages(out: &mut String, stages: &[StageRow]) -> Result<()> {
 
 	for (idx, row) in stages.iter().enumerate() {
 		out.push_str("	(");
-		out.push_str(&sql_uuid(&row.stage_id));
+		out.push_str(&sql::sql_uuid(&row.stage_id));
 		out.push_str(", ");
-		out.push_str(&sql_uuid(&row.trace_id));
+		out.push_str(&sql::sql_uuid(&row.trace_id));
 		out.push_str(", ");
 		out.push_str(&row.stage_order.to_string());
 		out.push_str(", ");
-		out.push_str(&sql_text(&row.stage_name));
+		out.push_str(&sql::sql_text(&row.stage_name));
 		out.push_str(", ");
-		out.push_str(&sql_jsonb(&row.stage_payload)?);
+		out.push_str(&sql::sql_jsonb(&row.stage_payload)?);
 		out.push_str(", ");
-		out.push_str(&sql_timestamptz(&row.created_at)?);
+		out.push_str(&sql::sql_timestamptz(&row.created_at)?);
 		out.push(')');
 
 		if idx + 1 == stages.len() {
@@ -271,17 +269,17 @@ fn render_stage_items(out: &mut String, stage_items: &[StageItemRow]) -> Result<
 
 	for (idx, row) in stage_items.iter().enumerate() {
 		out.push_str("	(");
-		out.push_str(&sql_uuid(&row.id));
+		out.push_str(&sql::sql_uuid(&row.id));
 		out.push_str(", ");
-		out.push_str(&sql_uuid(&row.stage_id));
+		out.push_str(&sql::sql_uuid(&row.stage_id));
 		out.push_str(", ");
-		out.push_str(&sql_opt_uuid(&row.item_id));
+		out.push_str(&sql::sql_opt_uuid(&row.item_id));
 		out.push_str(", ");
-		out.push_str(&sql_opt_uuid(&row.note_id));
+		out.push_str(&sql::sql_opt_uuid(&row.note_id));
 		out.push_str(", ");
-		out.push_str(&sql_opt_uuid(&row.chunk_id));
+		out.push_str(&sql::sql_opt_uuid(&row.chunk_id));
 		out.push_str(", ");
-		out.push_str(&sql_jsonb(&row.metrics)?);
+		out.push_str(&sql::sql_jsonb(&row.metrics)?);
 		out.push(')');
 
 		if idx + 1 == stage_items.len() {

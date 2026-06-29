@@ -1,4 +1,7 @@
-use super::*;
+use crate::recall_debug::{
+	self, ELF_RECALL_TRACE_SCHEMA_V1, Error, RecallDebugLayer, RecallDebugPanelSummary,
+	RecallDebugRow, RecallTrace, RecallTraceEntry, RecallTraceSummary, Value,
+};
 
 pub(super) fn summarize_layers(layers: &[RecallDebugLayer]) -> RecallDebugPanelSummary {
 	let mut summary = RecallDebugPanelSummary { layer_count: layers.len(), ..Default::default() };
@@ -222,7 +225,7 @@ pub(super) fn blocked_layer(
 	RecallDebugLayer {
 		layer: layer.to_string(),
 		evidence_class: "blocked".to_string(),
-		summary: format!("{summary} error_class={}", public_error_class(err)),
+		summary: format!("{summary} error_class={}", recall_debug::public_error_class(err)),
 		anchor,
 		row_count: 0,
 		selected_count: 0,

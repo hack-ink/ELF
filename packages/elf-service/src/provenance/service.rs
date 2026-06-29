@@ -1,16 +1,15 @@
-use super::{
-	loaders::{
-		load_indexing_outbox, load_ingest_decisions, load_memory_history_events,
-		load_note_versions, load_recent_traces_for_note,
+use crate::{
+	ElfService, Error, Result,
+	provenance::{
+		loaders::{self},
+		types::{
+			MemoryHistoryGetRequest, MemoryHistoryResponse, NoteProvenanceBundleResponse,
+			NoteProvenanceGetRequest, NoteProvenanceNote,
+			constants::{MEMORY_HISTORY_SCHEMA_V1, NOTE_PROVENANCE_BUNDLE_SCHEMA_V1},
+		},
+		validation,
 	},
-	types::{
-		MEMORY_HISTORY_SCHEMA_V1, MemoryHistoryGetRequest, MemoryHistoryResponse,
-		NOTE_PROVENANCE_BUNDLE_SCHEMA_V1, NoteProvenanceBundleResponse, NoteProvenanceGetRequest,
-		NoteProvenanceNote,
-	},
-	validation::validate_note_provenance_request,
 };
-use crate::{ElfService, Error, Result};
 use elf_storage::models::MemoryNote;
 
 impl ElfService {
@@ -19,7 +18,7 @@ impl ElfService {
 		&self,
 		req: NoteProvenanceGetRequest,
 	) -> Result<NoteProvenanceBundleResponse> {
-		let req = validate_note_provenance_request(req)?;
+		let req = validation::validate_note_provenance_request(req)?;
 		let note = sqlx::query_as::<_, MemoryNote>(
 			"\
 SELECT *
@@ -36,20 +35,29 @@ WHERE note_id = $1
 		let Some(note_row) = note else {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		};
-		let ingest_decisions = load_ingest_decisions(&self.db.pool, &req).await?;
-		let note_versions =
-			load_note_versions(&self.db.pool, &req.tenant_id, &req.project_id, req.note_id).await?;
-		let indexing_outbox =
-			load_indexing_outbox(&self.db.pool, &req.tenant_id, &req.project_id, req.note_id)
-				.await?;
-		let recent_traces = load_recent_traces_for_note(
+		let ingest_decisions = loaders::load_ingest_decisions(&self.db.pool, &req).await?;
+		let note_versions = loaders::load_note_versions(
 			&self.db.pool,
 			&req.tenant_id,
 			&req.project_id,
 			req.note_id,
 		)
 		.await?;
-		let history = load_memory_history_events(&self.db.pool, &req, &note_row).await?;
+		let indexing_outbox = loaders::load_indexing_outbox(
+			&self.db.pool,
+			&req.tenant_id,
+			&req.project_id,
+			req.note_id,
+		)
+		.await?;
+		let recent_traces = loaders::load_recent_traces_for_note(
+			&self.db.pool,
+			&req.tenant_id,
+			&req.project_id,
+			req.note_id,
+		)
+		.await?;
+		let history = loaders::load_memory_history_events(&self.db.pool, &req, &note_row).await?;
 
 		Ok(NoteProvenanceBundleResponse {
 			schema: NOTE_PROVENANCE_BUNDLE_SCHEMA_V1.to_string(),
@@ -67,7 +75,7 @@ WHERE note_id = $1
 		&self,
 		req: MemoryHistoryGetRequest,
 	) -> Result<MemoryHistoryResponse> {
-		let req = validate_note_provenance_request(NoteProvenanceGetRequest {
+		let req = validation::validate_note_provenance_request(NoteProvenanceGetRequest {
 			tenant_id: req.tenant_id,
 			project_id: req.project_id,
 			note_id: req.note_id,
@@ -88,7 +96,7 @@ WHERE note_id = $1
 		let Some(note_row) = note_row else {
 			return Err(Error::InvalidRequest { message: "Note not found.".to_string() });
 		};
-		let events = load_memory_history_events(&self.db.pool, &req, &note_row).await?;
+		let events = loaders::load_memory_history_events(&self.db.pool, &req, &note_row).await?;
 
 		Ok(MemoryHistoryResponse {
 			schema: MEMORY_HISTORY_SCHEMA_V1.to_string(),

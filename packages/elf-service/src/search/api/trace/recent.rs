@@ -1,4 +1,4 @@
-use super::*;
+use crate::search::api::trace::{Deserialize, OffsetDateTime, Serialize, Uuid};
 
 /// Request payload for listing recent traces.
 #[derive(Clone, Debug, Deserialize, Serialize)]

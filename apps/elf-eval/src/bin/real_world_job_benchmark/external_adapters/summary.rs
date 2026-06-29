@@ -1,12 +1,9 @@
 use std::collections::BTreeSet;
 
-use super::{
-	super::{
-		AdapterCoverageStatus, AdapterStatusCounts, ElfScenarioPosition, ExternalAdapterReport,
-		ExternalAdapterSummary, ScenarioComparisonOutcome, ScenarioOutcomeCounts,
-		ScenarioPositionCounts,
-	},
-	outcome::scenario_comparison_outcome,
+use crate::{
+	AdapterCoverageStatus, AdapterStatusCounts, ElfScenarioPosition, ExternalAdapterReport,
+	ExternalAdapterSummary, ScenarioComparisonOutcome, ScenarioOutcomeCounts,
+	ScenarioPositionCounts, external_adapters::outcome,
 };
 
 pub(super) fn external_adapter_summary(
@@ -57,7 +54,7 @@ fn accumulate_adapter_summary(
 		);
 		increment_scenario_outcome_count(
 			&mut summary.scenario_outcome_counts,
-			scenario_comparison_outcome(scenario),
+			outcome::scenario_comparison_outcome(scenario),
 		);
 	}
 }

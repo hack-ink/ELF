@@ -1,4 +1,7 @@
-use super::super::*;
+use crate::docs::{
+	Condition, DatetimeRange, DocsSearchL0Filters, Filter, MinShould, ORG_PROJECT_ID,
+	OffsetDateTime, Timestamp,
+};
 
 pub(in crate::docs) fn build_doc_search_filter(
 	tenant_id: &str,

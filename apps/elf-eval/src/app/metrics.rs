@@ -2,12 +2,11 @@ use std::{cmp::Ordering, collections::HashSet};
 
 use uuid::Uuid;
 
-use elf_service::SearchIndexItem;
-
-use super::types::{EvalSummary, ExpectedKind, MergedQuery, Metrics, QueryReport};
+use crate::app::types::{EvalSummary, ExpectedKind, MergedQuery, Metrics, QueryReport};
+use elf_service::{SearchIndexItem, search::TraceReplayCandidate};
 
 pub(super) fn retrieval_top_rank_retention(
-	candidates: &[elf_service::search::TraceReplayCandidate],
+	candidates: &[TraceReplayCandidate],
 	note_ids: &[Uuid],
 	max_retrieval_rank: u32,
 ) -> (usize, usize, f64) {

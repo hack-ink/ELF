@@ -1,6 +1,5 @@
-use super::*;
-
-use super::{
+use crate::search::api::trace::{
+	Deserialize, OffsetDateTime, Serialize, Uuid,
 	explain::SearchExplainItem,
 	metadata::SearchTrace,
 	replay::TraceReplayCandidate,

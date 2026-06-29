@@ -1,11 +1,17 @@
-use super::*;
+use crate::{
+	Error,
+	search::{
+		OffsetDateTime, PgConnection, PgExecutor, QueryBuilder, Result, TraceCandidateRecord,
+		TraceItemRecord, TracePayload, TraceRecord, TraceTrajectoryStageRecord, Uuid,
+	},
+};
 
 pub(super) async fn enqueue_trace<'e, E>(executor: E, payload: TracePayload) -> Result<()>
 where
 	E: PgExecutor<'e>,
 {
 	let now = OffsetDateTime::now_utc();
-	let payload_json = serde_json::to_value(&payload).map_err(|err| crate::Error::Storage {
+	let payload_json = serde_json::to_value(&payload).map_err(|err| Error::Storage {
 		message: format!("Failed to encode search trace payload: {err}"),
 	})?;
 
@@ -124,10 +130,10 @@ pub(super) async fn persist_trace_inline_header(
 	trace: &TraceRecord,
 ) -> Result<()> {
 	let expanded_queries_json = serde_json::to_value(&trace.expanded_queries).map_err(|err| {
-		crate::Error::Storage { message: format!("Failed to encode expanded_queries: {err}") }
+		Error::Storage { message: format!("Failed to encode expanded_queries: {err}") }
 	})?;
 	let allowed_scopes_json = serde_json::to_value(&trace.allowed_scopes).map_err(|err| {
-		crate::Error::Storage { message: format!("Failed to encode allowed_scopes: {err}") }
+		Error::Storage { message: format!("Failed to encode allowed_scopes: {err}") }
 	})?;
 
 	sqlx::query(

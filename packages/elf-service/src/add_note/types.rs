@@ -3,13 +3,11 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::NoteOp;
+use crate::{NoteOp, structured_fields::StructuredFields};
 use elf_domain::{
 	memory_policy::MemoryPolicyDecision,
 	writegate::{WritePolicy, WritePolicyAudit},
 };
-
-use crate::structured_fields::StructuredFields;
 
 /// Request payload for direct note ingestion.
 #[derive(Clone, Debug, Deserialize, Serialize)]

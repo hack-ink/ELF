@@ -1,14 +1,14 @@
 use sqlx::{Postgres, Transaction};
 
-use super::{
-	audit::record_ingest_decision,
-	types::{AddEventContext, AddEventResult, ExtractedNote, NoteProcessingData},
-	validation::{
-		REJECT_STRUCTURED_INVALID, reject_extracted_note_if_evidence_invalid,
-		reject_extracted_note_if_structured_invalid, reject_extracted_note_if_writegate_rejects,
+use crate::{
+	NoteOp, Result,
+	add_event::{
+		audit,
+		types::{AddEventContext, AddEventResult, ExtractedNote, NoteProcessingData},
+		validation::{self, REJECT_STRUCTURED_INVALID},
 	},
+	ingestion_profiles::IngestionProfileRef,
 };
-use crate::{NoteOp, Result, ingestion_profiles::IngestionProfileRef};
 use elf_config::Config;
 use elf_domain::{memory_policy::MemoryPolicyDecision, writegate::WritePolicyAudit};
 
@@ -24,7 +24,7 @@ pub(super) async fn record_extracted_note_rejections(
 	message_policy_applied: &[bool],
 	write_policy_audits: Option<&Vec<WritePolicyAudit>>,
 ) -> Result<Option<AddEventResult>> {
-	if let Some(result) = reject_extracted_note_if_evidence_invalid(
+	if let Some(result) = validation::reject_extracted_note_if_evidence_invalid(
 		cfg,
 		note.reason.as_ref(),
 		&note_data.evidence,
@@ -35,7 +35,7 @@ pub(super) async fn record_extracted_note_rejections(
 
 		result.write_policy_audits = write_policy_audits.cloned();
 
-		record_ingest_decision(
+		audit::record_ingest_decision(
 			tx,
 			cfg,
 			ctx,
@@ -62,7 +62,7 @@ pub(super) async fn record_extracted_note_rejections(
 		.await?;
 
 		return Ok(Some(result));
-	} else if let Some(result) = reject_extracted_note_if_structured_invalid(
+	} else if let Some(result) = validation::reject_extracted_note_if_structured_invalid(
 		note_data.structured.as_ref(),
 		note_data.text.as_str(),
 		&note_data.evidence,
@@ -72,7 +72,7 @@ pub(super) async fn record_extracted_note_rejections(
 
 		result.write_policy_audits = write_policy_audits.cloned();
 
-		record_ingest_decision(
+		audit::record_ingest_decision(
 			tx,
 			cfg,
 			ctx,
@@ -99,7 +99,7 @@ pub(super) async fn record_extracted_note_rejections(
 		.await?;
 
 		return Ok(Some(result));
-	} else if let Some(result) = reject_extracted_note_if_writegate_rejects(
+	} else if let Some(result) = validation::reject_extracted_note_if_writegate_rejects(
 		cfg,
 		note.reason.as_ref(),
 		note_data.note_type.as_str(),
@@ -110,7 +110,7 @@ pub(super) async fn record_extracted_note_rejections(
 
 		result.write_policy_audits = write_policy_audits.cloned();
 
-		record_ingest_decision(
+		audit::record_ingest_decision(
 			tx,
 			cfg,
 			ctx,

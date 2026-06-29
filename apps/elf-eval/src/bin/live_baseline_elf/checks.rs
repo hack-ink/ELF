@@ -1,9 +1,20 @@
-use super::*;
-
 #[path = "checks/lifecycle.rs"] mod lifecycle;
 #[path = "checks/reporting.rs"] mod reporting;
 #[path = "checks/resource.rs"] mod resource;
 #[path = "checks/stress.rs"] mod stress;
+
+use color_eyre::Result;
+
+use crate::{
+	AGENT_ID, AddNoteInput, AddNoteRequest, Arc, BTreeMap, BackfillReport, BaselineRuntime,
+	CheckResult, CheckSummary, CorpusNote, CostProxyReport, DeleteRequest, Duration, ElfService,
+	EmbeddingRuntimeReport, Instant, JoinSet, OperationalCase, PROJECT_ID, Path, QueryCase,
+	QueryResult, Report, ResourceEnvelopeEvidence, SCOPE, SoakConfig, TENANT_ID, UpdateRequest,
+	Uuid, WorkerRunEvidence, contains_case_insensitive, distinctive_terms, env, eyre, fs,
+	run_single_query,
+	runtime::{build_service, run_worker_until_indexed},
+	time,
+};
 
 pub(super) fn outbox_done(counts: &BTreeMap<String, i64>, expected_note_count: usize) -> bool {
 	let done = counts.get("DONE").copied().unwrap_or_default();
@@ -322,20 +333,20 @@ pub(super) async fn run_lifecycle_checks(
 	service: &ElfService,
 	notes: &[CorpusNote],
 	note_ids: &[Uuid],
-) -> color_eyre::Result<Vec<CheckResult>> {
+) -> Result<Vec<CheckResult>> {
 	lifecycle::run_lifecycle_checks_impl(runtime, service, notes, note_ids).await
 }
 
 pub(super) async fn run_concurrent_write_check(
 	runtime: &BaselineRuntime,
 	service: Arc<ElfService>,
-) -> color_eyre::Result<CheckResult> {
+) -> Result<CheckResult> {
 	stress::run_concurrent_write_check_impl(runtime, service).await
 }
 
 pub(super) async fn run_soak_stability_check(
 	runtime: &BaselineRuntime,
 	service: Arc<ElfService>,
-) -> color_eyre::Result<Option<CheckResult>> {
+) -> Result<Option<CheckResult>> {
 	stress::run_soak_stability_check_impl(runtime, service).await
 }

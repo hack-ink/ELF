@@ -1,11 +1,10 @@
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::{Error, Result, models::GraphPredicate};
-
-use super::super::{
-	GRAPH_PREDICATE_SCOPE_GLOBAL, normalize_predicate_name, predicate_scope_key_project,
-	predicate_scope_key_tenant_project,
+use crate::{
+	Error, Result,
+	graph::{self, GRAPH_PREDICATE_SCOPE_GLOBAL},
+	models::GraphPredicate,
 };
 
 /// Resolves a predicate surface across visible scopes or registers a project-scoped predicate.
@@ -23,9 +22,9 @@ pub async fn resolve_or_register_predicate(
 		));
 	}
 
-	let alias_norm = normalize_predicate_name(predicate_surface);
-	let tenant_project_scope = predicate_scope_key_tenant_project(tenant_id, project_id);
-	let project_scope = predicate_scope_key_project(project_id);
+	let alias_norm = graph::normalize_predicate_name(predicate_surface);
+	let tenant_project_scope = graph::predicate_scope_key_tenant_project(tenant_id, project_id);
+	let project_scope = graph::predicate_scope_key_project(project_id);
 	let global_scope = GRAPH_PREDICATE_SCOPE_GLOBAL.to_string();
 
 	for scope_key in [&tenant_project_scope, &project_scope, &global_scope] {
@@ -136,9 +135,9 @@ pub async fn resolve_predicate_no_register(
 		));
 	}
 
-	let alias_norm = normalize_predicate_name(predicate_surface);
-	let tenant_project_scope = predicate_scope_key_tenant_project(tenant_id, project_id);
-	let project_scope = predicate_scope_key_project(project_id);
+	let alias_norm = graph::normalize_predicate_name(predicate_surface);
+	let tenant_project_scope = graph::predicate_scope_key_tenant_project(tenant_id, project_id);
+	let project_scope = graph::predicate_scope_key_project(project_id);
 	let global_scope = GRAPH_PREDICATE_SCOPE_GLOBAL.to_string();
 
 	for scope_key in [&tenant_project_scope, &project_scope, &global_scope] {

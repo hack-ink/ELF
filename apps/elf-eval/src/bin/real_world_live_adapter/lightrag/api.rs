@@ -1,19 +1,15 @@
 use std::time::Duration;
 
-use reqwest::RequestBuilder;
+use reqwest::{Client, RequestBuilder};
 use tokio::time;
 
-use super::{
-	super::*,
-	corpus::lightrag_keywords,
-	metadata::lightrag_api_base,
-	status::{lightrag_index_failed, lightrag_index_processed},
+use crate::{
+	CorpusText, LightragArgs, LightragSource, LoadedJob, Result, eyre,
+	lightrag::{corpus, metadata, status},
+	serde_json,
 };
 
-pub(super) async fn wait_for_lightrag(
-	args: &LightragArgs,
-	client: &reqwest::Client,
-) -> color_eyre::Result<()> {
+pub(super) async fn wait_for_lightrag(args: &LightragArgs, client: &Client) -> Result<()> {
 	let mut last_error = String::new();
 
 	for _attempt in 1..=args.startup_attempts {
@@ -27,7 +23,7 @@ pub(super) async fn wait_for_lightrag(
 
 	Err(eyre::eyre!(
 		"LightRAG API did not become healthy at {} after {} attempts: {}",
-		lightrag_api_base(args),
+		metadata::lightrag_api_base(args),
 		args.startup_attempts,
 		last_error
 	))
@@ -35,10 +31,10 @@ pub(super) async fn wait_for_lightrag(
 
 pub(super) async fn insert_lightrag_texts(
 	args: &LightragArgs,
-	client: &reqwest::Client,
+	client: &Client,
 	corpus: &[CorpusText],
 	sources: &[LightragSource],
-) -> color_eyre::Result<serde_json::Value> {
+) -> Result<serde_json::Value> {
 	let request = serde_json::json!({
 		"texts": corpus.iter().map(|item| item.text.as_str()).collect::<Vec<_>>(),
 		"file_sources": sources.iter().map(|source| source.file_source.as_str()).collect::<Vec<_>>(),
@@ -56,10 +52,10 @@ pub(super) async fn insert_lightrag_texts(
 
 pub(super) async fn wait_for_lightrag_index(
 	args: &LightragArgs,
-	client: &reqwest::Client,
+	client: &Client,
 	insert_response: &serde_json::Value,
 	expected_docs: usize,
-) -> color_eyre::Result<()> {
+) -> Result<()> {
 	let track_id = insert_response
 		.get("track_id")
 		.and_then(serde_json::Value::as_str)
@@ -70,13 +66,13 @@ pub(super) async fn wait_for_lightrag_index(
 		let status =
 			lightrag_get_json(args, client, format!("/documents/track_status/{track_id}")).await?;
 
-		if lightrag_index_failed(&status) {
+		if status::lightrag_index_failed(&status) {
 			return Err(eyre::eyre!(
 				"LightRAG document indexing failed for track_id {track_id}: {}",
 				serde_json::to_string(&status)?
 			));
 		}
-		if lightrag_index_processed(&status, expected_docs) {
+		if status::lightrag_index_processed(&status, expected_docs) {
 			return Ok(());
 		}
 
@@ -95,10 +91,10 @@ pub(super) async fn wait_for_lightrag_index(
 
 pub(super) async fn query_lightrag_context(
 	args: &LightragArgs,
-	client: &reqwest::Client,
+	client: &Client,
 	loaded: &LoadedJob,
-) -> color_eyre::Result<serde_json::Value> {
-	let keywords = lightrag_keywords(loaded.job.prompt.content.as_str());
+) -> Result<serde_json::Value> {
+	let keywords = corpus::lightrag_keywords(loaded.job.prompt.content.as_str());
 	let request = serde_json::json!({
 		"query": loaded.job.prompt.content,
 		"mode": args.query_mode,
@@ -118,10 +114,10 @@ pub(super) async fn query_lightrag_context(
 
 async fn lightrag_get_json(
 	args: &LightragArgs,
-	client: &reqwest::Client,
+	client: &Client,
 	path: impl AsRef<str>,
-) -> color_eyre::Result<serde_json::Value> {
-	let url = format!("{}{}", lightrag_api_base(args), path.as_ref());
+) -> Result<serde_json::Value> {
+	let url = format!("{}{}", metadata::lightrag_api_base(args), path.as_ref());
 	let mut request = client.get(url);
 
 	if let Some(api_key) = args.api_key.as_deref().filter(|key| !key.is_empty()) {
@@ -133,11 +129,11 @@ async fn lightrag_get_json(
 
 async fn lightrag_post_json(
 	args: &LightragArgs,
-	client: &reqwest::Client,
+	client: &Client,
 	path: &str,
 	body: &serde_json::Value,
-) -> color_eyre::Result<serde_json::Value> {
-	let url = format!("{}{}", lightrag_api_base(args), path);
+) -> Result<serde_json::Value> {
+	let url = format!("{}{}", metadata::lightrag_api_base(args), path);
 	let mut request = client.post(url).json(body);
 
 	if let Some(api_key) = args.api_key.as_deref().filter(|key| !key.is_empty()) {
@@ -147,7 +143,7 @@ async fn lightrag_post_json(
 	lightrag_send_json(request).await
 }
 
-async fn lightrag_send_json(request: RequestBuilder) -> color_eyre::Result<serde_json::Value> {
+async fn lightrag_send_json(request: RequestBuilder) -> Result<serde_json::Value> {
 	let response = request.send().await?;
 	let status = response.status();
 	let body = response.text().await?;

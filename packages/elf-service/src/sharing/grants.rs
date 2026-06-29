@@ -1,14 +1,16 @@
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::{ElfService, Error, access::ORG_PROJECT_ID};
-
-use super::{
-	sql::{AGENT_SPACE_GRANT_UPSERT_SQL, PROJECT_SPACE_GRANT_UPSERT_SQL},
-	types::{
-		GranteeKind, ShareScope, SpaceGrantItem, SpaceGrantRevokeRequest, SpaceGrantRevokeResponse,
-		SpaceGrantUpsertRequest, SpaceGrantUpsertResponse, SpaceGrantsListRequest,
-		SpaceGrantsListResponse,
+use crate::{
+	ElfService, Error, Result,
+	access::ORG_PROJECT_ID,
+	sharing::{
+		sql::{AGENT_SPACE_GRANT_UPSERT_SQL, PROJECT_SPACE_GRANT_UPSERT_SQL},
+		types::{
+			GranteeKind, ShareScope, SpaceGrantItem, SpaceGrantRevokeRequest,
+			SpaceGrantRevokeResponse, SpaceGrantUpsertRequest, SpaceGrantUpsertResponse,
+			SpaceGrantsListRequest, SpaceGrantsListResponse,
+		},
 	},
 };
 
@@ -17,7 +19,7 @@ impl ElfService {
 	pub async fn space_grant_upsert(
 		&self,
 		req: SpaceGrantUpsertRequest,
-	) -> crate::Result<SpaceGrantUpsertResponse> {
+	) -> Result<SpaceGrantUpsertResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
@@ -93,7 +95,7 @@ impl ElfService {
 		scope: &str,
 		agent_id: &str,
 		now: time::OffsetDateTime,
-	) -> crate::Result<()> {
+	) -> Result<()> {
 		sqlx::query(PROJECT_SPACE_GRANT_UPSERT_SQL)
 			.bind(Uuid::new_v4())
 			.bind(tenant_id)
@@ -118,7 +120,7 @@ impl ElfService {
 		agent_id: &str,
 		grantee_agent_id: Option<&str>,
 		now: time::OffsetDateTime,
-	) -> crate::Result<()> {
+	) -> Result<()> {
 		sqlx::query(AGENT_SPACE_GRANT_UPSERT_SQL)
 			.bind(Uuid::new_v4())
 			.bind(tenant_id)
@@ -139,7 +141,7 @@ impl ElfService {
 	pub async fn space_grant_revoke(
 		&self,
 		req: SpaceGrantRevokeRequest,
-	) -> crate::Result<SpaceGrantRevokeResponse> {
+	) -> Result<SpaceGrantRevokeResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();
@@ -218,7 +220,7 @@ WHERE tenant_id = $1
 	pub async fn space_grants_list(
 		&self,
 		req: SpaceGrantsListRequest,
-	) -> crate::Result<SpaceGrantsListResponse> {
+	) -> Result<SpaceGrantsListResponse> {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.trim();

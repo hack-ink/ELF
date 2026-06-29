@@ -3,15 +3,15 @@ use std::fs;
 use color_eyre::{Result, eyre};
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn dreaming_readiness_stage_ledger_preserves_gate_shape() -> Result<()> {
 	let ledger = serde_json::from_str::<Value>(&fs::read_to_string(
-		dreaming_readiness_stage_ledger_json_path()?,
+		support::dreaming_readiness_stage_ledger_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(dreaming_readiness_stage_ledger_markdown_path()?)?;
-	let stages = array_at(&ledger, "/stage_gates")?;
+	let markdown = fs::read_to_string(support::dreaming_readiness_stage_ledger_markdown_path()?)?;
+	let stages = support::array_at(&ledger, "/stage_gates")?;
 
 	assert_dreaming_readiness_ledger_header(&ledger)?;
 	assert_dreaming_readiness_stage_shape(&ledger, stages)?;
@@ -29,10 +29,10 @@ fn assert_dreaming_readiness_ledger_header(ledger: &Value) -> Result<()> {
 	assert_eq!(ledger.pointer("/authority").and_then(Value::as_str), Some("XY-951"));
 
 	for term in ["improved", "regressed", "unchanged", "blocked", "not_tested"] {
-		assert!(array_contains_str(ledger, "/judgment_terms", term)?);
+		assert!(support::array_contains_str(ledger, "/judgment_terms", term)?);
 	}
 	for term in ["pass", "wrong_result", "blocked", "not_tested", "not_encoded"] {
-		assert!(array_contains_str(ledger, "/count_fields", term)?);
+		assert!(support::array_contains_str(ledger, "/count_fields", term)?);
 	}
 
 	Ok(())
@@ -51,26 +51,26 @@ fn assert_dreaming_readiness_stage_shape(ledger: &Value, stages: &[Value]) -> Re
 		"scheduled_memory_task_readiness",
 		"final_competitor_retest_status",
 	] {
-		find_by_field(stages, "/stage_id", stage_id)?;
+		support::find_by_field(stages, "/stage_id", stage_id)?;
 	}
 	for stage in stages {
 		let stage_id =
 			stage.pointer("/stage_id").and_then(Value::as_str).unwrap_or("<missing stage_id>");
 
 		assert!(
-			!array_at(stage, "/baseline_commands")?.is_empty(),
+			!support::array_at(stage, "/baseline_commands")?.is_empty(),
 			"{stage_id} missing baseline commands"
 		);
 		assert!(
-			!array_at(stage, "/post_stage_commands")?.is_empty(),
+			!support::array_at(stage, "/post_stage_commands")?.is_empty(),
 			"{stage_id} missing post-stage commands"
 		);
 		assert!(
-			!array_at(stage, "/evidence_files")?.is_empty(),
+			!support::array_at(stage, "/evidence_files")?.is_empty(),
 			"{stage_id} missing evidence files"
 		);
 
-		for count_field in string_array_at(ledger, "/count_fields")? {
+		for count_field in support::string_array_at(ledger, "/count_fields")? {
 			let pointer = format!("/baseline_counts/{count_field}");
 
 			assert!(
@@ -84,14 +84,14 @@ fn assert_dreaming_readiness_stage_shape(ledger: &Value, stages: &[Value]) -> Re
 			.and_then(Value::as_str)
 			.ok_or_else(|| eyre::eyre!("{stage_id} missing comparison_judgment"))?;
 
-		assert!(array_contains_str(ledger, "/judgment_terms", judgment)?);
+		assert!(support::array_contains_str(ledger, "/judgment_terms", judgment)?);
 	}
 
 	Ok(())
 }
 
 fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -> Result<()> {
-	let current = find_by_field(stages, "/stage_id", "current_vs_historical_correctness")?;
+	let current = support::find_by_field(stages, "/stage_id", "current_vs_historical_correctness")?;
 
 	assert_eq!(current.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(1));
 	assert_eq!(current.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64), Some(5));
@@ -111,7 +111,7 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 			.is_some_and(|basis| basis.contains("passes all six encoded jobs"))
 	);
 
-	let preference = find_by_field(stages, "/stage_id", "preference_evolution")?;
+	let preference = support::find_by_field(stages, "/stage_id", "preference_evolution")?;
 
 	assert_eq!(
 		preference.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64),
@@ -127,7 +127,7 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 		Some("improved")
 	);
 
-	let tombstone = find_by_field(stages, "/stage_id", "deletion_ttl_tombstone_behavior")?;
+	let tombstone = support::find_by_field(stages, "/stage_id", "deletion_ttl_tombstone_behavior")?;
 
 	assert_eq!(tombstone.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(1));
 	assert_eq!(tombstone.pointer("/post_stage_counts/pass").and_then(Value::as_u64), Some(1));
@@ -142,7 +142,7 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 			.is_some_and(|basis| basis.contains("tombstone and invalidation evidence"))
 	);
 
-	let consolidation = find_by_field(stages, "/stage_id", "reviewable_consolidation")?;
+	let consolidation = support::find_by_field(stages, "/stage_id", "reviewable_consolidation")?;
 
 	assert_eq!(
 		consolidation.pointer("/comparison_judgment").and_then(Value::as_str),
@@ -165,7 +165,7 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 				&& basis.contains("zero source mutations"))
 	);
 
-	let scheduled = find_by_field(stages, "/stage_id", "scheduled_memory_task_readiness")?;
+	let scheduled = support::find_by_field(stages, "/stage_id", "scheduled_memory_task_readiness")?;
 
 	assert_eq!(scheduled.pointer("/comparison_judgment").and_then(Value::as_str), Some("improved"));
 	assert_eq!(scheduled.pointer("/baseline_counts/blocked").and_then(Value::as_u64), Some(1));
@@ -188,7 +188,7 @@ fn assert_dreaming_readiness_baseline_counts(ledger: &Value, stages: &[Value]) -
 }
 
 fn assert_dreaming_final_competitor_retest_stage(ledger: &Value, stages: &[Value]) -> Result<()> {
-	let retest = find_by_field(stages, "/stage_id", "final_competitor_retest_status")?;
+	let retest = support::find_by_field(stages, "/stage_id", "final_competitor_retest_status")?;
 
 	assert_eq!(retest.pointer("/baseline_counts/pass").and_then(Value::as_u64), Some(22));
 	assert_eq!(retest.pointer("/baseline_counts/wrong_result").and_then(Value::as_u64), Some(5));
@@ -213,27 +213,44 @@ fn assert_dreaming_final_competitor_retest_stage(ledger: &Value, stages: &[Value
 }
 
 fn assert_dreaming_readiness_summary_buckets(ledger: &Value) -> Result<()> {
-	assert!(array_contains_str(ledger, "/summary/improved", "current_vs_historical_correctness")?);
-	assert!(array_contains_str(ledger, "/summary/improved", "preference_evolution")?);
-	assert!(array_contains_str(ledger, "/summary/improved", "reviewable_consolidation")?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
+		ledger,
+		"/summary/improved",
+		"current_vs_historical_correctness"
+	)?);
+	assert!(support::array_contains_str(ledger, "/summary/improved", "preference_evolution")?);
+	assert!(support::array_contains_str(ledger, "/summary/improved", "reviewable_consolidation")?);
+	assert!(support::array_contains_str(
 		ledger,
 		"/summary/improved",
 		"memory_summary_top_of_mind_behavior"
 	)?);
-	assert!(array_contains_str(ledger, "/summary/improved", "proactive_brief_readiness")?);
-	assert!(array_contains_str(ledger, "/summary/improved", "scheduled_memory_task_readiness")?);
-	assert!(array_at(ledger, "/summary/regressed")?.is_empty());
-	assert!(array_contains_str(ledger, "/summary/unchanged", "deletion_ttl_tombstone_behavior")?);
-	assert!(array_contains_str(ledger, "/summary/unchanged", "final_competitor_retest_status")?);
-	assert!(array_at(ledger, "/summary/blocked")?.is_empty());
-	assert!(array_at(ledger, "/summary/not_tested")?.is_empty());
+	assert!(support::array_contains_str(ledger, "/summary/improved", "proactive_brief_readiness")?);
+	assert!(support::array_contains_str(
+		ledger,
+		"/summary/improved",
+		"scheduled_memory_task_readiness"
+	)?);
+	assert!(support::array_at(ledger, "/summary/regressed")?.is_empty());
+	assert!(support::array_contains_str(
+		ledger,
+		"/summary/unchanged",
+		"deletion_ttl_tombstone_behavior"
+	)?);
+	assert!(support::array_contains_str(
+		ledger,
+		"/summary/unchanged",
+		"final_competitor_retest_status"
+	)?);
+	assert!(support::array_at(ledger, "/summary/blocked")?.is_empty());
+	assert!(support::array_at(ledger, "/summary/not_tested")?.is_empty());
 
 	Ok(())
 }
 
 fn assert_dreaming_memory_summary_stage(stages: &[Value]) -> Result<()> {
-	let summary_stage = find_by_field(stages, "/stage_id", "memory_summary_top_of_mind_behavior")?;
+	let summary_stage =
+		support::find_by_field(stages, "/stage_id", "memory_summary_top_of_mind_behavior")?;
 
 	assert_eq!(
 		summary_stage.pointer("/comparison_judgment").and_then(Value::as_str),
@@ -256,7 +273,7 @@ fn assert_dreaming_memory_summary_stage(stages: &[Value]) -> Result<()> {
 }
 
 fn assert_dreaming_proactive_brief_stage(stages: &[Value]) -> Result<()> {
-	let proactive_stage = find_by_field(stages, "/stage_id", "proactive_brief_readiness")?;
+	let proactive_stage = support::find_by_field(stages, "/stage_id", "proactive_brief_readiness")?;
 
 	assert_eq!(
 		proactive_stage.pointer("/comparison_judgment").and_then(Value::as_str),

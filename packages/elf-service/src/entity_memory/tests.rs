@@ -1,29 +1,27 @@
-use serde_json;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	build::{core_block_mentions_entity, note_lifecycle, note_read_bucket, summarize_items},
-	storage::EntityCoreBlockRow,
+use crate::{
+	EntityMemoryItem,
+	entity_memory::{build, storage::EntityCoreBlockRow},
 };
-use crate::EntityMemoryItem;
 
 #[test]
 fn entity_memory_note_lifecycle_classifies_current_stale_superseded_and_tombstoned() {
 	let as_of = OffsetDateTime::from_unix_timestamp(100).expect("valid timestamp");
 	let expired = OffsetDateTime::from_unix_timestamp(90).expect("valid timestamp");
 
-	assert_eq!(note_lifecycle("active", None, as_of), "current");
-	assert_eq!(note_lifecycle("active", Some(expired), as_of), "stale");
-	assert_eq!(note_lifecycle("deprecated", None, as_of), "superseded");
-	assert_eq!(note_lifecycle("deleted", None, as_of), "tombstoned");
+	assert_eq!(build::note_lifecycle("active", None, as_of), "current");
+	assert_eq!(build::note_lifecycle("active", Some(expired), as_of), "stale");
+	assert_eq!(build::note_lifecycle("deprecated", None, as_of), "superseded");
+	assert_eq!(build::note_lifecycle("deleted", None, as_of), "tombstoned");
 }
 
 #[test]
 fn entity_memory_read_bucket_keeps_only_current_high_importance_top_of_mind() {
-	assert_eq!(note_read_bucket("current", 0.8), "top_of_mind");
-	assert_eq!(note_read_bucket("current", 0.79), "background");
-	assert_eq!(note_read_bucket("stale", 0.99), "background");
+	assert_eq!(build::note_read_bucket("current", 0.8), "top_of_mind");
+	assert_eq!(build::note_read_bucket("current", 0.79), "background");
+	assert_eq!(build::note_read_bucket("stale", 0.99), "background");
 }
 
 #[test]
@@ -40,8 +38,8 @@ fn entity_memory_core_block_mentions_canonical_or_alias_surface() {
 		updated_at: OffsetDateTime::from_unix_timestamp(100).expect("valid timestamp"),
 	};
 
-	assert!(core_block_mentions_entity(&row, &["Alice".to_string(), "Alicia".to_string()]));
-	assert!(!core_block_mentions_entity(&row, &["Bob".to_string()]));
+	assert!(build::core_block_mentions_entity(&row, &["Alice".to_string(), "Alicia".to_string()]));
+	assert!(!build::core_block_mentions_entity(&row, &["Bob".to_string()]));
 }
 
 #[test]
@@ -89,7 +87,7 @@ fn entity_memory_summary_counts_lifecycle_and_read_buckets() {
 			relations: Vec::new(),
 		},
 	];
-	let summary = summarize_items(&items);
+	let summary = build::summarize_items(&items);
 
 	assert_eq!(summary.current_count, 1);
 	assert_eq!(summary.stale_count, 1);

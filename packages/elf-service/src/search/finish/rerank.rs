@@ -1,4 +1,11 @@
-use super::super::*;
+use crate::{
+	Error,
+	search::{
+		self, CacheKind, ChunkCandidate, ChunkMeta, ChunkSnippet, Duration, ElfService, HashMap,
+		NoteMeta, OffsetDateTime, RerankCacheCandidate, RerankCacheItem, RerankCachePayload,
+		Result, SearchCache, Uuid, ranking,
+	},
+};
 
 impl ElfService {
 	pub(in crate::search) async fn build_snippet_items(
@@ -11,7 +18,7 @@ impl ElfService {
 		}
 
 		let pairs = ranking::collect_neighbor_pairs(filtered_candidates);
-		let chunk_rows = fetch_chunks_by_pair(&self.db.pool, &pairs).await?;
+		let chunk_rows = search::fetch_chunks_by_pair(&self.db.pool, &pairs).await?;
 		let mut chunk_by_id = HashMap::new();
 		let mut chunk_by_note_index = HashMap::new();
 
@@ -107,7 +114,7 @@ impl ElfService {
 		let scores = self.providers.rerank.rerank(&self.cfg.providers.rerank, query, &docs).await?;
 
 		if scores.len() != snippet_items.len() {
-			return Err(crate::Error::Provider {
+			return Err(Error::Provider {
 				message: "Rerank provider returned mismatched score count.".to_string(),
 			});
 		}
@@ -150,7 +157,7 @@ impl ElfService {
 		cache_cfg: &SearchCache,
 		now: OffsetDateTime,
 	) -> Option<Vec<f32>> {
-		match fetch_cache_payload(&self.db.pool, CacheKind::Rerank, key, now).await {
+		match search::fetch_cache_payload(&self.db.pool, CacheKind::Rerank, key, now).await {
 			Ok(Some(payload)) => {
 				let decoded: RerankCachePayload = match serde_json::from_value(payload.value) {
 					Ok(value) => value,
@@ -239,7 +246,7 @@ impl ElfService {
 				let stored_at = OffsetDateTime::now_utc();
 				let expires_at = stored_at + Duration::days(cache_cfg.rerank_ttl_days);
 
-				match store_cache_payload(
+				match search::store_cache_payload(
 					&self.db.pool,
 					CacheKind::Rerank,
 					key,

@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::{
+	ElfService, KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1, KnowledgePageRebuildRequest,
+	KnowledgePageRebuildResponse, KnowledgePageUpsert, OffsetDateTime, Result, SourceIds, Uuid,
+	knowledge,
+};
 
 impl ElfService {
 	/// Rebuilds and persists one derived knowledge page from explicit source ids.
@@ -6,13 +10,19 @@ impl ElfService {
 		&self,
 		req: KnowledgePageRebuildRequest,
 	) -> Result<KnowledgePageRebuildResponse> {
-		validate_context(req.tenant_id.as_str(), req.project_id.as_str(), req.agent_id.as_str())?;
-		validate_non_empty("page_key", req.page_key.as_str())?;
-		validate_object("provider_metadata", &req.provider_metadata)?;
+		crate::knowledge::validate_context(
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			req.agent_id.as_str(),
+		)?;
+		crate::knowledge::validate_non_empty("page_key", req.page_key.as_str())?;
+		crate::knowledge::validate_object("provider_metadata", &req.provider_metadata)?;
 
 		let ids = SourceIds::from_request(&req)?;
-		let title =
-			req.title.clone().unwrap_or_else(|| generated_title(req.page_kind, &req.page_key));
+		let title = req
+			.title
+			.clone()
+			.unwrap_or_else(|| crate::knowledge::generated_title(req.page_kind, &req.page_key));
 		let previous_page = knowledge::get_knowledge_page_by_key(
 			&self.db.pool,
 			req.tenant_id.as_str(),
@@ -28,22 +38,32 @@ impl ElfService {
 		};
 		let sources = self.resolve_sources(&req, &ids).await?;
 		let now = OffsetDateTime::now_utc();
-		let source_snapshot = source_snapshot_value(&sources);
-		let source_hash = hash_json(&source_snapshot)?;
-		let mut sections = build_sections(&sources)?;
-		let lint = lint_unsupported_sections(&sections);
+		let source_snapshot = crate::knowledge::source_snapshot_value(&sources);
+		let source_hash = crate::knowledge::hash_json(&source_snapshot)?;
+		let mut sections = crate::knowledge::build_sections(&sources)?;
+		let lint = crate::knowledge::lint_unsupported_sections(&sections);
 
 		for section in &mut sections {
-			section.citations = citations_value(section, &sources);
-			section.content_hash = hash_json(&section_hash_payload(section))?;
+			section.citations = crate::knowledge::citations_value(section, &sources);
+			section.content_hash =
+				crate::knowledge::hash_json(&crate::knowledge::section_hash_payload(section))?;
 		}
 
-		let source_coverage =
-			source_coverage_value(req.page_kind, &req.page_key, &sections, &sources);
-		let base_rebuild_metadata = rebuild_metadata(&source_hash, &req.provider_metadata, &req);
-		let content_hash =
-			page_content_hash(&title, &sections, &source_coverage, &base_rebuild_metadata)?;
-		let previous_version_diff = previous_version_diff_value(
+		let source_coverage = crate::knowledge::source_coverage_value(
+			req.page_kind,
+			&req.page_key,
+			&sections,
+			&sources,
+		);
+		let base_rebuild_metadata =
+			crate::knowledge::rebuild_metadata(&source_hash, &req.provider_metadata, &req);
+		let content_hash = crate::knowledge::page_content_hash(
+			&title,
+			&sections,
+			&source_coverage,
+			&base_rebuild_metadata,
+		)?;
+		let previous_version_diff = crate::knowledge::previous_version_diff_value(
 			previous_page.as_ref(),
 			&previous_sections,
 			title.as_str(),
@@ -51,14 +71,14 @@ impl ElfService {
 			content_hash.as_str(),
 			&sections,
 		);
-		let version_identity = version_identity_value(
+		let version_identity = crate::knowledge::version_identity_value(
 			req.page_kind,
 			req.page_key.as_str(),
 			source_hash.as_str(),
 			content_hash.as_str(),
 			&sections,
 		);
-		let rebuild_metadata = rebuild_metadata_with_previous_version_diff(
+		let rebuild_metadata = crate::knowledge::rebuild_metadata_with_previous_version_diff(
 			base_rebuild_metadata,
 			previous_version_diff,
 			version_identity,
@@ -86,7 +106,15 @@ impl ElfService {
 		)
 		.await?;
 
-		replace_page_children(&mut tx, page.page_id, &sections, &sources, &lint, now).await?;
+		crate::knowledge::replace_page_children(
+			&mut tx,
+			page.page_id,
+			&sections,
+			&sources,
+			&lint,
+			now,
+		)
+		.await?;
 
 		tx.commit().await?;
 

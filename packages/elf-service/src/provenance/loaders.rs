@@ -5,34 +5,27 @@ use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	history::{
-		decision_history_event, derived_proposal_history_event, expire_history_event,
-		proposal_review_history_event, should_emit_decision_event, version_history_event,
-	},
-	types::{
-		MemoryHistoryEvent, NOTE_PROVENANCE_HISTORY_LIMIT, NOTE_PROVENANCE_INGEST_DECISIONS_LIMIT,
-		NOTE_PROVENANCE_NOTE_VERSIONS_LIMIT, NOTE_PROVENANCE_OUTBOX_LIMIT,
-		NOTE_PROVENANCE_RECENT_TRACES_LIMIT, NoteDerivedProposalRow, NoteIndexingOutboxRow,
-		NoteIngestDecisionRow, NoteProposalReviewRow, NoteProvenanceIndexingOutbox,
-		NoteProvenanceIngestDecision, NoteProvenanceNoteVersion, NoteProvenanceRecentTrace,
-		NoteRecentTraceRow, NoteVersionRow, ValidatedNoteProvenanceRequest,
+use crate::{
+	Result,
+	provenance::{
+		history::{self},
+		types::{
+			MemoryHistoryEvent, NoteProvenanceIndexingOutbox, NoteProvenanceIngestDecision,
+			NoteProvenanceNoteVersion, NoteProvenanceRecentTrace,
+			constants::{
+				NOTE_PROVENANCE_HISTORY_LIMIT, NOTE_PROVENANCE_INGEST_DECISIONS_LIMIT,
+				NOTE_PROVENANCE_NOTE_VERSIONS_LIMIT, NOTE_PROVENANCE_OUTBOX_LIMIT,
+				NOTE_PROVENANCE_RECENT_TRACES_LIMIT,
+			},
+			requests::ValidatedNoteProvenanceRequest,
+			rows::{
+				NoteDerivedProposalRow, NoteIndexingOutboxRow, NoteIngestDecisionRow,
+				NoteProposalReviewRow, NoteRecentTraceRow, NoteVersionRow,
+			},
+		},
 	},
 };
-use crate::Result;
 use elf_storage::models::MemoryNote;
-
-fn to_recent_trace(item: NoteRecentTraceRow) -> NoteProvenanceRecentTrace {
-	NoteProvenanceRecentTrace {
-		trace_id: item.trace_id,
-		tenant_id: item.tenant_id,
-		project_id: item.project_id,
-		agent_id: item.agent_id,
-		read_profile: item.read_profile,
-		query: item.query,
-		created_at: item.created_at,
-	}
-}
 
 pub(super) async fn load_ingest_decisions(
 	pool: &PgPool,
@@ -199,11 +192,14 @@ pub(super) async fn load_memory_history_events(
 	let mut events = Vec::new();
 
 	for version in &versions {
-		events.push(version_history_event(version, decision_by_version.get(&version.version_id)));
+		events.push(history::version_history_event(
+			version,
+			decision_by_version.get(&version.version_id),
+		));
 	}
 	for decision in &decisions {
-		if should_emit_decision_event(decision) {
-			events.push(decision_history_event(req.note_id, decision));
+		if history::should_emit_decision_event(decision) {
+			events.push(history::decision_history_event(req.note_id, decision));
 		}
 	}
 
@@ -211,14 +207,14 @@ pub(super) async fn load_memory_history_events(
 		&& expires_at <= OffsetDateTime::now_utc()
 		&& !events.iter().any(|event| event.event_type == "expire")
 	{
-		events.push(expire_history_event(note, expires_at));
+		events.push(history::expire_history_event(note, expires_at));
 	}
 
 	for proposal in proposals {
-		events.push(derived_proposal_history_event(req.note_id, proposal));
+		events.push(history::derived_proposal_history_event(req.note_id, proposal));
 	}
 	for review in reviews {
-		events.push(proposal_review_history_event(req.note_id, review));
+		events.push(history::proposal_review_history_event(req.note_id, review));
 	}
 
 	events.sort_by(|left, right| {
@@ -316,4 +312,16 @@ LIMIT $5",
 	.await?;
 
 	Ok(rows)
+}
+
+fn to_recent_trace(item: NoteRecentTraceRow) -> NoteProvenanceRecentTrace {
+	NoteProvenanceRecentTrace {
+		trace_id: item.trace_id,
+		tenant_id: item.tenant_id,
+		project_id: item.project_id,
+		agent_id: item.agent_id,
+		read_profile: item.read_profile,
+		query: item.query,
+		created_at: item.created_at,
+	}
 }

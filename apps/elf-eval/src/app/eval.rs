@@ -3,19 +3,17 @@ use std::{path::Path, time::Instant};
 use color_eyre::{Result, eyre};
 use uuid::Uuid;
 
-use elf_config::Config;
-use elf_service::{ElfService, SearchIndexResponse, SearchRequest};
-use elf_storage::{db::Db, qdrant::QdrantStore};
-
-use super::{
-	Args, SearchMode,
-	dataset::merge_query,
-	metrics::{churn_against_baseline_at_k, compute_metrics_for_query, summarize, unique_items},
+use crate::app::{
+	Args, SearchMode, dataset,
+	metrics::{self},
 	types::{
 		EvalDataset, EvalDatasetInfo, EvalRun, EvalSettings, ExpectedKind, QueryReport,
 		QueryStability, StabilitySummary, default_eval_defaults,
 	},
 };
+use elf_config::Config;
+use elf_service::{ElfService, SearchIndexResponse, SearchRequest};
+use elf_storage::{db::Db, qdrant::QdrantStore};
 
 pub(super) async fn eval_config(
 	config_path: &Path,
@@ -38,18 +36,18 @@ pub(super) async fn eval_config(
 	let mut stability_set = Vec::new();
 
 	for (index, query) in dataset.queries.iter().enumerate() {
-		let merged = merge_query(&defaults, query, args, &service.cfg, index)?;
+		let merged = dataset::merge_query(&defaults, query, args, &service.cfg, index)?;
 		let (first, latency_ms, stability, trace_ids) =
 			run_query_n_times(&service, merged.request.clone(), runs_per_query, search_mode)
 				.await?;
-		let retrieved = unique_items(&first.items);
+		let retrieved = metrics::unique_items(&first.items);
 		let retrieved_note_ids: Vec<Uuid> = retrieved.iter().map(|item| item.note_id).collect();
 		let retrieved_keys: Vec<Option<String>> =
 			retrieved.iter().map(|item| item.key.clone()).collect();
 		let retrieved_summary_chars =
 			retrieved.iter().map(|item| item.summary.len()).sum::<usize>();
 		let (metrics, expected_count) =
-			compute_metrics_for_query(&merged, &retrieved_note_ids, &retrieved_keys);
+			metrics::compute_metrics_for_query(&merged, &retrieved_note_ids, &retrieved_keys);
 
 		if let Some(s) = stability {
 			stability_positional.push(s.positional_churn_at_k);
@@ -84,7 +82,7 @@ pub(super) async fn eval_config(
 		latencies_ms.push(latency_ms);
 	}
 
-	let mut summary = summarize(&reports, &latencies_ms);
+	let mut summary = metrics::summarize(&reports, &latencies_ms);
 
 	if runs_per_query > 1 && !stability_positional.is_empty() {
 		let count = stability_positional.len().max(1) as f64;
@@ -148,7 +146,7 @@ async fn run_query_n_times(
 
 		trace_ids.push(response.trace_id);
 
-		let retrieved = unique_items(&response.items);
+		let retrieved = metrics::unique_items(&response.items);
 		let retrieved_ids = retrieved.iter().map(|item| item.note_id).collect::<Vec<_>>();
 
 		if run_idx == 0 {
@@ -159,7 +157,7 @@ async fn run_query_n_times(
 		}
 
 		let (positional_churn_at_k, set_churn_at_k) =
-			churn_against_baseline_at_k(&first_retrieved_ids, &retrieved_ids, k);
+			metrics::churn_against_baseline_at_k(&first_retrieved_ids, &retrieved_ids, k);
 
 		positional_churn_sum += positional_churn_at_k;
 		set_churn_sum += set_churn_at_k;

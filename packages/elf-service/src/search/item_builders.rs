@@ -1,4 +1,11 @@
-use super::*;
+use crate::{
+	ranking_explain_v2,
+	search::{
+		BuildSearchItemArgs, MAX_MATCHED_TERMS, OffsetDateTime, SEARCH_RANKING_EXPLAIN_SCHEMA_V2,
+		ScoredChunk, SearchExplain, SearchItem, SearchMatchExplain, SearchRankingExplain,
+		TraceCandidateRecord, TraceItemRecord, TraceReplayCandidate, TraceTermsArgs, Uuid, ranking,
+	},
+};
 
 pub(super) fn build_trace_candidate_record(
 	scored_chunk: &ScoredChunk,

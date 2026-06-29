@@ -1,36 +1,6 @@
-use super::*;
+use color_eyre::Result;
 
-fn current_rss_kb() -> Option<u64> {
-	let status = fs::read_to_string("/proc/self/status").ok()?;
-
-	status.lines().find_map(|line| {
-		let rest = line.strip_prefix("VmHWM:")?.trim();
-		let value = rest.split_whitespace().next()?;
-
-		value.parse::<u64>().ok()
-	})
-}
-
-fn path_size_bytes(path: &Path) -> color_eyre::Result<u64> {
-	let metadata = fs::metadata(path)?;
-
-	if metadata.is_file() {
-		return Ok(metadata.len());
-	}
-	if !metadata.is_dir() {
-		return Ok(0);
-	}
-
-	let mut bytes = 0_u64;
-
-	for entry in fs::read_dir(path)? {
-		let entry = entry?;
-
-		bytes = bytes.saturating_add(path_size_bytes(&entry.path())?);
-	}
-
-	Ok(bytes)
-}
+use crate::checks::{CheckResult, ElfService, Path, ResourceEnvelopeEvidence, env, fs};
 
 pub(super) async fn resource_envelope_check_impl(
 	service: &ElfService,
@@ -76,7 +46,39 @@ pub(super) async fn resource_envelope_check_impl(
 	}
 }
 
-async fn postgres_database_bytes(service: &ElfService) -> color_eyre::Result<i64> {
+fn current_rss_kb() -> Option<u64> {
+	let status = fs::read_to_string("/proc/self/status").ok()?;
+
+	status.lines().find_map(|line| {
+		let rest = line.strip_prefix("VmHWM:")?.trim();
+		let value = rest.split_whitespace().next()?;
+
+		value.parse::<u64>().ok()
+	})
+}
+
+fn path_size_bytes(path: &Path) -> Result<u64> {
+	let metadata = fs::metadata(path)?;
+
+	if metadata.is_file() {
+		return Ok(metadata.len());
+	}
+	if !metadata.is_dir() {
+		return Ok(0);
+	}
+
+	let mut bytes = 0_u64;
+
+	for entry in fs::read_dir(path)? {
+		let entry = entry?;
+
+		bytes = bytes.saturating_add(path_size_bytes(&entry.path())?);
+	}
+
+	Ok(bytes)
+}
+
+async fn postgres_database_bytes(service: &ElfService) -> Result<i64> {
 	let bytes = sqlx::query_scalar::<_, i64>("SELECT pg_database_size(current_database())::bigint")
 		.fetch_one(&service.db.pool)
 		.await?;

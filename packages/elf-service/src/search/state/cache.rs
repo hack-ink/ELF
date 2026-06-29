@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::search::{Deserialize, OffsetDateTime, Serialize, Uuid, Value};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(in crate::search) struct ExpansionCachePayload {

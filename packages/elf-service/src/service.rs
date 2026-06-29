@@ -1,7 +1,6 @@
+use crate::Providers;
 use elf_config::Config;
 use elf_storage::{db::Db, qdrant::QdrantStore};
-
-use crate::Providers;
 
 /// Main service container for ELF request handling.
 pub struct ElfService {
@@ -14,7 +13,6 @@ pub struct ElfService {
 	/// External model-provider adapters.
 	pub providers: Providers,
 }
-
 impl ElfService {
 	/// Builds a service with the default provider adapters.
 	pub fn new(cfg: Config, db: Db, qdrant: QdrantStore) -> Self {

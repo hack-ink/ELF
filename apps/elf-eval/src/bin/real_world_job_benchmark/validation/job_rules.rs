@@ -1,4 +1,4 @@
-use super::*;
+use crate::validation::{self, Path, RealWorldJob, Result, TypedStatus, eyre};
 
 pub(super) fn validate_scoring_rubric(job: &RealWorldJob, path: &Path) -> Result<()> {
 	if !(0.0..=1.0).contains(&job.scoring_rubric.pass_threshold) {
@@ -112,7 +112,7 @@ pub(super) fn validate_job_encoding(job: &RealWorldJob, path: &Path) -> Result<(
 				"{} job {} uses encoding.status {}; only not_encoded, blocked, or incomplete are allowed.",
 				path.display(),
 				job.job_id,
-				status_str(status)
+				validation::status_str(status)
 			));
 		}
 		if job.encoding.reason.as_deref().is_none_or(|reason| reason.trim().is_empty()) {

@@ -3,7 +3,6 @@
 mod history;
 mod loaders;
 mod service;
-#[cfg(test)] mod tests;
 mod types;
 mod validation;
 
@@ -13,3 +12,5 @@ pub use types::{
 	NoteProvenanceIngestDecision, NoteProvenanceNote, NoteProvenanceNoteVersion,
 	NoteProvenanceRecentTrace,
 };
+
+#[cfg(test)] mod tests;

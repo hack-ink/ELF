@@ -1,4 +1,9 @@
-use super::super::*;
+use crate::search::{
+	self, ChunkCandidate, ChunkSnippet, DiversityDecision, ElfService, FinishSearchPolicies,
+	FinishSearchScoringResult, HashMap, MAX_MATCHED_TERMS, NoteMeta, OffsetDateTime, Ordering,
+	RankingRequestOverride, ResolvedDiversityPolicy, Result, ScoreCandidateCtx, ScoreSnippetArgs,
+	ScoredChunk, SearchFilter, SearchFilterImpact, Uuid, ranking, structured,
+};
 
 impl ElfService {
 	#[allow(clippy::too_many_arguments)]
@@ -29,7 +34,7 @@ impl ElfService {
 		let query_tokens = ranking::tokenize_query(query, MAX_MATCHED_TERMS);
 		let scope_context_boost_by_scope =
 			ranking::build_scope_context_boost_by_scope(&query_tokens, self.cfg.context.as_ref());
-		let det_query_tokens = build_deterministic_query_tokens(&self.cfg, query);
+		let det_query_tokens = structured::build_deterministic_query_tokens(&self.cfg, query);
 		let scored = self
 			.score_snippet_items(ScoreSnippetArgs {
 				query,
@@ -45,7 +50,7 @@ impl ElfService {
 			.await?;
 		let scored_count = scored.len();
 		let trace_candidates = self.build_trace_candidates(&scored, now);
-		let results = select_best_scored_chunks(scored);
+		let results = search::select_best_scored_chunks(scored);
 		let fused_results = results.clone();
 		let (selected_results, diversity_decisions) =
 			self.apply_diversity_policy(results, top_k, &policies.diversity_policy).await?;
@@ -171,7 +176,7 @@ impl ElfService {
 		for ((item, rerank_score), rerank_rank) in
 			snippet_items.into_iter().zip(scores).zip(rerank_ranks)
 		{
-			scored.push(score_chunk_candidate(&score_ctx, item, rerank_score, rerank_rank));
+			scored.push(search::score_chunk_candidate(&score_ctx, item, rerank_score, rerank_rank));
 		}
 
 		Ok(scored)
@@ -220,7 +225,7 @@ impl ElfService {
 		diversity_policy: &ResolvedDiversityPolicy,
 	) -> Result<(Vec<ScoredChunk>, HashMap<Uuid, DiversityDecision>)> {
 		let note_vectors = if diversity_policy.enabled {
-			fetch_note_vectors_for_diversity(&self.db.pool, results.as_slice()).await?
+			search::fetch_note_vectors_for_diversity(&self.db.pool, results.as_slice()).await?
 		} else {
 			HashMap::new()
 		};
@@ -243,7 +248,7 @@ impl ElfService {
 
 		let mut tx = self.db.pool.begin().await?;
 
-		record_hits(&mut *tx, query, selected_results, now).await?;
+		search::record_hits(&mut *tx, query, selected_results, now).await?;
 
 		tx.commit().await?;
 

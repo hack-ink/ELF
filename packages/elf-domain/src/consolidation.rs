@@ -1,17 +1,35 @@
 //! Consolidation proposal contract validation.
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use time::OffsetDateTime;
-use uuid::Uuid;
-
 mod error;
 mod lifecycle;
 mod markers;
 mod proposal;
 mod sources;
 
-pub use self::{error::*, lifecycle::*, markers::*, proposal::*, sources::*};
+pub use self::{
+	error::ConsolidationValidationError,
+	lifecycle::{
+		ConsolidationApplyIntent, ConsolidationReviewAction, ConsolidationReviewState,
+		ConsolidationRunState,
+	},
+	markers::{
+		ConsolidationMarker, ConsolidationMarkerSeverity, ConsolidationMarkers,
+		ConsolidationUnsupportedClaimFlag,
+	},
+	proposal::{
+		ConsolidationJobPayload, ConsolidationLineage, ConsolidationProposalContract,
+		ConsolidationProposalDiff,
+	},
+	sources::{
+		ConsolidationInputRef, ConsolidationSourceKind, ConsolidationSourceSnapshot,
+		validate_source_refs,
+	},
+};
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use time::OffsetDateTime;
+use uuid::Uuid;
 
 /// Current consolidation contract schema identifier.
 pub const CONSOLIDATION_CONTRACT_SCHEMA_V1: &str = "elf.consolidation/v1";

@@ -1,10 +1,13 @@
-use super::*;
+use crate::validation::{
+	self, BTreeSet, EvolutionConflict, Path, RealWorldJob, Result, TemporalValidity, TypedStatus,
+	UpdateRationale, eyre,
+};
 
 pub(super) fn validate_memory_evolution(job: &RealWorldJob, path: &Path) -> Result<()> {
 	let Some(evolution) = &job.memory_evolution else {
 		return Ok(());
 	};
-	let evidence_ids = corpus_evidence_ids(job);
+	let evidence_ids = validation::corpus_evidence_ids(job);
 	let trap_ids =
 		job.negative_traps.iter().map(|trap| trap.trap_id.as_str()).collect::<BTreeSet<_>>();
 
@@ -15,7 +18,7 @@ pub(super) fn validate_memory_evolution(job: &RealWorldJob, path: &Path) -> Resu
 		.chain(evolution.tombstone_evidence_ids.iter())
 		.chain(evolution.invalidation_evidence_ids.iter())
 	{
-		ensure_known_evidence(path, &evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, &evidence_ids, evidence_id)?;
 	}
 	for trap_id in &evolution.stale_trap_ids {
 		if !trap_ids.contains(trap_id.as_str()) {
@@ -54,7 +57,7 @@ pub(super) fn validate_memory_summary_expectation(job: &RealWorldJob, path: &Pat
 	};
 
 	for category in &summary.required_categories {
-		if !is_memory_summary_category(category.as_str()) {
+		if !validation::is_memory_summary_category(category.as_str()) {
 			return Err(eyre::eyre!(
 				"{} memory_summary expectation references unknown category {}.",
 				path.display(),
@@ -79,7 +82,7 @@ pub(super) fn validate_proactive_brief_expectation(job: &RealWorldJob, path: &Pa
 	};
 
 	for kind in &brief.required_suggestion_kinds {
-		if !is_proactive_suggestion_kind(kind.as_str()) {
+		if !validation::is_proactive_suggestion_kind(kind.as_str()) {
 			return Err(eyre::eyre!(
 				"{} proactive_brief expectation references unknown suggestion kind {}.",
 				path.display(),
@@ -104,7 +107,7 @@ pub(super) fn validate_scheduled_memory_expectation(job: &RealWorldJob, path: &P
 	};
 
 	for kind in &scheduled.required_task_kinds {
-		if !is_scheduled_task_kind(kind.as_str()) {
+		if !validation::is_scheduled_task_kind(kind.as_str()) {
 			return Err(eyre::eyre!(
 				"{} scheduled_memory expectation references unknown task kind {}.",
 				path.display(),
@@ -127,7 +130,7 @@ pub(super) fn validate_work_continuity_expectation(job: &RealWorldJob, path: &Pa
 
 		return Ok(());
 	};
-	let evidence_ids = corpus_evidence_ids(job);
+	let evidence_ids = validation::corpus_evidence_ids(job);
 
 	for value in work_continuity
 		.required_reset_resume_entry_ids
@@ -150,7 +153,7 @@ pub(super) fn validate_work_continuity_expectation(job: &RealWorldJob, path: &Pa
 		.iter()
 		.chain(work_continuity.required_handoff_source_ref_ids.iter())
 	{
-		ensure_known_evidence(path, &evidence_ids, evidence_ref)?;
+		validation::ensure_known_evidence(path, &evidence_ids, evidence_ref)?;
 	}
 
 	Ok(())
@@ -165,11 +168,15 @@ fn validate_evolution_conflict(
 		return Err(eyre::eyre!("{} has an incomplete evolution conflict.", path.display()));
 	}
 
-	ensure_known_evidence(path, evidence_ids, conflict.current_evidence_id.as_str())?;
-	ensure_known_evidence(path, evidence_ids, conflict.historical_evidence_id.as_str())?;
+	validation::ensure_known_evidence(path, evidence_ids, conflict.current_evidence_id.as_str())?;
+	validation::ensure_known_evidence(
+		path,
+		evidence_ids,
+		conflict.historical_evidence_id.as_str(),
+	)?;
 
 	if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 
 	Ok(())
@@ -188,7 +195,7 @@ fn validate_update_rationale(
 	}
 
 	for evidence_id in &rationale.evidence_ids {
-		ensure_known_evidence(path, evidence_ids, evidence_id)?;
+		validation::ensure_known_evidence(path, evidence_ids, evidence_id)?;
 	}
 
 	Ok(())

@@ -1,4 +1,7 @@
-use super::*;
+use crate::{
+	AdapterCoverageStatus, ElfScenarioPosition, ScenarioComparisonOutcome, TraceExplainability,
+	TypedStatus,
+};
 
 pub(super) fn status_str(status: TypedStatus) -> &'static str {
 	match status {

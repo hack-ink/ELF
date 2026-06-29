@@ -5,15 +5,18 @@ use sqlx::{PgExecutor, Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	types::{
-		CoreBlockAttachmentRow, CoreBlockAuditEvent, CoreBlockEventInput, CoreBlockEventRow,
-		CoreBlockJoinedRow, CoreBlockRow, PreparedAttachRequest, PreparedDetachRequest,
-		PreparedUpsertRequest,
+use crate::{
+	Error, Result,
+	access::ORG_PROJECT_ID,
+	core_blocks::{
+		types::{
+			CoreBlockAttachmentRow, CoreBlockAuditEvent, CoreBlockEventInput, CoreBlockEventRow,
+			CoreBlockJoinedRow, CoreBlockRow, PreparedAttachRequest, PreparedDetachRequest,
+			PreparedUpsertRequest,
+		},
+		validation,
 	},
-	validation::block_snapshot,
 };
-use crate::{Error, Result, access::ORG_PROJECT_ID};
 
 pub(super) async fn insert_core_block(
 	tx: &mut Transaction<'_, Postgres>,
@@ -63,7 +66,7 @@ pub(super) async fn update_core_block(
 	now: OffsetDateTime,
 ) -> Result<(CoreBlockRow, Option<Value>)> {
 	let prev = fetch_owned_block_for_update(tx, req, block_id).await?;
-	let prev_snapshot = Some(block_snapshot(&prev));
+	let prev_snapshot = Some(validation::block_snapshot(&prev));
 
 	ensure_no_active_key_conflict(tx, req, Some(block_id)).await?;
 
@@ -99,67 +102,6 @@ RETURNING *",
 	.ok_or_else(|| Error::NotFound { message: "Core block not found.".to_string() })?;
 
 	Ok((row, prev_snapshot))
-}
-
-async fn fetch_owned_block_for_update(
-	tx: &mut Transaction<'_, Postgres>,
-	req: &PreparedUpsertRequest,
-	block_id: Uuid,
-) -> Result<CoreBlockRow> {
-	sqlx::query_as::<_, CoreBlockRow>(
-		"\
-SELECT *
-FROM core_memory_blocks
-WHERE block_id = $1
-	AND tenant_id = $2
-	AND project_id = $3
-	AND agent_id = $4
-	AND scope = $5
-	AND status = 'active'
-FOR UPDATE",
-	)
-	.bind(block_id)
-	.bind(req.tenant_id.as_str())
-	.bind(req.project_id.as_str())
-	.bind(req.agent_id.as_str())
-	.bind(req.scope.as_str())
-	.fetch_optional(&mut **tx)
-	.await?
-	.ok_or_else(|| Error::NotFound { message: "Core block not found.".to_string() })
-}
-
-async fn ensure_no_active_key_conflict(
-	tx: &mut Transaction<'_, Postgres>,
-	req: &PreparedUpsertRequest,
-	block_id: Option<Uuid>,
-) -> Result<()> {
-	let conflict: Option<Uuid> = sqlx::query_scalar(
-		"\
-SELECT block_id
-FROM core_memory_blocks
-WHERE tenant_id = $1
-	AND project_id = $2
-	AND agent_id = $3
-	AND scope = $4
-	AND key = $5
-	AND status = 'active'
-	AND ($6::uuid IS NULL OR block_id <> $6)
-LIMIT 1",
-	)
-	.bind(req.tenant_id.as_str())
-	.bind(req.project_id.as_str())
-	.bind(req.agent_id.as_str())
-	.bind(req.scope.as_str())
-	.bind(req.key.as_str())
-	.bind(block_id)
-	.fetch_optional(&mut **tx)
-	.await?;
-
-	if conflict.is_some() {
-		return Err(Error::Conflict { message: "Core block key already exists.".to_string() });
-	}
-
-	Ok(())
 }
 
 pub(super) async fn fetch_active_block_for_attachment(
@@ -416,6 +358,67 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
 	.bind(event.ts)
 	.execute(&mut **tx)
 	.await?;
+
+	Ok(())
+}
+
+async fn fetch_owned_block_for_update(
+	tx: &mut Transaction<'_, Postgres>,
+	req: &PreparedUpsertRequest,
+	block_id: Uuid,
+) -> Result<CoreBlockRow> {
+	sqlx::query_as::<_, CoreBlockRow>(
+		"\
+SELECT *
+FROM core_memory_blocks
+WHERE block_id = $1
+	AND tenant_id = $2
+	AND project_id = $3
+	AND agent_id = $4
+	AND scope = $5
+	AND status = 'active'
+FOR UPDATE",
+	)
+	.bind(block_id)
+	.bind(req.tenant_id.as_str())
+	.bind(req.project_id.as_str())
+	.bind(req.agent_id.as_str())
+	.bind(req.scope.as_str())
+	.fetch_optional(&mut **tx)
+	.await?
+	.ok_or_else(|| Error::NotFound { message: "Core block not found.".to_string() })
+}
+
+async fn ensure_no_active_key_conflict(
+	tx: &mut Transaction<'_, Postgres>,
+	req: &PreparedUpsertRequest,
+	block_id: Option<Uuid>,
+) -> Result<()> {
+	let conflict: Option<Uuid> = sqlx::query_scalar(
+		"\
+SELECT block_id
+FROM core_memory_blocks
+WHERE tenant_id = $1
+	AND project_id = $2
+	AND agent_id = $3
+	AND scope = $4
+	AND key = $5
+	AND status = 'active'
+	AND ($6::uuid IS NULL OR block_id <> $6)
+LIMIT 1",
+	)
+	.bind(req.tenant_id.as_str())
+	.bind(req.project_id.as_str())
+	.bind(req.agent_id.as_str())
+	.bind(req.scope.as_str())
+	.bind(req.key.as_str())
+	.bind(block_id)
+	.fetch_optional(&mut **tx)
+	.await?;
+
+	if conflict.is_some() {
+		return Err(Error::Conflict { message: "Core block key already exists.".to_string() });
+	}
 
 	Ok(())
 }

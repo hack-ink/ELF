@@ -2,19 +2,16 @@ use color_eyre::{Result, eyre};
 use time::format_description::well_known::Rfc3339;
 use uuid::Uuid;
 
+use crate::{
+	cli::Args,
+	gate::{GateThresholds, GateTrace},
+	replay::{self},
+	reports::{GateBreach, TraceChurn, TraceReport, TraceRetention},
+	storage::{self},
+};
 use elf_config::Config;
 use elf_service::search::{self, TraceReplayContext};
 use elf_storage::db::Db;
-
-use super::{
-	cli::Args,
-	gate::{GateThresholds, GateTrace},
-	replay::{
-		churn_against_baseline_at_k, decode_trace_replay_candidates, retrieval_top_rank_retention,
-	},
-	reports::{GateBreach, TraceChurn, TraceReport, TraceRetention},
-	storage::{fetch_baseline_items, fetch_candidate_rows, fetch_trace_row},
-};
 
 pub(super) async fn eval_trace(
 	db: &Db,
@@ -25,7 +22,7 @@ pub(super) async fn eval_trace(
 	trace: &GateTrace,
 	thresholds: GateThresholds,
 ) -> Result<TraceReport> {
-	let trace_row = fetch_trace_row(db, &trace.trace_id).await?;
+	let trace_row = storage::fetch_trace_row(db, &trace.trace_id).await?;
 	let created_at = trace_row
 		.created_at
 		.format(&Rfc3339)
@@ -45,22 +42,29 @@ pub(super) async fn eval_trace(
 		.or(gate_retrieval_retention_rank)
 		.unwrap_or(3)
 		.max(1);
-	let baseline_items = fetch_baseline_items(db, &trace.trace_id, top_k).await?;
+	let baseline_items = storage::fetch_baseline_items(db, &trace.trace_id, top_k).await?;
 	let baseline_note_ids: Vec<Uuid> = baseline_items.iter().map(|row| row.note_id).collect();
-	let candidate_rows = fetch_candidate_rows(db, &trace.trace_id).await?;
-	let candidates = decode_trace_replay_candidates(candidate_rows);
+	let candidate_rows = storage::fetch_candidate_rows(db, &trace.trace_id).await?;
+	let candidates = replay::decode_trace_replay_candidates(candidate_rows);
 	let replay_items =
 		search::replay_ranking_from_candidates(cfg, &context, None, &candidates, top_k)
 			.map_err(|err| eyre::eyre!("{err}"))?;
 	let replay_note_ids: Vec<Uuid> = replay_items.iter().map(|item| item.note_id).collect();
 	let effective_k = top_k as usize;
 	let (positional_churn_at_k, set_churn_at_k) =
-		churn_against_baseline_at_k(&baseline_note_ids, &replay_note_ids, effective_k);
+		replay::churn_against_baseline_at_k(&baseline_note_ids, &replay_note_ids, effective_k);
 	let churn = TraceChurn { positional_churn_at_k, set_churn_at_k };
 	let (retrieval_top_rank_total, baseline_retained, baseline_retention) =
-		retrieval_top_rank_retention(&candidates, &baseline_note_ids, retrieval_retention_rank);
-	let (_, replay_retained, replay_retention) =
-		retrieval_top_rank_retention(&candidates, &replay_note_ids, retrieval_retention_rank);
+		replay::retrieval_top_rank_retention(
+			&candidates,
+			&baseline_note_ids,
+			retrieval_retention_rank,
+		);
+	let (_, replay_retained, replay_retention) = replay::retrieval_top_rank_retention(
+		&candidates,
+		&replay_note_ids,
+		retrieval_retention_rank,
+	);
 	let retention = TraceRetention {
 		retrieval_top_rank_total,
 		baseline_retrieval_top_rank_retained: baseline_retained,

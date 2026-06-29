@@ -1,4 +1,11 @@
-use super::{common::push_if_selected, *};
+use crate::{
+	Value,
+	evidence_selection::{
+		self, BTreeSet, CorpusText, IngestedCorpus, LiveExpectedClaim, LiveMemoryEvolution,
+		LoadedJob, SelectedEvidenceText, TemporalReconciliationMaterializationEvidence,
+		TemporalReconciliationSelection, TraceStageOutput, common,
+	},
+};
 
 pub(super) fn temporal_reconciliation_selection_impl(
 	loaded: &LoadedJob,
@@ -15,7 +22,7 @@ pub(super) fn temporal_reconciliation_selection_impl(
 		if retrieved_ids.contains(evidence_id.as_str())
 			&& ingested.note_ids_by_evidence.contains_key(evidence_id)
 		{
-			push_unique(&mut selected_ids, evidence_id.clone());
+			evidence_selection::push_unique(&mut selected_ids, evidence_id.clone());
 		}
 	}
 
@@ -46,26 +53,26 @@ fn temporal_reconciliation_relevant_ids(
 	let mut ids = Vec::new();
 
 	for evidence in &loaded.job.required_evidence {
-		push_unique(&mut ids, evidence.evidence_id.clone());
+		evidence_selection::push_unique(&mut ids, evidence.evidence_id.clone());
 	}
 	for evidence_id in &evolution.current_evidence_ids {
-		push_unique(&mut ids, evidence_id.clone());
+		evidence_selection::push_unique(&mut ids, evidence_id.clone());
 	}
 	for evidence_id in &evolution.historical_evidence_ids {
-		push_unique(&mut ids, evidence_id.clone());
+		evidence_selection::push_unique(&mut ids, evidence_id.clone());
 	}
 	for evidence_id in &evolution.tombstone_evidence_ids {
-		push_unique(&mut ids, evidence_id.clone());
+		evidence_selection::push_unique(&mut ids, evidence_id.clone());
 	}
 	for evidence_id in &evolution.invalidation_evidence_ids {
-		push_unique(&mut ids, evidence_id.clone());
+		evidence_selection::push_unique(&mut ids, evidence_id.clone());
 	}
 	for conflict in &evolution.conflicts {
-		push_unique(&mut ids, conflict.current_evidence_id.clone());
-		push_unique(&mut ids, conflict.historical_evidence_id.clone());
+		evidence_selection::push_unique(&mut ids, conflict.current_evidence_id.clone());
+		evidence_selection::push_unique(&mut ids, conflict.historical_evidence_id.clone());
 
 		if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
-			push_unique(&mut ids, evidence_id.clone());
+			evidence_selection::push_unique(&mut ids, evidence_id.clone());
 		}
 	}
 
@@ -73,7 +80,7 @@ fn temporal_reconciliation_relevant_ids(
 		&& rationale.available
 	{
 		for evidence_id in &rationale.evidence_ids {
-			push_unique(&mut ids, evidence_id.clone());
+			evidence_selection::push_unique(&mut ids, evidence_id.clone());
 		}
 	}
 
@@ -157,7 +164,10 @@ fn temporal_reconciliation_evidence(
 		.chain(evidence.tombstone_evidence_ids.iter())
 		.chain(evidence.invalidation_evidence_ids.iter())
 	{
-		push_unique(&mut evidence.contradicted_by_lifecycle_evidence_ids, evidence_id.clone());
+		evidence_selection::push_unique(
+			&mut evidence.contradicted_by_lifecycle_evidence_ids,
+			evidence_id.clone(),
+		);
 	}
 
 	evidence
@@ -174,11 +184,11 @@ fn conflict_candidate_ids(
 	let mut ids = Vec::new();
 
 	for conflict in &evolution.conflicts {
-		push_if_selected(&mut ids, conflict.current_evidence_id.as_str(), selected);
-		push_if_selected(&mut ids, conflict.historical_evidence_id.as_str(), selected);
+		common::push_if_selected(&mut ids, conflict.current_evidence_id.as_str(), selected);
+		common::push_if_selected(&mut ids, conflict.historical_evidence_id.as_str(), selected);
 
 		if let Some(evidence_id) = &conflict.resolved_by_evidence_id {
-			push_if_selected(&mut ids, evidence_id.as_str(), selected);
+			common::push_if_selected(&mut ids, evidence_id.as_str(), selected);
 		}
 	}
 
@@ -186,16 +196,16 @@ fn conflict_candidate_ids(
 }
 
 fn selected_but_not_narrated_ids(loaded: &LoadedJob, selected_ids: &[String]) -> Vec<String> {
-	let claims = temporal_reconciliation_claims(loaded, selected_ids);
+	let claims = evidence_selection::temporal_reconciliation_claims(loaded, selected_ids);
 	let narrated = claims
 		.iter()
 		.flat_map(|claim| {
 			claim
 				.get("evidence_ids")
-				.and_then(serde_json::Value::as_array)
+				.and_then(Value::as_array)
 				.into_iter()
 				.flatten()
-				.filter_map(serde_json::Value::as_str)
+				.filter_map(Value::as_str)
 		})
 		.collect::<BTreeSet<_>>();
 

@@ -1,8 +1,6 @@
 use sqlx::PgExecutor;
 
-use crate::Result;
-
-use super::super::types::KnowledgePageSearchRow;
+use crate::{Result, knowledge::types::KnowledgePageSearchRow};
 
 /// Searches derived knowledge page sections by page and section text.
 pub async fn search_knowledge_page_sections<'e, E>(

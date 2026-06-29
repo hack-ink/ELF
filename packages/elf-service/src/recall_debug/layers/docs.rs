@@ -1,4 +1,7 @@
-use super::*;
+use crate::recall_debug::layers::{
+	self, DocsSearchL0Request, ElfService, MAX_RECALL_DEBUG_DOCS_LIMIT, RecallDebugLayer,
+	RecallDebugPanelRequest, RecallDebugRow, Result,
+};
 
 impl ElfService {
 	pub(super) async fn recall_docs_layer(
@@ -8,7 +11,7 @@ impl ElfService {
 		limit: u32,
 	) -> Result<RecallDebugLayer> {
 		let Some(query) = docs_query else {
-			return Ok(not_requested_layer(
+			return Ok(layers::not_requested_layer(
 				"source_documents",
 				"Supply query or docs_query to show Source Library document candidates.",
 			));
@@ -91,6 +94,12 @@ impl ElfService {
 			"Source Library search rows selected by docs_search_l0.".to_string()
 		};
 
-		Ok(layer_from_rows("source_documents", "pass", Some(query.to_string()), &summary, rows))
+		Ok(layers::layer_from_rows(
+			"source_documents",
+			"pass",
+			Some(query.to_string()),
+			&summary,
+			rows,
+		))
 	}
 }

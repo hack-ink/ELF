@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::{LoadedJob, MaterializationStatus, MaterializedJob, MaterializedJobInput, serde_json};
 
 pub(super) fn lightrag_not_encoded_job(
 	adapter_id: &str,
@@ -6,7 +6,7 @@ pub(super) fn lightrag_not_encoded_job(
 ) -> Option<MaterializedJob> {
 	match loaded.job.suite.as_str() {
 		"retrieval" => None,
-		_ => Some(materialized_declared_status_job(
+		_ => Some(crate::materialized_declared_status_job(
 			adapter_id,
 			loaded,
 			MaterializationStatus::NotEncoded,
@@ -23,14 +23,14 @@ pub(super) fn lightrag_failure_jobs(
 ) -> Vec<MaterializedJob> {
 	jobs.iter()
 		.map(|job| {
-			if let Some(declared) = declared_encoding_job(adapter_id, job) {
+			if let Some(declared) = crate::declared_encoding_job(adapter_id, job) {
 				return declared;
 			}
 			if let Some(not_encoded) = lightrag_not_encoded_job(adapter_id, job) {
 				return not_encoded;
 			}
 
-			materialized_job(
+			crate::materialized_job(
 				job,
 				adapter_id,
 				MaterializedJobInput {

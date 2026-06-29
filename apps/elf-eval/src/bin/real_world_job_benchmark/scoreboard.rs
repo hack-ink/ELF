@@ -1,12 +1,19 @@
-use super::{
-	formatting::{adapter_status_str, round3},
-	summary::{aggregate_status, ratio, ratio_or},
-	*,
-};
-
 #[path = "scoreboard/common.rs"] mod common;
 #[path = "scoreboard/elf.rs"] mod elf;
 #[path = "scoreboard/external.rs"] mod external;
+
+use crate::{
+	AdapterCoverageStatus, AdapterStatusCounts, BTreeMap, BTreeSet, ExternalAdapterReport,
+	ExternalAdapterSection, ExternalAdapterSummary, JobReport, RealWorldJob, ReportSummary,
+	SCOREBOARD_EVIDENCE_CLASSES, SCOREBOARD_RESULT_STATES, SCOREBOARD_RETRIEVAL_K,
+	SCOREBOARD_SCHEMA, ScenarioComparisonOutcome, ScoreboardAnswerSafetyMetrics,
+	ScoreboardCoverageMetrics, ScoreboardLifecycleMetrics, ScoreboardMetrics,
+	ScoreboardOperationalMetrics, ScoreboardRankedMetrics, ScoreboardReport,
+	ScoreboardRetrievalMetrics, ScoreboardRow, TypedStatus,
+	formatting::{adapter_status_str, round3},
+	scenario_comparison_outcome,
+	summary::{aggregate_status, ratio, ratio_or},
+};
 
 pub(super) fn scoreboard_report(
 	raw_jobs: &[RealWorldJob],

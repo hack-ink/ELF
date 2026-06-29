@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use color_eyre::{Result, eyre};
 use serde::Serialize;
 
-use super::types::RadarCursor;
+use crate::types::RadarCursor;
 
 pub(super) fn read_cursor(path: &Path) -> Result<RadarCursor> {
 	let raw = fs::read_to_string(path)

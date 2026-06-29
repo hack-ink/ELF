@@ -3,11 +3,11 @@ use std::{env, fs, process};
 use color_eyre::Result;
 use serde_json::Value;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<()> {
-	let report = run_json_report_from(evolution_fixture_dir())?;
+	let report = support::run_json_report_from(support::evolution_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(report.pointer("/summary/encoded_suite_count").and_then(Value::as_u64), Some(1));
@@ -39,8 +39,8 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 		Some(1)
 	);
 
-	let suites = array_at(&report, "/suites")?;
-	let memory_evolution = find_by_field(suites, "/suite_id", "memory_evolution")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let memory_evolution = support::find_by_field(suites, "/suite_id", "memory_evolution")?;
 
 	assert_eq!(memory_evolution.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
@@ -52,17 +52,27 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 		Some(1)
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
-	let preference_job = find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
-	let relation_job = find_by_field(jobs, "/job_id", "memory-evolution-relation-temporal-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let preference_job =
+		support::find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
+	let relation_job =
+		support::find_by_field(jobs, "/job_id", "memory-evolution-relation-temporal-001")?;
 
 	assert_eq!(
 		preference_job.pointer("/evolution/history_readback_encoded").and_then(Value::as_bool),
 		Some(true)
 	);
-	assert!(array_contains_str(preference_job, "/evolution/history_event_types", "add")?);
-	assert!(array_contains_str(preference_job, "/evolution/history_event_types", "update")?);
-	assert!(array_contains_str(preference_job, "/evolution/history_event_types", "ignore")?);
+	assert!(support::array_contains_str(preference_job, "/evolution/history_event_types", "add")?);
+	assert!(support::array_contains_str(
+		preference_job,
+		"/evolution/history_event_types",
+		"update"
+	)?);
+	assert!(support::array_contains_str(
+		preference_job,
+		"/evolution/history_event_types",
+		"ignore"
+	)?);
 	assert_eq!(
 		preference_job
 			.pointer("/evolution/history_requires_note_version_links")
@@ -91,7 +101,7 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 		Some(true)
 	);
 
-	let follow_ups = array_at(&report, "/follow_ups")?;
+	let follow_ups = support::array_at(&report, "/follow_ups")?;
 
 	assert!(follow_ups.is_empty());
 
@@ -101,10 +111,10 @@ fn memory_evolution_fixtures_report_temporal_and_staleness_metrics() -> Result<(
 #[test]
 fn memory_evolution_conflict_still_fails_when_selected_evidence_is_not_narrated() -> Result<()> {
 	let fixture_path =
-		evolution_fixture_dir().join("preference_changed_current_vs_historical.json");
+		support::evolution_fixture_dir().join("preference_changed_current_vs_historical.json");
 	let mut fixture = serde_json::from_str::<Value>(&fs::read_to_string(fixture_path)?)?;
 
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut fixture,
 		"/corpus/adapter_response/answer/evidence_ids",
 		serde_json::json!([
@@ -113,7 +123,7 @@ fn memory_evolution_conflict_still_fails_when_selected_evidence_is_not_narrated(
 			"pref-update-rationale"
 		]),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut fixture,
 		"/corpus/adapter_response/answer/claims",
 		serde_json::json!([
@@ -138,13 +148,13 @@ fn memory_evolution_conflict_still_fails_when_selected_evidence_is_not_narrated(
 	fs::create_dir_all(&temp_dir)?;
 	fs::write(temp_dir.join("conflict.json"), serde_json::to_vec_pretty(&fixture)?)?;
 
-	let report = run_json_report_from(temp_dir)?;
-	let jobs = array_at(&report, "/jobs")?;
-	let job = find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
+	let report = support::run_json_report_from(temp_dir)?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let job = support::find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
 
 	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(job.pointer("/evolution/conflict_detection_count").and_then(Value::as_u64), Some(0));
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		job,
 		"/evolution/selected_but_not_narrated_evidence",
 		"pref-old-terse-bullets"
@@ -156,22 +166,22 @@ fn memory_evolution_conflict_still_fails_when_selected_evidence_is_not_narrated(
 #[test]
 fn memory_evolution_counts_stale_answer_when_old_fact_is_answered_as_current() -> Result<()> {
 	let fixture_path =
-		evolution_fixture_dir().join("preference_changed_current_vs_historical.json");
+		support::evolution_fixture_dir().join("preference_changed_current_vs_historical.json");
 	let mut fixture = serde_json::from_str::<Value>(&fs::read_to_string(fixture_path)?)?;
 
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut fixture,
 		"/corpus/adapter_response/answer/content",
 		Value::String(
 			"Use terse bullet-only benchmark updates as the current preference.".to_string(),
 		),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut fixture,
 		"/corpus/adapter_response/answer/evidence_ids",
 		serde_json::json!(["pref-old-terse-bullets"]),
 	)?;
-	set_json_pointer(
+	support::set_json_pointer(
 		&mut fixture,
 		"/corpus/adapter_response/answer/claims",
 		serde_json::json!([
@@ -190,13 +200,13 @@ fn memory_evolution_counts_stale_answer_when_old_fact_is_answered_as_current() -
 	fs::create_dir_all(&temp_dir)?;
 	fs::write(temp_dir.join("stale_preference.json"), serde_json::to_vec_pretty(&fixture)?)?;
 
-	let report = run_json_report_from(temp_dir)?;
+	let report = support::run_json_report_from(temp_dir)?;
 
 	assert_eq!(report.pointer("/summary/stale_answer_count").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(1));
 
-	let jobs = array_at(&report, "/jobs")?;
-	let job = find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let job = support::find_by_field(jobs, "/job_id", "memory-evolution-preference-001")?;
 
 	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(job.pointer("/evolution/stale_answer_count").and_then(Value::as_u64), Some(1));

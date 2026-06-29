@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use uuid::Uuid;
 
 /// Shareable scopes that can be published or granted.
@@ -162,7 +163,7 @@ pub struct SpaceGrantItem {
 	/// Agent that created the grant.
 	pub granted_by_agent_id: String,
 	/// Grant creation timestamp.
-	pub granted_at: time::OffsetDateTime,
+	pub granted_at: OffsetDateTime,
 }
 
 /// Response payload for grant listing.

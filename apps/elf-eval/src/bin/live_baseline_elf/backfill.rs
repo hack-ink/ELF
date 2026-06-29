@@ -1,7 +1,15 @@
-use super::*;
+use color_eyre::Result;
+
+use crate::{
+	AGENT_ID, AddNoteInput, AddNoteRequest, BACKFILL_CHECKPOINT_SCHEMA, BTreeMap,
+	BackfillAttemptEvidence, BackfillCheckpoint, BackfillCheckpointEntry, BackfillOutcome,
+	BackfillReport, BackfillResumeReport, CorpusNote, DuplicateSourceNote, ElfService,
+	ExistingBackfillNote, Hasher, Instant, NoteOp, PROJECT_ID, Path, PathBuf, SCOPE, TENANT_ID,
+	Uuid, env, eyre, fs,
+};
 
 pub(super) fn backfill_batch_size() -> usize {
-	parse_env_usize("ELF_BASELINE_BACKFILL_BATCH_SIZE").unwrap_or(32).max(1)
+	crate::parse_env_usize("ELF_BASELINE_BACKFILL_BATCH_SIZE").unwrap_or(32).max(1)
 }
 
 pub(super) fn worker_concurrency() -> usize {
@@ -12,7 +20,7 @@ pub(super) fn worker_concurrency() -> usize {
 		_ => 1,
 	};
 
-	parse_env_usize("ELF_BASELINE_WORKER_CONCURRENCY").unwrap_or(default).clamp(1, 32)
+	crate::parse_env_usize("ELF_BASELINE_WORKER_CONCURRENCY").unwrap_or(default).clamp(1, 32)
 }
 
 pub(super) fn backfill_resume_probe_enabled() -> bool {
@@ -26,14 +34,14 @@ pub(super) fn backfill_interrupt_after(source_count: usize) -> Option<usize> {
 		return None;
 	}
 
-	let configured = parse_env_usize("ELF_BASELINE_BACKFILL_INTERRUPT_AFTER");
+	let configured = crate::parse_env_usize("ELF_BASELINE_BACKFILL_INTERRUPT_AFTER");
 	let default = (source_count / 2).max(1);
 
 	Some(configured.unwrap_or(default).clamp(1, source_count.saturating_sub(1)))
 }
 
 pub(super) fn backfill_checkpoint_path(out: &Path) -> PathBuf {
-	env_string(&["ELF_BASELINE_BACKFILL_CHECKPOINT"])
+	crate::env_string(&["ELF_BASELINE_BACKFILL_CHECKPOINT"])
 		.map(PathBuf::from)
 		.unwrap_or_else(|| out.with_file_name("elf-backfill-checkpoint.json"))
 }
@@ -49,7 +57,7 @@ pub(super) fn empty_backfill_checkpoint(corpus_hash: &str) -> BackfillCheckpoint
 pub(super) fn load_backfill_checkpoint(
 	path: &Path,
 	corpus_hash: &str,
-) -> color_eyre::Result<BackfillCheckpoint> {
+) -> Result<BackfillCheckpoint> {
 	if !path.exists() {
 		return Ok(empty_backfill_checkpoint(corpus_hash));
 	}
@@ -67,7 +75,7 @@ pub(super) fn load_backfill_checkpoint(
 pub(super) fn write_backfill_checkpoint(
 	path: &Path,
 	checkpoint: &BackfillCheckpoint,
-) -> color_eyre::Result<()> {
+) -> Result<()> {
 	if let Some(parent) = path.parent() {
 		fs::create_dir_all(parent)?;
 	}
@@ -144,7 +152,7 @@ pub(super) fn note_input(note: &CorpusNote) -> AddNoteInput {
 	}
 }
 
-pub(super) fn note_op_string(op: NoteOp) -> color_eyre::Result<String> {
+pub(super) fn note_op_string(op: NoteOp) -> Result<String> {
 	let value = serde_json::to_value(op)?;
 
 	value
@@ -155,7 +163,7 @@ pub(super) fn note_op_string(op: NoteOp) -> color_eyre::Result<String> {
 
 pub(super) async fn load_existing_backfill_notes(
 	service: &ElfService,
-) -> color_eyre::Result<BTreeMap<String, ExistingBackfillNote>> {
+) -> Result<BTreeMap<String, ExistingBackfillNote>> {
 	let rows = sqlx::query_as::<_, (Uuid, String, Option<String>)>(
 		"\
 SELECT note_id, source_ref->>'document' AS source_doc, source_ref->>'source_hash' AS source_hash
@@ -186,7 +194,7 @@ ORDER BY updated_at DESC",
 
 pub(super) async fn duplicate_source_notes(
 	service: &ElfService,
-) -> color_eyre::Result<Vec<DuplicateSourceNote>> {
+) -> Result<Vec<DuplicateSourceNote>> {
 	let rows = sqlx::query_as::<_, (String, i64, Vec<Uuid>)>(
 		"\
 SELECT
@@ -222,7 +230,7 @@ pub(super) async fn run_resumable_backfill(
 	service: &ElfService,
 	notes: &[CorpusNote],
 	checkpoint_path: &Path,
-) -> color_eyre::Result<BackfillOutcome> {
+) -> Result<BackfillOutcome> {
 	let started_at = Instant::now();
 	let corpus_hash = corpus_hash(notes);
 	let batch_size = backfill_batch_size();
@@ -317,7 +325,7 @@ pub(super) async fn run_backfill_attempt(
 	batch_size: usize,
 	attempt: usize,
 	interrupt_after: Option<usize>,
-) -> color_eyre::Result<BackfillAttemptEvidence> {
+) -> Result<BackfillAttemptEvidence> {
 	let mut checkpoint = load_backfill_checkpoint(checkpoint_path, corpus_hash)?;
 	let existing = load_existing_backfill_notes(service).await?;
 	let notes_by_source =

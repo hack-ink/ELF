@@ -1,4 +1,8 @@
-use super::*;
+use crate::markdown::{
+	self, AdapterScenarioJudgment, AdapterSource, AdapterStatusCounts, AdapterSuiteCoverage,
+	DEFAULT_ADAPTER_BEHAVIOR, ExternalAdapterReport, RealWorldReport, ScenarioOutcomeCounts,
+	ScenarioPositionCounts,
+};
 
 pub(super) fn render_markdown_capture_integration(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Capture And Integration Coverage\n\n");
@@ -11,29 +15,32 @@ pub(super) fn render_markdown_capture_integration(out: &mut String, report: &Rea
 
 	out.push_str("| Class | Behaviors |\n");
 	out.push_str("| --- | --- |\n");
-	out.push_str(&format!("| real | {} |\n", md_list(report.capture_integration.real.as_slice())));
+	out.push_str(&format!(
+		"| real | {} |\n",
+		markdown::md_list(report.capture_integration.real.as_slice())
+	));
 	out.push_str(&format!(
 		"| fixture-backed | {} |\n",
-		md_list(report.capture_integration.fixture_backed.as_slice())
+		markdown::md_list(report.capture_integration.fixture_backed.as_slice())
 	));
 	out.push_str(&format!(
 		"| mocked | {} |\n",
-		md_list(report.capture_integration.mocked.as_slice())
+		markdown::md_list(report.capture_integration.mocked.as_slice())
 	));
 	out.push_str(&format!(
 		"| blocked | {} |\n",
-		md_list(report.capture_integration.blocked.as_slice())
+		markdown::md_list(report.capture_integration.blocked.as_slice())
 	));
 	out.push_str(&format!(
 		"| not encoded | {} |\n",
-		md_list(report.capture_integration.not_encoded.as_slice())
+		markdown::md_list(report.capture_integration.not_encoded.as_slice())
 	));
 
 	if !report.capture_integration.notes.is_empty() {
 		out.push_str("\nNotes:\n");
 
 		for note in &report.capture_integration.notes {
-			out.push_str(&format!("- {}\n", md_cell(note.as_str())));
+			out.push_str(&format!("- {}\n", markdown::md_cell(note.as_str())));
 		}
 	}
 
@@ -54,13 +61,13 @@ pub(super) fn render_markdown_external_adapters(out: &mut String, report: &RealW
 	out.push_str("This section is manifest-backed. It records external adapter coverage and blockers, but it does not convert live-baseline retrieval results into real-world suite wins.\n\n");
 	out.push_str(&format!(
 		"- Manifest: `{}`\n",
-		md_inline(report.external_adapters.manifest_id.as_str())
+		markdown::md_inline(report.external_adapters.manifest_id.as_str())
 	));
 	out.push_str(&format!(
 		"- Docker default: `{}` via `{}`; artifact dir `{}`\n",
 		report.external_adapters.docker_isolation.default,
-		md_inline(report.external_adapters.docker_isolation.compose_file.as_str()),
-		md_inline(report.external_adapters.docker_isolation.artifact_dir.as_str())
+		markdown::md_inline(report.external_adapters.docker_isolation.compose_file.as_str()),
+		markdown::md_inline(report.external_adapters.docker_isolation.artifact_dir.as_str())
 	));
 	out.push_str(&format!(
 		"- Adapter records: `{}` total, `{}` external project(s), `{}` Docker-default, `{}` requiring host-global installs\n",
@@ -111,13 +118,13 @@ pub(super) fn render_markdown_external_adapters(out: &mut String, report: &RealW
 	for adapter in &report.external_adapters.adapters {
 		out.push_str(&format!(
 			"| {} | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | `{}` | {} | {} |\n",
-			md_cell(adapter.project.as_str()),
-			md_inline(adapter.adapter_id.as_str()),
-			md_inline(adapter.evidence_class.as_str()),
-			adapter_status_str(adapter.overall_status),
-			adapter_status_str(adapter.setup.status),
-			adapter_status_str(adapter.run.status),
-			adapter_status_str(adapter.result.status),
+			markdown::md_cell(adapter.project.as_str()),
+			markdown::md_inline(adapter.adapter_id.as_str()),
+			markdown::md_inline(adapter.evidence_class.as_str()),
+			markdown::adapter_status_str(adapter.overall_status),
+			markdown::adapter_status_str(adapter.setup.status),
+			markdown::adapter_status_str(adapter.run.status),
+			markdown::adapter_status_str(adapter.result.status),
 			adapter.docker_default,
 			adapter_suite_cell(adapter.suites.as_slice()),
 			adapter_evidence_cell(adapter)
@@ -132,10 +139,10 @@ pub(super) fn render_markdown_external_adapters(out: &mut String, report: &RealW
 		for capability in &adapter.capabilities {
 			out.push_str(&format!(
 				"| `{}` | {} | `{}` | {} |\n",
-				md_inline(adapter.adapter_id.as_str()),
-				md_cell(capability.capability.as_str()),
-				adapter_status_str(capability.status),
-				md_cell(capability.evidence.as_str())
+				markdown::md_inline(adapter.adapter_id.as_str()),
+				markdown::md_cell(capability.capability.as_str()),
+				markdown::adapter_status_str(capability.status),
+				markdown::md_cell(capability.evidence.as_str())
 			));
 		}
 	}
@@ -159,15 +166,17 @@ fn render_markdown_adapter_scenarios(out: &mut String, adapters: &[ExternalAdapt
 		for scenario in &adapter.scenarios {
 			out.push_str(&format!(
 				"| `{}` | `{}` | {} | `{}` | `{}` | {} |\n",
-				md_inline(adapter.adapter_id.as_str()),
-				md_inline(scenario.scenario_id.as_str()),
+				markdown::md_inline(adapter.adapter_id.as_str()),
+				markdown::md_inline(scenario.scenario_id.as_str()),
 				scenario
 					.suite_id
 					.as_deref()
-					.map(|suite| format!("`{}`", md_inline(suite)))
+					.map(|suite| format!("`{}`", markdown::md_inline(suite)))
 					.unwrap_or_else(|| "`none`".to_string()),
-				adapter_status_str(scenario.status),
-				scenario_comparison_outcome_str(scenario_comparison_outcome(scenario)),
+				markdown::adapter_status_str(scenario.status),
+				markdown::scenario_comparison_outcome_str(markdown::scenario_comparison_outcome(
+					scenario
+				)),
 				adapter_scenario_evidence_cell(scenario)
 			));
 		}
@@ -195,13 +204,13 @@ fn render_markdown_adapter_execution_metadata(
 
 		out.push_str(&format!(
 			"| `{}` | {} | {} | {} | {} | {} | {} |\n",
-			md_inline(adapter.adapter_id.as_str()),
+			markdown::md_inline(adapter.adapter_id.as_str()),
 			adapter_sources_cell(metadata.sources.as_slice()),
-			md_cell(metadata.setup_path.as_str()),
-			md_cell(metadata.runtime_boundary.as_str()),
-			md_cell(metadata.resource_expectation.as_str()),
-			md_list(metadata.retry_guidance.as_slice()),
-			md_cell(metadata.research_depth.as_deref().unwrap_or("not recorded"))
+			markdown::md_cell(metadata.setup_path.as_str()),
+			markdown::md_cell(metadata.runtime_boundary.as_str()),
+			markdown::md_cell(metadata.resource_expectation.as_str()),
+			markdown::md_list(metadata.retry_guidance.as_slice()),
+			markdown::md_cell(metadata.research_depth.as_deref().unwrap_or("not recorded"))
 		));
 	}
 }
@@ -269,8 +278,8 @@ fn adapter_suite_cell(suites: &[AdapterSuiteCoverage]) -> String {
 		.map(|suite| {
 			format!(
 				"`{}`: `{}`",
-				md_inline(suite.suite_id.as_str()),
-				adapter_status_str(suite.status)
+				markdown::md_inline(suite.suite_id.as_str()),
+				markdown::adapter_status_str(suite.status)
 			)
 		})
 		.collect::<Vec<_>>()
@@ -291,20 +300,20 @@ fn adapter_evidence_cell(adapter: &ExternalAdapterReport) -> String {
 		.or(adapter.result.command.as_deref())
 		.unwrap_or(adapter.result.evidence.as_str());
 
-	format!("setup: `{}`<br>result: `{}`", md_inline(setup), md_inline(result))
+	format!("setup: `{}`<br>result: `{}`", markdown::md_inline(setup), markdown::md_inline(result))
 }
 
 fn adapter_scenario_evidence_cell(scenario: &AdapterScenarioJudgment) -> String {
-	let evidence = md_cell(scenario.evidence.as_str());
+	let evidence = markdown::md_cell(scenario.evidence.as_str());
 	let command = scenario
 		.command
 		.as_deref()
-		.map(|command| format!("<br>command: `{}`", md_inline(command)))
+		.map(|command| format!("<br>command: `{}`", markdown::md_inline(command)))
 		.unwrap_or_default();
 	let artifact = scenario
 		.artifact
 		.as_deref()
-		.map(|artifact| format!("<br>artifact: `{}`", md_inline(artifact)))
+		.map(|artifact| format!("<br>artifact: `{}`", markdown::md_inline(artifact)))
 		.unwrap_or_default();
 
 	format!("{evidence}{command}{artifact}")
@@ -320,9 +329,9 @@ fn adapter_sources_cell(sources: &[AdapterSource]) -> String {
 		.map(|source| {
 			format!(
 				"[{}]({}): {}",
-				md_cell(source.label.as_str()),
-				md_url(source.url.as_str()),
-				md_cell(source.evidence.as_str())
+				markdown::md_cell(source.label.as_str()),
+				markdown::md_url(source.url.as_str()),
+				markdown::md_cell(source.evidence.as_str())
 			)
 		})
 		.collect::<Vec<_>>()

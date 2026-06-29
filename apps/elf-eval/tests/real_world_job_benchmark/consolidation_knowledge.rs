@@ -1,4 +1,9 @@
-use super::*;
+use std::{env, fs, path::Path, process};
+
+use color_eyre::{Result, eyre};
+use serde_json::Value;
+
+use crate::support;
 
 fn real_world_live_adapter_sources(workspace: &Path) -> Result<String> {
 	let mut source =
@@ -47,7 +52,8 @@ fn append_rust_sources(dir: &Path, source: &mut String) -> Result<()> {
 
 #[test]
 fn declared_not_encoded_consolidation_jobs_do_not_require_fake_proposals() -> Result<()> {
-	let fixture_path = consolidation_fixture_dir().join("contradiction_report_discard.json");
+	let fixture_path =
+		support::consolidation_fixture_dir().join("contradiction_report_discard.json");
 	let mut fixture = serde_json::from_str::<Value>(&fs::read_to_string(fixture_path)?)?;
 
 	fixture
@@ -75,9 +81,10 @@ fn declared_not_encoded_consolidation_jobs_do_not_require_fake_proposals() -> Re
 		serde_json::to_vec_pretty(&fixture)?,
 	)?;
 
-	let report = run_json_report_from(temp_dir)?;
-	let jobs = array_at(&report, "/jobs")?;
-	let job = find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
+	let report = support::run_json_report_from(temp_dir)?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let job =
+		support::find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
 
 	assert_eq!(job.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(report.pointer("/summary/not_encoded").and_then(Value::as_u64), Some(1));
@@ -88,11 +95,11 @@ fn declared_not_encoded_consolidation_jobs_do_not_require_fake_proposals() -> Re
 #[test]
 fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		capture_write_policy_live_report_path()?,
+		support::capture_write_policy_live_report_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(capture_write_policy_live_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown = fs::read_to_string(support::capture_write_policy_live_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -124,13 +131,17 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 		Some("not_encoded")
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
-	let source_binding = find_by_field(jobs, "/job_id", "capture-source-id-binding-001")?;
-	let source_binding_refs = array_at(source_binding, "/runtime_source_refs")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let source_binding = support::find_by_field(jobs, "/job_id", "capture-source-id-binding-001")?;
+	let source_binding_refs = support::array_at(source_binding, "/runtime_source_refs")?;
 	let release_summary_ref =
-		find_by_field(source_binding_refs, "/evidence_id", "source-id-release-summary")?;
+		support::find_by_field(source_binding_refs, "/evidence_id", "source-id-release-summary")?;
 
-	assert!(array_contains_str(source_binding, "/source_ids", "capture:issue-comment-42")?);
+	assert!(support::array_contains_str(
+		source_binding,
+		"/source_ids",
+		"capture:issue-comment-42"
+	)?);
 	assert_eq!(
 		release_summary_ref.pointer("/source_id").and_then(Value::as_str),
 		Some("capture:issue-comment-42")
@@ -140,7 +151,8 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 		Some("source_ref")
 	);
 
-	let write_policy = find_by_field(jobs, "/job_id", "capture-write-policy-redaction-001")?;
+	let write_policy =
+		support::find_by_field(jobs, "/job_id", "capture-write-policy-redaction-001")?;
 
 	assert_eq!(
 		write_policy.pointer("/write_policy_redaction_count").and_then(Value::as_u64),
@@ -153,21 +165,21 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 		Some(true)
 	);
 
-	let boundary = find_by_field(jobs, "/job_id", "capture-integration-boundaries-001")?;
+	let boundary = support::find_by_field(jobs, "/job_id", "capture-integration-boundaries-001")?;
 
-	assert!(array_contains_str(boundary, "/excluded_evidence_ids", "private-span-trap")?);
-	assert!(!array_contains_str(boundary, "/stored_evidence_ids", "private-span-trap")?);
+	assert!(support::array_contains_str(boundary, "/excluded_evidence_ids", "private-span-trap")?);
+	assert!(!support::array_contains_str(boundary, "/stored_evidence_ids", "private-span-trap")?);
 	assert!(
-		array_at(boundary, "/runtime_source_refs")?
+		support::array_at(boundary, "/runtime_source_refs")?
 			.iter()
 			.all(|item| item.pointer("/evidence_id").and_then(Value::as_str)
 				!= Some("private-span-trap"))
 	);
 
-	let positions = array_at(&report, "/competitor_positions")?;
-	let qmd = find_by_field(positions, "/project", "qmd")?;
-	let agentmemory = find_by_field(positions, "/project", "agentmemory")?;
-	let claude_mem = find_by_field(positions, "/project", "claude-mem")?;
+	let positions = support::array_at(&report, "/competitor_positions")?;
+	let qmd = support::find_by_field(positions, "/project", "qmd")?;
+	let agentmemory = support::find_by_field(positions, "/project", "agentmemory")?;
+	let claude_mem = support::find_by_field(positions, "/project", "claude-mem")?;
 
 	assert_eq!(qmd.pointer("/position").and_then(Value::as_str), Some("untested"));
 	assert!(qmd.pointer("/reason").and_then(Value::as_str).is_some_and(|reason| {
@@ -185,6 +197,13 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 			.is_some_and(|reason| reason.contains("hooks, timeline, observations")
 				&& reason.contains("Docker-contained hook/viewer runner"))
 	);
+
+	assert_capture_write_policy_docs(&markdown, &benchmarking_index, &readme);
+
+	Ok(())
+}
+
+fn assert_capture_write_policy_docs(markdown: &str, benchmarking_index: &str, readme: &str) {
 	assert!(markdown.contains("ELF now has live capture/write-policy self-check evidence"));
 	assert!(markdown.contains("not an ELF-over-qmd win"));
 	assert!(markdown.contains("| claude-mem capture/viewer flows | `blocked` |"));
@@ -196,22 +215,21 @@ fn capture_write_policy_live_report_preserves_competitor_boundaries() -> Result<
 	assert!(readme.contains("mem0/OpenMemory"));
 	assert!(readme.contains("and memsearch now pass their scoped local baseline"));
 	assert!(
-		collapse_whitespace(&readme)
+		support::collapse_whitespace(readme)
 			.contains("claude-mem hook/viewer capture remains blocked until Docker-contained")
 	);
-
-	Ok(())
 }
 
 #[test]
 fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<()> {
-	let workspace = workspace_root()?;
+	let workspace = support::workspace_root()?;
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		live_consolidation_proposal_scoring_report_path()?,
+		support::live_consolidation_proposal_scoring_report_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(live_consolidation_proposal_scoring_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown =
+		fs::read_to_string(support::live_consolidation_proposal_scoring_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 	let benchmark_runbook = fs::read_to_string(
 		workspace
 			.join("docs")
@@ -266,13 +284,13 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 		Some("not_encoded")
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
+	let jobs = support::array_at(&report, "/jobs")?;
 	let project_summary =
-		find_by_field(jobs, "/job_id", "consolidation-project-summary-apply-001")?;
+		support::find_by_field(jobs, "/job_id", "consolidation-project-summary-apply-001")?;
 	let preference =
-		find_by_field(jobs, "/job_id", "consolidation-preference-candidate-defer-001")?;
+		support::find_by_field(jobs, "/job_id", "consolidation-preference-candidate-defer-001")?;
 	let contradiction =
-		find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
+		support::find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
 
 	assert_eq!(
 		project_summary.pointer("/final_review_state").and_then(Value::as_str),
@@ -290,10 +308,11 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 	);
 	assert_eq!(contradiction.pointer("/source_lineage_count").and_then(Value::as_u64), Some(3));
 
-	let positions = array_at(&report, "/reference_positions")?;
-	let qmd = find_by_field(positions, "/project", "qmd")?;
-	let managed = find_by_field(positions, "/project", "managed_dreaming_memory_systems")?;
-	let always_on = find_by_field(positions, "/project", "always_on_memory_agent_patterns")?;
+	let positions = support::array_at(&report, "/reference_positions")?;
+	let qmd = support::find_by_field(positions, "/project", "qmd")?;
+	let managed = support::find_by_field(positions, "/project", "managed_dreaming_memory_systems")?;
+	let always_on =
+		support::find_by_field(positions, "/project", "always_on_memory_agent_patterns")?;
 
 	assert_eq!(qmd.pointer("/position").and_then(Value::as_str), Some("untested"));
 	assert_eq!(managed.pointer("/position").and_then(Value::as_str), Some("product_reference"));
@@ -314,19 +333,23 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 
+	assert_live_consolidation_scripts(&docker_script, &live_script, &live_adapter);
+
+	Ok(())
+}
+
+fn assert_live_consolidation_scripts(docker_script: &str, live_script: &str, live_adapter: &str) {
 	assert!(docker_script.contains("scripts/real-world-consolidation-live-adapter.sh"));
 	assert!(live_script.contains("elf.real_world_consolidation_live_adapter_sweep/v1"));
 	assert!(live_script.contains("real_world_live_adapter -- elf"));
 	assert!(!live_script.contains("real_world_live_adapter -- qmd"));
 	assert!(live_adapter.contains("fn materialize_elf_consolidation("));
 	assert!(live_adapter.contains("ConsolidationProposalReviewRequest"));
-
-	Ok(())
 }
 
 #[test]
 fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
-	let workspace = workspace_root()?;
+	let workspace = support::workspace_root()?;
 	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 	let live_script =
@@ -356,8 +379,8 @@ fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
 			.join("benchmarking")
 			.join("live_baseline_benchmark.md"),
 	)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert!(makefile.contains("[tasks.real-world-memory-live-knowledge]"));
 	assert!(makefile.contains("scripts/real-world-docker.sh"));
@@ -400,7 +423,7 @@ fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
 
 #[test]
 fn runner_discovers_nested_fixture_layout() -> Result<()> {
-	let report = run_json_report_from(fixture_root())?;
+	let report = support::run_json_report_from(support::fixture_root())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(82));
 
@@ -409,7 +432,7 @@ fn runner_discovers_nested_fixture_layout() -> Result<()> {
 
 #[test]
 fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()> {
-	let report = run_json_report_from(operator_debug_fixture_dir())?;
+	let report = support::run_json_report_from(support::operator_debug_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(7));
 	assert_eq!(
@@ -427,10 +450,12 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 		Some(3)
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
-	let dropped = find_by_field(jobs, "/job_id", "operator-debug-dropped-evidence-001")?;
-	let selected = find_by_field(jobs, "/job_id", "operator-debug-selected-not-narrated-001")?;
-	let compact = find_by_field(jobs, "/job_id", "operator-debug-qmd-style-compact-replay-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let dropped = support::find_by_field(jobs, "/job_id", "operator-debug-dropped-evidence-001")?;
+	let selected =
+		support::find_by_field(jobs, "/job_id", "operator-debug-selected-not-narrated-001")?;
+	let compact =
+		support::find_by_field(jobs, "/job_id", "operator-debug-qmd-style-compact-replay-001")?;
 
 	assert_eq!(dropped.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
@@ -449,17 +474,17 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 		dropped.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("filter.read_profile")
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		dropped,
 		"/trace_explainability/stages/1/dropped_evidence",
 		"trace-dropped-expected"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		dropped,
 		"/trace_explainability/stages/1/distractor_evidence",
 		"trace-dropped-decoy"
 	)?);
-	assert!(array_contains_str(dropped, "/produced_evidence", "trace-dropped-expected")?);
+	assert!(support::array_contains_str(dropped, "/produced_evidence", "trace-dropped-expected")?);
 	assert_eq!(selected.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(
 		selected.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
@@ -482,19 +507,23 @@ fn operator_debug_fixture_reports_trace_links_and_failure_details() -> Result<()
 		compact.pointer("/trace_explainability/failure_stage").and_then(Value::as_str),
 		Some("recall_debug.compact_replay")
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		compact,
 		"/trace_explainability/stages/4/kept_evidence",
 		"compact-replay-artifact"
 	)?);
-	assert!(array_contains_str(compact, "/produced_evidence", "qmd-short-replay-reference")?);
+	assert!(support::array_contains_str(
+		compact,
+		"/produced_evidence",
+		"qmd-short-replay-reference"
+	)?);
 
 	Ok(())
 }
 
 #[test]
 fn consolidation_fixtures_report_reviewable_proposal_metrics() -> Result<()> {
-	let report = run_json_report_from(consolidation_fixture_dir())?;
+	let report = support::run_json_report_from(support::consolidation_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(4));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(4));
@@ -525,11 +554,11 @@ fn consolidation_fixtures_report_reviewable_proposal_metrics() -> Result<()> {
 		Some(1.0)
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
+	let jobs = support::array_at(&report, "/jobs")?;
 	let project_summary =
-		find_by_field(jobs, "/job_id", "consolidation-project-summary-apply-001")?;
+		support::find_by_field(jobs, "/job_id", "consolidation-project-summary-apply-001")?;
 	let contradiction =
-		find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
+		support::find_by_field(jobs, "/job_id", "consolidation-contradiction-report-discard-001")?;
 
 	assert_eq!(
 		project_summary
@@ -550,8 +579,8 @@ fn consolidation_fixtures_report_reviewable_proposal_metrics() -> Result<()> {
 		Some(1)
 	);
 
-	let suites = array_at(&report, "/suites")?;
-	let consolidation_suite = find_by_field(suites, "/suite_id", "consolidation")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let consolidation_suite = support::find_by_field(suites, "/suite_id", "consolidation")?;
 
 	assert_eq!(consolidation_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 
@@ -560,7 +589,7 @@ fn consolidation_fixtures_report_reviewable_proposal_metrics() -> Result<()> {
 
 #[test]
 fn knowledge_fixtures_report_page_metrics() -> Result<()> {
-	let report = run_json_report_from(knowledge_fixture_dir())?;
+	let report = support::run_json_report_from(support::knowledge_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(3));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(3));
@@ -612,15 +641,15 @@ fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 		Some(1)
 	);
 
-	let suites = array_at(&report, "/suites")?;
-	let knowledge_suite = find_by_field(suites, "/suite_id", "knowledge_compilation")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let knowledge_suite = support::find_by_field(suites, "/suite_id", "knowledge_compilation")?;
 
 	assert_eq!(knowledge_suite.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(knowledge_suite.pointer("/encoded_job_count").and_then(Value::as_u64), Some(3));
 
-	let jobs = array_at(&report, "/jobs")?;
-	let project_page_job = find_by_field(jobs, "/job_id", "knowledge-project-page-001")?;
-	let watch_rebuild_job = find_by_field(jobs, "/job_id", "knowledge-watch-rebuild-003")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let project_page_job = support::find_by_field(jobs, "/job_id", "knowledge-project-page-001")?;
+	let watch_rebuild_job = support::find_by_field(jobs, "/job_id", "knowledge-watch-rebuild-003")?;
 
 	assert_eq!(
 		project_page_job.pointer("/knowledge/unsupported_summary_count").and_then(Value::as_u64),
@@ -648,7 +677,7 @@ fn knowledge_fixtures_report_page_metrics() -> Result<()> {
 
 #[test]
 fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
-	let report = run_json_report_from(project_decisions_fixture_dir())?;
+	let report = support::run_json_report_from(support::project_decisions_fixture_dir())?;
 
 	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(5));
 	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(5));
@@ -667,8 +696,8 @@ fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
 		Some(1.0)
 	);
 
-	let suites = array_at(&report, "/suites")?;
-	let project_decisions = find_by_field(suites, "/suite_id", "project_decisions")?;
+	let suites = support::array_at(&report, "/suites")?;
+	let project_decisions = support::find_by_field(suites, "/suite_id", "project_decisions")?;
 
 	assert_eq!(project_decisions.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(project_decisions.pointer("/encoded_job_count").and_then(Value::as_u64), Some(5));
@@ -677,13 +706,17 @@ fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
 		Some(5)
 	);
 
-	let jobs = array_at(&report, "/jobs")?;
-	let accepted = find_by_field(jobs, "/job_id", "project-decision-accepted-typed-failures-001")?;
-	let reversal = find_by_field(jobs, "/job_id", "project-decision-reversal-live-baseline-001")?;
+	let jobs = support::array_at(&report, "/jobs")?;
+	let accepted =
+		support::find_by_field(jobs, "/job_id", "project-decision-accepted-typed-failures-001")?;
+	let reversal =
+		support::find_by_field(jobs, "/job_id", "project-decision-reversal-live-baseline-001")?;
 	let validation =
-		find_by_field(jobs, "/job_id", "project-decision-current-validation-gate-001")?;
-	let tradeoff = find_by_field(jobs, "/job_id", "project-decision-tradeoff-fixture-backed-001")?;
-	let caveat = find_by_field(jobs, "/job_id", "project-decision-private-manifest-caveat-001")?;
+		support::find_by_field(jobs, "/job_id", "project-decision-current-validation-gate-001")?;
+	let tradeoff =
+		support::find_by_field(jobs, "/job_id", "project-decision-tradeoff-fixture-backed-001")?;
+	let caveat =
+		support::find_by_field(jobs, "/job_id", "project-decision-private-manifest-caveat-001")?;
 
 	assert_eq!(accepted.pointer("/answer_type").and_then(Value::as_str), Some("decision_record"));
 	assert_eq!(
@@ -702,7 +735,7 @@ fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
 	assert_eq!(caveat.pointer("/can_answer_unknown").and_then(Value::as_bool), Some(true));
 
 	for job in jobs {
-		let expected_evidence = array_at(job, "/expected_evidence")?;
+		let expected_evidence = support::array_at(job, "/expected_evidence")?;
 
 		assert!(
 			!expected_evidence.is_empty(),
@@ -710,7 +743,7 @@ fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
 			job.pointer("/job_id").and_then(Value::as_str).unwrap_or("<unknown>")
 		);
 	}
-	for entry in fs::read_dir(project_decisions_fixture_dir())? {
+	for entry in fs::read_dir(support::project_decisions_fixture_dir())? {
 		let path = entry?.path();
 
 		if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
@@ -718,8 +751,8 @@ fn project_decisions_fixtures_report_decision_policy_cases() -> Result<()> {
 		}
 
 		let fixture = serde_json::from_str::<Value>(&fs::read_to_string(path)?)?;
-		let required_evidence = array_at(&fixture, "/required_evidence")?;
-		let negative_traps = array_at(&fixture, "/negative_traps")?;
+		let required_evidence = support::array_at(&fixture, "/required_evidence")?;
+		let negative_traps = support::array_at(&fixture, "/negative_traps")?;
 
 		assert!(!required_evidence.is_empty());
 		assert!(!negative_traps.is_empty());

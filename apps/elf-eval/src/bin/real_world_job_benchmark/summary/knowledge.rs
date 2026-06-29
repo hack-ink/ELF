@@ -1,4 +1,7 @@
-use super::{super::formatting::round3, *};
+use crate::{
+	JobReport, KnowledgeSummary, formatting,
+	summary::{self},
+};
 
 pub(super) fn knowledge_summary_impl(jobs: &[JobReport]) -> Option<KnowledgeSummary> {
 	let knowledge_jobs = jobs.iter().filter_map(|job| job.knowledge.as_ref()).collect::<Vec<_>>();
@@ -25,7 +28,7 @@ pub(super) fn knowledge_summary_impl(jobs: &[JobReport]) -> Option<KnowledgeSumm
 		knowledge_jobs.iter().map(|metrics| metrics.pages_with_backlinks).sum::<usize>();
 	let pages_with_version_diff =
 		knowledge_jobs.iter().map(|metrics| metrics.pages_with_version_diff).sum::<usize>();
-	let page_usefulness = round3(
+	let page_usefulness = formatting::round3(
 		knowledge_jobs.iter().map(|metrics| metrics.page_usefulness).sum::<f64>()
 			/ job_count as f64,
 	);
@@ -37,11 +40,11 @@ pub(super) fn knowledge_summary_impl(jobs: &[JobReport]) -> Option<KnowledgeSumm
 		backlink_count,
 		pages_with_backlinks,
 		pages_with_version_diff,
-		citation_coverage: ratio(traced_section_count, section_count),
-		stale_claim_detection: ratio_or_full(stale_traps_detected, stale_trap_count),
-		rebuild_determinism: ratio(deterministic_rebuild_count, rebuild_page_count),
-		backlink_coverage: ratio(pages_with_backlinks, page_count),
-		version_diff_coverage: ratio(pages_with_version_diff, page_count),
+		citation_coverage: summary::ratio(traced_section_count, section_count),
+		stale_claim_detection: summary::ratio_or_full(stale_traps_detected, stale_trap_count),
+		rebuild_determinism: summary::ratio(deterministic_rebuild_count, rebuild_page_count),
+		backlink_coverage: summary::ratio(pages_with_backlinks, page_count),
+		version_diff_coverage: summary::ratio(pages_with_version_diff, page_count),
 		page_usefulness,
 		unsupported_summary_count: knowledge_jobs
 			.iter()

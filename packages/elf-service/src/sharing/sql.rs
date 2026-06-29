@@ -29,7 +29,6 @@ SET
 	granted_at = EXCLUDED.granted_at,
 	revoked_at = NULL,
 	revoked_by_agent_id = NULL";
-
 pub(super) const AGENT_SPACE_GRANT_UPSERT_SQL: &str = "\
 INSERT INTO memory_space_grants (
 	grant_id,

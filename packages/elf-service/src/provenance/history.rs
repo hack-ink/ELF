@@ -2,9 +2,9 @@ use serde_json;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::types::{
-	MemoryHistoryEvent, NoteDerivedProposalRow, NoteProposalReviewRow,
-	NoteProvenanceIngestDecision, NoteProvenanceNoteVersion,
+use crate::provenance::types::{
+	MemoryHistoryEvent, NoteProvenanceIngestDecision, NoteProvenanceNoteVersion,
+	rows::{NoteDerivedProposalRow, NoteProposalReviewRow},
 };
 use elf_storage::models::MemoryNote;
 

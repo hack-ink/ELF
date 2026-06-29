@@ -1,4 +1,13 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, ConsolidationProposalGetRequest, ConsolidationProposalResponse,
+	ConsolidationProposalReviewBody, ConsolidationProposalReviewRequest,
+	ConsolidationProposalsListQuery, ConsolidationProposalsListRequest,
+	ConsolidationProposalsListResponse, ConsolidationRunCreateBody, ConsolidationRunCreateRequest,
+	ConsolidationRunCreateResponse, ConsolidationRunGetRequest, ConsolidationRunResponse,
+	ConsolidationRunsListQuery, ConsolidationRunsListRequest, ConsolidationRunsListResponse,
+	ErrorBody, HeaderMap, Json, JsonRejection, Path, Query, QueryRejection, RequestContext, State,
+	StatusCode, Uuid,
+};
 
 #[utoipa::path(
 	post,
@@ -22,7 +31,12 @@ pub(super) async fn consolidation_run_create(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service
@@ -63,7 +77,7 @@ pub(super) async fn consolidation_runs_list(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -140,7 +154,7 @@ pub(super) async fn consolidation_proposals_list(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -218,7 +232,12 @@ pub(super) async fn consolidation_proposal_review(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

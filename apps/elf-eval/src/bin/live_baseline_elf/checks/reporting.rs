@@ -1,4 +1,7 @@
-use super::*;
+use crate::checks::{
+	CheckResult, CheckSummary, CorpusNote, CostProxyReport, EmbeddingRuntimeReport,
+	OperationalCase, QueryResult, env,
+};
 
 pub(super) fn cost_proxy_report_impl(
 	notes: &[CorpusNote],
@@ -41,17 +44,6 @@ pub(super) fn latency_percentile_impl(latencies: &[f64], percentile: f64) -> f64
 	let rank = ((sorted.len().saturating_sub(1)) as f64 * percentile).ceil() as usize;
 
 	sorted[rank.min(sorted.len().saturating_sub(1))]
-}
-
-fn operational_case(
-	name: &'static str,
-	default_status: &'static str,
-	operator_status: &'static str,
-	command: &'static str,
-	evidence: &'static str,
-	safety: &'static str,
-) -> OperationalCase {
-	OperationalCase { name, default_status, operator_status, command, evidence, safety }
 }
 
 pub(super) fn operational_cases_impl() -> Vec<OperationalCase> {
@@ -162,4 +154,15 @@ pub(super) fn project_status_from_summary_impl(summary: &CheckSummary) -> &'stat
 	} else {
 		"pass"
 	}
+}
+
+fn operational_case(
+	name: &'static str,
+	default_status: &'static str,
+	operator_status: &'static str,
+	command: &'static str,
+	evidence: &'static str,
+	safety: &'static str,
+) -> OperationalCase {
+	OperationalCase { name, default_status, operator_status, command, evidence, safety }
 }

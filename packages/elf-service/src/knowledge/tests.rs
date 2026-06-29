@@ -3,6 +3,8 @@ use std::{
 	slice,
 };
 
+use serde_json::Value;
+
 use crate::{
 	access::SharedSpaceGrantKey,
 	knowledge::{
@@ -625,7 +627,7 @@ fn test_page() -> KnowledgePage {
 fn test_section(
 	section_id: Uuid,
 	section_key: &str,
-	citations: serde_json::Value,
+	citations: Value,
 	unsupported_reason: Option<String>,
 ) -> KnowledgePageSection {
 	KnowledgePageSection {

@@ -1,4 +1,18 @@
-use super::*;
+use axum::{
+	body::Body,
+	extract::State,
+	http::{HeaderMap, Request, StatusCode},
+	middleware::Next,
+	response::IntoResponse,
+};
+use color_eyre::Result;
+use rmcp::{
+	ErrorData,
+	model::{CallToolResult, JsonObject},
+};
+use serde_json::Value;
+
+use crate::app::{McpAuthState, server::HEADER_AUTHORIZATION};
 
 pub(super) fn is_admin_path(path: &str) -> bool {
 	path.starts_with("/v2/admin/")

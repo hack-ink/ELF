@@ -1,9 +1,9 @@
-use elf_config::LlmProviderConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use time::OffsetDateTime;
 
 use crate::{Error, Result};
+use elf_config::LlmProviderConfig;
 
 /// Selector for an ingestion profile and optional version.
 #[derive(Clone, Debug, Deserialize, Serialize)]

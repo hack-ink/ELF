@@ -2,9 +2,8 @@ use sqlx::PgExecutor;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::{Error, Providers, Result};
 use elf_config::Config;
-
-use crate::{Error, Providers, Result, embedding_version, vector_to_pg};
 
 const RESOLVE_UPDATE_QUERY: &str = "\
 WITH key_match AS (
@@ -53,7 +52,6 @@ pub(crate) enum UpdateDecision {
 	Update { note_id: Uuid, metadata: UpdateDecisionMetadata },
 	None { note_id: Uuid, metadata: UpdateDecisionMetadata },
 }
-
 impl UpdateDecision {
 	pub(crate) fn note_id(&self) -> Uuid {
 		match self {
@@ -125,8 +123,8 @@ where
 		});
 	}
 
-	let vec_text = vector_to_pg(&vec);
-	let embed_version = embedding_version(cfg);
+	let vec_text = crate::vector_to_pg(&vec);
+	let embed_version = crate::embedding_version(cfg);
 	let key = key.map(|value| value.trim()).filter(|value| !value.is_empty());
 	let row: (Option<Uuid>, Option<Uuid>, Option<f32>) = sqlx::query_as(RESOLVE_UPDATE_QUERY)
 		.bind(tenant_id)

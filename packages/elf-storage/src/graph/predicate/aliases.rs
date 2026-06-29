@@ -1,9 +1,7 @@
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-use crate::{Error, Result, models::GraphPredicateAlias};
-
-use super::super::normalize_predicate_name;
+use crate::{Error, Result, graph, models::GraphPredicateAlias};
 
 /// Registers an additional alias for an existing predicate.
 pub async fn add_predicate_alias(
@@ -19,7 +17,7 @@ pub async fn add_predicate_alias(
 		));
 	}
 
-	let alias_norm = normalize_predicate_name(alias);
+	let alias_norm = graph::normalize_predicate_name(alias);
 
 	if alias_norm.is_empty() {
 		return Err(Error::InvalidArgument(

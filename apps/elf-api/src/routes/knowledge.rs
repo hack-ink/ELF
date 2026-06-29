@@ -1,4 +1,13 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, ErrorBody, HeaderMap, Json, JsonRejection,
+	KnowledgePageChangedSource, KnowledgePageGetRequest, KnowledgePageLintRequest,
+	KnowledgePageLintResponse, KnowledgePageRebuildBody, KnowledgePageRebuildRequest,
+	KnowledgePageRebuildResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
+	KnowledgePageSearchResponse, KnowledgePageWatchRebuildBody, KnowledgePageWatchRebuildRequest,
+	KnowledgePageWatchRebuildResponse, KnowledgePagesListQuery, KnowledgePagesListRequest,
+	KnowledgePagesListResponse, KnowledgePagesSearchBody, Path, Query, QueryRejection,
+	RequestContext, State, StatusCode, Uuid,
+};
 
 #[utoipa::path(
 	post,
@@ -22,7 +31,12 @@ pub(super) async fn knowledge_page_rebuild(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service
@@ -68,7 +82,12 @@ pub(super) async fn knowledge_pages_watch_rebuild(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let changed_sources = payload
 		.changed_sources
@@ -119,7 +138,7 @@ pub(super) async fn knowledge_pages_list(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -159,11 +178,16 @@ pub(super) async fn knowledge_pages_search(
 	payload: Result<Json<KnowledgePagesSearchBody>, JsonRejection>,
 ) -> Result<Json<KnowledgePageSearchResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

@@ -1,8 +1,9 @@
-use crate::search::NoteMeta;
-
-use super::{
-	super::value::{FilterNodeValue, FilterValue},
-	FilterExpr, FilterField,
+use crate::search::{
+	NoteMeta,
+	filter::{
+		expr::{FilterExpr, FilterField},
+		value::{FilterNodeValue, FilterValue},
+	},
 };
 
 impl FilterExpr {

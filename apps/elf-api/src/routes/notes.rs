@@ -1,4 +1,11 @@
-use super::*;
+use crate::routes::{
+	self, AddNoteRequest, AddNoteResponse, ApiError, AppState, DeleteRequest, DeleteResponse,
+	ErrorBody, Extension, HeaderMap, Json, JsonRejection, ListRequest, ListResponse,
+	MAX_NOTES_PER_INGEST, NoteFetchRequest, NoteFetchResponse, NotePatchRequest,
+	NotesIngestRequest, NotesListQuery, Path, PublishNoteRequest, PublishResponseV2, Query,
+	QueryRejection, RequestContext, SecurityAuthRole, ShareScope, ShareScopeBody, State,
+	StatusCode, UnpublishNoteRequest, UpdateRequest, UpdateResponse, Uuid,
+};
 
 #[utoipa::path(
 	post,
@@ -24,15 +31,23 @@ pub(super) async fn notes_ingest(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let role = role.map(|Extension(role)| role);
 
 	if payload.scope.trim() == "org_shared" {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 	if payload.notes.len() > MAX_NOTES_PER_INGEST {
-		return Err(json_error(
+		return Err(routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Notes list is too large.",
@@ -80,7 +95,7 @@ pub(super) async fn notes_list(
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
-		json_error(
+		routes::json_error(
 			StatusCode::BAD_REQUEST,
 			"INVALID_REQUEST",
 			"Invalid query parameters.".to_string(),
@@ -161,7 +176,12 @@ pub(super) async fn notes_patch(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service
@@ -239,13 +259,21 @@ pub(super) async fn notes_publish(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let scope = parse_space(payload.space.as_str())?;
+	let scope = routes::parse_space(payload.space.as_str())?;
 	let role = role.map(|Extension(role)| role);
 
 	if matches!(scope, ShareScope::OrgShared) {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 
 	let response = state
@@ -261,7 +289,7 @@ pub(super) async fn notes_publish(
 
 	Ok(Json(PublishResponseV2 {
 		note_id: response.note_id,
-		space: format_scope(response.scope.as_str())?.to_string(),
+		space: routes::format_scope(response.scope.as_str())?.to_string(),
 	}))
 }
 
@@ -291,13 +319,21 @@ pub(super) async fn notes_unpublish(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
-	let scope = parse_space(payload.space.as_str())?;
+	let scope = routes::parse_space(payload.space.as_str())?;
 	let role = role.map(|Extension(role)| role);
 
 	if matches!(scope, ShareScope::OrgShared) {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 
 	let response = state
@@ -312,6 +348,6 @@ pub(super) async fn notes_unpublish(
 
 	Ok(Json(PublishResponseV2 {
 		note_id: response.note_id,
-		space: format_scope(response.scope.as_str())?.to_string(),
+		space: routes::format_scope(response.scope.as_str())?.to_string(),
 	}))
 }

@@ -1,4 +1,10 @@
-use super::*;
+use crate::knowledge::{
+	self, BTreeSet, HashMap, HashSet, KnowledgeDocChunkSource, KnowledgeDocSource,
+	KnowledgeEventSource, KnowledgeNoteSource, KnowledgePageSourceRef, KnowledgeProposalSource,
+	KnowledgeRelationSource, SourceSnapshot, Uuid, Value, access, doc_chunk_source_snapshot,
+	doc_source_snapshot, event_source_snapshot, note_source_snapshot, proposal_source_snapshot,
+	relation_source_snapshot, source_sort_key,
+};
 
 pub(super) fn source_snapshots(
 	docs: Vec<KnowledgeDocSource>,
@@ -43,9 +49,10 @@ pub(super) fn recallable_source_refs(
 ) -> bool {
 	!source_refs.is_empty()
 		&& source_refs.iter().all(|source_ref| {
-			current_source_keys
-				.contains(&current_key(source_ref.source_kind.as_str(), source_ref.source_id))
-				&& recallable_source_ref(source_ref)
+			current_source_keys.contains(&knowledge::current_key(
+				source_ref.source_kind.as_str(),
+				source_ref.source_id,
+			)) && recallable_source_ref(source_ref)
 		})
 }
 

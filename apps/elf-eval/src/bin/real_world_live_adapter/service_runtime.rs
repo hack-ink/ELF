@@ -1,7 +1,10 @@
-use super::*;
+use crate::{
+	Arc, BaselineRuntime, ChunkingConfig, Db, ElfService, JoinSet, QdrantStore, Result,
+	WorkerState, eyre, worker,
+};
 
-pub(super) async fn build_service(runtime: &BaselineRuntime) -> color_eyre::Result<ElfService> {
-	let cfg = runtime_config(runtime)?;
+pub(super) async fn build_service(runtime: &BaselineRuntime) -> Result<ElfService> {
+	let cfg = crate::runtime_config(runtime)?;
 	let vector_dim = cfg.storage.qdrant.vector_dim;
 	let db = Db::connect(&cfg.storage.postgres).await?;
 
@@ -11,11 +14,32 @@ pub(super) async fn build_service(runtime: &BaselineRuntime) -> color_eyre::Resu
 
 	qdrant.ensure_collection().await?;
 
-	Ok(ElfService::with_providers(cfg, db, qdrant, deterministic_providers(vector_dim)))
+	Ok(ElfService::with_providers(cfg, db, qdrant, crate::deterministic_providers(vector_dim)))
 }
 
-async fn build_worker_state(runtime: &BaselineRuntime) -> color_eyre::Result<WorkerState> {
-	let cfg = runtime_config(runtime)?;
+pub(super) async fn run_worker(runtime: &BaselineRuntime) -> Result<()> {
+	let state = Arc::new(build_worker_state(runtime).await?);
+
+	for _ in 0..8 {
+		let state = Arc::clone(&state);
+		let mut set = JoinSet::new();
+
+		set.spawn(async move {
+			worker::process_once(&state)
+				.await
+				.map_err(|err| eyre::eyre!("Worker process_once failed: {err}"))
+		});
+
+		while let Some(joined) = set.join_next().await {
+			joined??;
+		}
+	}
+
+	Ok(())
+}
+
+async fn build_worker_state(runtime: &BaselineRuntime) -> Result<WorkerState> {
+	let cfg = crate::runtime_config(runtime)?;
 	let db = Db::connect(&cfg.storage.postgres).await?;
 
 	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
@@ -44,25 +68,4 @@ async fn build_worker_state(runtime: &BaselineRuntime) -> color_eyre::Result<Wor
 		chunking,
 		tokenizer,
 	})
-}
-
-pub(super) async fn run_worker(runtime: &BaselineRuntime) -> color_eyre::Result<()> {
-	let state = Arc::new(build_worker_state(runtime).await?);
-
-	for _ in 0..8 {
-		let state = Arc::clone(&state);
-		let mut set = JoinSet::new();
-
-		set.spawn(async move {
-			worker::process_once(&state)
-				.await
-				.map_err(|err| eyre::eyre!("Worker process_once failed: {err}"))
-		});
-
-		while let Some(joined) = set.join_next().await {
-			joined??;
-		}
-	}
-
-	Ok(())
 }

@@ -1,4 +1,4 @@
-use super::*;
+use crate::validation::{ConsolidationProposalFixture, Path, RealWorldJob, Result, eyre};
 
 pub(super) fn validate_consolidation_fixture(job: &RealWorldJob, path: &Path) -> Result<()> {
 	let consolidation =

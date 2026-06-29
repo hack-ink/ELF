@@ -1,5 +1,19 @@
 //! Worker runtime and queue-processing helpers.
 
+mod consolidation_jobs;
+mod doc_indexing;
+mod helpers;
+mod note_indexing;
+mod outbox_jobs;
+mod runtime;
+mod trace_jobs;
+mod types;
+
+pub use self::{
+	runtime::{process_once, run_worker},
+	types::WorkerState,
+};
+
 use std::{collections::HashMap, slice, string::ToString};
 
 use qdrant_client::{
@@ -15,6 +29,8 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
 use crate::{Error, Result};
+use consolidation_jobs::handle_consolidation_job;
+use doc_indexing::{handle_doc_delete, handle_doc_upsert};
 use elf_chunking::{Chunk, ChunkingConfig, Tokenizer};
 use elf_config::EmbeddingProviderConfig;
 use elf_domain::consolidation::{
@@ -34,24 +50,27 @@ use elf_storage::{
 	qdrant::{BM25_MODEL, BM25_VECTOR_NAME, DENSE_VECTOR_NAME, QdrantStore},
 	queries,
 };
-
-mod types;
-pub use types::WorkerState;
-use types::*;
-mod helpers;
-use helpers::*;
-mod consolidation_jobs;
-use consolidation_jobs::*;
-mod note_indexing;
-use note_indexing::*;
-mod doc_indexing;
-use doc_indexing::*;
-mod trace_jobs;
-use trace_jobs::*;
-mod outbox_jobs;
-use outbox_jobs::*;
-mod runtime;
-pub use runtime::{process_once, run_worker};
+use helpers::{
+	backoff_for_attempt, build_chunk_records, encode_json, format_timestamp, format_vector_text,
+	is_not_found_error, mean_pool, note_is_active, project_doc_ref_fields, sanitize_outbox_error,
+	to_std_duration, validate_vector_dim,
+};
+use note_indexing::{handle_delete, handle_upsert};
+use outbox_jobs::{
+	process_consolidation_run_job_once, process_doc_indexing_outbox_once,
+	process_indexing_outbox_once, process_trace_outbox_once,
+};
+use trace_jobs::{
+	handle_trace_job, purge_expired_cache, purge_expired_search_sessions,
+	purge_expired_trace_candidates, purge_expired_traces,
+};
+use types::{
+	BASE_BACKOFF_MS, CLAIM_LEASE_SECONDS, CONSOLIDATION_JOB_LEASE_SECONDS, ChunkRecord,
+	DocChunkIndexRow, MAX_BACKOFF_MS, MAX_OUTBOX_ERROR_CHARS, NoteFieldRow, POLL_INTERVAL_MS,
+	ProjectDocRefFields, TRACE_CLEANUP_INTERVAL_SECONDS, TRACE_OUTBOX_LEASE_SECONDS,
+	TraceCandidateInsert, TraceCandidateRecord, TraceItemInsert, TraceItemRecord, TracePayload,
+	TraceRecord, TraceStageInsert, TraceStageItemInsert, TraceTrajectoryStageRecord,
+};
 
 #[cfg(test)]
 #[path = "worker/tests.rs"]

@@ -1,10 +1,15 @@
 use serde_json::Value;
 
+use crate::{
+	Error, Result,
+	search::{
+		RankingRequestOverride,
+		ranking::policy::types::{
+			ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy,
+		},
+	},
+};
 use elf_config::Config;
-
-use crate::{Error, Result, search::RankingRequestOverride};
-
-use super::types::{ResolvedBlendPolicy, ResolvedDiversityPolicy, ResolvedRetrievalSourcesPolicy};
 
 pub fn build_config_snapshot(
 	cfg: &Config,

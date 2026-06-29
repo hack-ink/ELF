@@ -2,14 +2,6 @@
 
 //! CLI for evaluating trace-regression gates against stored traces.
 
-use std::fs;
-
-use clap::Parser;
-use color_eyre::{Result, eyre};
-use tracing_subscriber::EnvFilter;
-
-use elf_storage::db::Db;
-
 #[path = "trace_regression_gate/cli.rs"] mod cli;
 #[path = "trace_regression_gate/eval.rs"] mod eval;
 #[path = "trace_regression_gate/gate.rs"] mod gate;
@@ -18,12 +10,17 @@ use elf_storage::db::Db;
 #[path = "trace_regression_gate/rows.rs"] mod rows;
 #[path = "trace_regression_gate/storage.rs"] mod storage;
 
+use std::fs;
+
+use clap::Parser;
+use color_eyre::{Result, eyre};
+use tracing_subscriber::EnvFilter;
+
 use self::{
 	cli::Args,
-	eval::eval_trace,
-	gate::{load_gate_file, merge_thresholds},
 	reports::{GateReport, GateSummary},
 };
+use elf_storage::db::Db;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,7 +32,7 @@ async fn main() -> Result<()> {
 
 	tracing_subscriber::fmt().with_env_filter(filter).init();
 
-	let gate = load_gate_file(&args.gate)?;
+	let gate = self::gate::load_gate_file(&args.gate)?;
 
 	if gate.traces.is_empty() {
 		return Err(eyre::eyre!("Gate JSON must include at least one trace."));
@@ -51,8 +48,8 @@ async fn main() -> Result<()> {
 	let mut breached_count = 0_usize;
 
 	for trace in gate.traces {
-		let thresholds = merge_thresholds(gate.defaults, trace.thresholds);
-		let report = eval_trace(
+		let thresholds = self::gate::merge_thresholds(gate.defaults, trace.thresholds);
+		let report = self::eval::eval_trace(
 			&db,
 			&cfg,
 			&args,

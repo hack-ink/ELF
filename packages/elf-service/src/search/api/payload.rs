@@ -1,4 +1,4 @@
-use super::*;
+use crate::search::api::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
 
 /// Payload-detail level used by search and trace APIs.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -46,6 +46,6 @@ impl<'de> Deserialize<'de> for PayloadLevel {
 	{
 		let raw = String::deserialize(deserializer)?;
 
-		Self::parse(&raw).ok_or_else(|| de::Error::custom("payload_level must be l0, l1, or l2"))
+		Self::parse(&raw).ok_or_else(|| Error::custom("payload_level must be l0, l1, or l2"))
 	}
 }

@@ -3,13 +3,12 @@ use std::{fs, path::Path};
 use color_eyre::{Result, eyre};
 use uuid::Uuid;
 
-use elf_config::Config;
-use elf_service::SearchRequest;
-
-use super::{
+use crate::app::{
 	Args,
 	types::{EvalDataset, EvalDefaults, EvalQuery, ExpectedKind, MergedQuery},
 };
+use elf_config::Config;
+use elf_service::SearchRequest;
 
 pub(super) fn load_dataset(path: &Path) -> Result<EvalDataset> {
 	let raw = fs::read_to_string(path)?;

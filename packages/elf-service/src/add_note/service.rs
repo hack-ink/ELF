@@ -1,29 +1,24 @@
 use sqlx::{Postgres, Transaction};
 use time::{Duration, OffsetDateTime};
 
-use super::{
-	audit::record_ingest_decision,
-	policy::{
-		apply_policy_result, base_decision_for_update, ignore_reason_code_for_policy,
-		resolve_policy_for_update, structured_and_graph_present,
-	},
-	rejection::handle_rejection_paths,
-	types::{AddNoteContext, AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult},
-	validation::{
-		apply_write_policy_to_note, normalize_add_note_request, validate_add_note_request,
-	},
-};
 use crate::{
 	ElfService, ResolveUpdateArgs, Result, UpdateDecision, UpdateDecisionMetadata,
 	access::ORG_PROJECT_ID,
+	add_note::{
+		audit,
+		policy::{self},
+		rejection,
+		types::{AddNoteContext, AddNoteInput, AddNoteRequest, AddNoteResponse, AddNoteResult},
+		validation::{self},
+	},
 };
 
 impl ElfService {
 	/// Validates and persists notes supplied directly by the caller.
 	pub async fn add_note(&self, req: AddNoteRequest) -> Result<AddNoteResponse> {
-		let req = normalize_add_note_request(req);
+		let req = validation::normalize_add_note_request(req);
 
-		validate_add_note_request(&req)?;
+		validation::validate_add_note_request(&req)?;
 
 		let base_now = OffsetDateTime::now_utc();
 		let embed_version = crate::embedding_version(&self.cfg);
@@ -56,17 +51,22 @@ impl ElfService {
 	) -> Result<AddNoteResult> {
 		let mut note = note;
 		let (transformed, write_policy_audit) =
-			apply_write_policy_to_note(note.write_policy.as_ref(), note.text.as_str())?;
+			validation::apply_write_policy_to_note(note.write_policy.as_ref(), note.text.as_str())?;
 
 		note.text = transformed;
 
 		let (structured_present, graph_present) =
-			structured_and_graph_present(note.structured.as_ref());
+			policy::structured_and_graph_present(note.structured.as_ref());
 		let mut tx = self.db.pool.begin().await?;
 
-		if let Some(result) =
-			handle_rejection_paths(&mut tx, &self.cfg, ctx, &note, write_policy_audit.as_ref())
-				.await?
+		if let Some(result) = rejection::handle_rejection_paths(
+			&mut tx,
+			&self.cfg,
+			ctx,
+			&note,
+			write_policy_audit.as_ref(),
+		)
+		.await?
 		{
 			tx.commit().await?;
 
@@ -74,13 +74,17 @@ impl ElfService {
 		}
 
 		let (decision, metadata) = self.resolve_update_decision(&mut tx, ctx, &note).await?;
-		let base_decision = base_decision_for_update(&decision, structured_present, graph_present);
+		let base_decision =
+			policy::base_decision_for_update(&decision, structured_present, graph_present);
 		let (policy_decision, decision_policy_rule, min_confidence, min_importance) =
-			resolve_policy_for_update(&self.cfg, ctx.scope, &note, base_decision);
+			policy::resolve_policy_for_update(&self.cfg, ctx.scope, &note, base_decision);
 		let note_id = decision.note_id();
-		let ignore_reason_code =
-			ignore_reason_code_for_policy(base_decision, policy_decision, metadata.matched_dup);
-		let (result, note_op, note_version_id) = apply_policy_result(
+		let ignore_reason_code = policy::ignore_reason_code_for_policy(
+			base_decision,
+			policy_decision,
+			metadata.matched_dup,
+		);
+		let (result, note_op, note_version_id) = policy::apply_policy_result(
 			self,
 			&mut tx,
 			&decision,
@@ -95,7 +99,7 @@ impl ElfService {
 
 		result.write_policy_audit = write_policy_audit.clone();
 
-		record_ingest_decision(
+		audit::record_ingest_decision(
 			&mut tx,
 			&self.cfg,
 			ctx,
@@ -115,6 +119,7 @@ impl ElfService {
 			write_policy_audit,
 		)
 		.await?;
+
 		tx.commit().await?;
 
 		Ok(result)

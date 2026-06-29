@@ -1,4 +1,4 @@
-use super::*;
+use crate::markdown::CostReport;
 
 pub(super) fn optional_f64(value: Option<f64>, suffix: &str) -> String {
 	value.map(|value| format!("{value:.3}{suffix}")).unwrap_or_else(|| "-".to_string())

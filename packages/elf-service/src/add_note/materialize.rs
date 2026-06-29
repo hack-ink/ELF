@@ -2,12 +2,13 @@ use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{
-	persistence::{insert_memory_note_tx, update_memory_note_tx},
-	types::{AddNoteContext, AddNoteInput, AddNoteResult},
-};
 use crate::{
-	ElfService, InsertVersionArgs, NoteOp, Result, access, graph_ingestion,
+	ElfService, InsertVersionArgs, NoteOp, Result, access,
+	add_note::{
+		persistence::{self},
+		types::{AddNoteContext, AddNoteInput, AddNoteResult},
+	},
+	graph_ingestion,
 	structured_fields::{self, StructuredFields},
 };
 use elf_domain::{memory_policy::MemoryPolicyDecision, ttl};
@@ -52,7 +53,7 @@ pub(super) async fn handle_add_note_add(
 		last_hit_at: None,
 	};
 
-	insert_memory_note_tx(tx, &memory_note).await?;
+	persistence::insert_memory_note_tx(tx, &memory_note).await?;
 
 	let note_version_id = crate::insert_version(
 		&mut **tx,
@@ -152,7 +153,7 @@ pub(super) async fn handle_add_note_update(
 	existing.expires_at = expires_at;
 	existing.source_ref = note.source_ref.clone();
 
-	update_memory_note_tx(tx, &existing).await?;
+	persistence::update_memory_note_tx(tx, &existing).await?;
 
 	let note_version_id = crate::insert_version(
 		&mut **tx,

@@ -1,3 +1,5 @@
+use serde_json::Map;
+
 use crate::writegate::{
 	self, NoteInput, RejectCode, WritePolicy, WritePolicyResult, WriteRedaction,
 	WriteRedactionResult,
@@ -182,7 +184,7 @@ fn dummy_embedding_provider() -> EmbeddingProviderConfig {
 		model: "m".to_string(),
 		dimensions: 3,
 		timeout_ms: 1_000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -194,7 +196,7 @@ fn dummy_provider() -> ProviderConfig {
 		path: "/".to_string(),
 		model: "m".to_string(),
 		timeout_ms: 1_000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 
@@ -207,7 +209,7 @@ fn dummy_llm_provider() -> LlmProviderConfig {
 		model: "m".to_string(),
 		temperature: 0.1,
 		timeout_ms: 1_000,
-		default_headers: serde_json::Map::new(),
+		default_headers: Map::new(),
 	}
 }
 

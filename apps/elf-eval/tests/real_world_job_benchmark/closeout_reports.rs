@@ -1,9 +1,14 @@
-use super::*;
+use std::fs;
+
+use color_eyre::{Result, eyre};
+use serde_json::Value;
+
+use crate::support;
 
 #[test]
 fn agent_knowledge_os_closeout_benchmark_preserves_full_matrix_boundaries() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		agent_knowledge_os_closeout_benchmark_report_json_path()?,
+		support::agent_knowledge_os_closeout_benchmark_report_json_path()?,
 	)?)?;
 
 	assert_eq!(
@@ -41,8 +46,8 @@ fn agent_knowledge_os_closeout_benchmark_preserves_full_matrix_boundaries() -> R
 		Some(78)
 	);
 
-	let scenarios = array_at(&report, "/supported_scenarios")?;
-	let matrix = array_at(&report, "/product_matrix")?;
+	let scenarios = support::array_at(&report, "/supported_scenarios")?;
+	let matrix = support::array_at(&report, "/product_matrix")?;
 
 	for scenario in [
 		"source_library_ingest_hydration",
@@ -52,10 +57,10 @@ fn agent_knowledge_os_closeout_benchmark_preserves_full_matrix_boundaries() -> R
 		"dreaming_review_queue",
 		"recall_debug_panel",
 	] {
-		find_by_field(scenarios, "/id", scenario)?;
+		support::find_by_field(scenarios, "/id", scenario)?;
 	}
 
-	let elf = find_by_field(matrix, "/product", "ELF")?;
+	let elf = support::find_by_field(matrix, "/product", "ELF")?;
 
 	for scenario in [
 		"source_library_ingest_hydration",
@@ -71,7 +76,7 @@ fn agent_knowledge_os_closeout_benchmark_preserves_full_matrix_boundaries() -> R
 		);
 	}
 
-	let qmd = find_by_field(matrix, "/product", "qmd")?;
+	let qmd = support::find_by_field(matrix, "/product", "qmd")?;
 
 	assert_eq!(
 		qmd.pointer("/statuses/recall_debug_panel").and_then(Value::as_str),
@@ -84,7 +89,7 @@ fn agent_knowledge_os_closeout_benchmark_preserves_full_matrix_boundaries() -> R
 	);
 
 	for product in ["VectifyAI PageIndex", "VectifyAI OpenKB"] {
-		let row = find_by_field(matrix, "/product", product)?;
+		let row = support::find_by_field(matrix, "/product", product)?;
 
 		assert_eq!(row.pointer("/coverage").and_then(Value::as_str), Some("reference_only"));
 		assert_eq!(
@@ -103,12 +108,12 @@ fn agent_knowledge_os_closeout_benchmark_preserves_full_matrix_boundaries() -> R
 			.and_then(Value::as_bool),
 		Some(true)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/source_evidence",
 		"https://github.com/VectifyAI/PageIndex"
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/source_evidence",
 		"https://github.com/VectifyAI/OpenKB"
@@ -120,13 +125,13 @@ fn agent_knowledge_os_closeout_benchmark_preserves_full_matrix_boundaries() -> R
 #[test]
 fn agent_knowledge_os_closeout_benchmark_wires_docs_and_optimization_queue() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		agent_knowledge_os_closeout_benchmark_report_json_path()?,
+		support::agent_knowledge_os_closeout_benchmark_report_json_path()?,
 	)?)?;
 	let markdown =
-		fs::read_to_string(agent_knowledge_os_closeout_benchmark_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
-	let queue = array_at(&report, "/optimization_queue")?;
+		fs::read_to_string(support::agent_knowledge_os_closeout_benchmark_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
+	let queue = support::array_at(&report, "/optimization_queue")?;
 
 	for item in queue {
 		assert_eq!(item.pointer("/generated_from_delta").and_then(Value::as_bool), Some(true));
@@ -138,7 +143,7 @@ fn agent_knowledge_os_closeout_benchmark_wires_docs_and_optimization_queue() -> 
 		"openviking_context_trajectory_artifacts",
 		"graph_rag_temporal_adapter_matrix",
 	] {
-		let item = find_by_field(queue, "/key", key)?;
+		let item = support::find_by_field(queue, "/key", key)?;
 
 		assert_eq!(item.pointer("/generated_from_delta").and_then(Value::as_bool), Some(true));
 	}
@@ -162,16 +167,16 @@ fn agent_knowledge_os_closeout_benchmark_wires_docs_and_optimization_queue() -> 
 #[test]
 fn p2_knowledge_workspace_closeout_preserves_pageindex_openkb_boundaries() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		p2_knowledge_workspace_pageindex_openkb_closeout_report_json_path()?,
+		support::p2_knowledge_workspace_pageindex_openkb_closeout_report_json_path()?,
 	)?)?;
 	let markdown = fs::read_to_string(
-		p2_knowledge_workspace_pageindex_openkb_closeout_report_markdown_path()?,
+		support::p2_knowledge_workspace_pageindex_openkb_closeout_report_markdown_path()?,
 	)?;
-	let makefile = fs::read_to_string(workspace_root()?.join("Makefile.toml"))?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let makefile = fs::read_to_string(support::workspace_root()?.join("Makefile.toml"))?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 	let benchmark_runbook = fs::read_to_string(
-		workspace_root()?
+		support::workspace_root()?
 			.join("docs")
 			.join("runbook")
 			.join("benchmarking")
@@ -196,24 +201,24 @@ fn p2_knowledge_workspace_closeout_preserves_pageindex_openkb_boundaries() -> Re
 	assert_eq!(report.pointer("/typed_state_summary/blocked").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/typed_state_summary/not_tested").and_then(Value::as_u64), Some(2));
 
-	let results = array_at(&report, "/elf_same_corpus_results")?;
-	let source_library = find_by_field(results, "/suite", "source_library")?;
-	let knowledge = find_by_field(results, "/suite", "knowledge_compilation")?;
+	let results = support::array_at(&report, "/elf_same_corpus_results")?;
+	let source_library = support::find_by_field(results, "/suite", "source_library")?;
+	let knowledge = support::find_by_field(results, "/suite", "knowledge_compilation")?;
 
 	assert_eq!(source_library.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(source_library.pointer("/jobs").and_then(Value::as_u64), Some(2));
 	assert_eq!(knowledge.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(knowledge.pointer("/jobs").and_then(Value::as_u64), Some(3));
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		knowledge,
 		"/coverage",
 		"Changed-source watch/rebuild reports changed, stale, and reviewable memory-candidate outputs without source mutation."
 	)?);
 
-	let matrix = array_at(&report, "/comparison_matrix")?;
-	let pageindex = find_by_field(matrix, "/target", "VectifyAI PageIndex")?;
-	let openkb = find_by_field(matrix, "/target", "VectifyAI OpenKB")?;
-	let p3 = find_by_field(matrix, "/target", "P3 PageIndex/OpenKB adapter queue")?;
+	let matrix = support::array_at(&report, "/comparison_matrix")?;
+	let pageindex = support::find_by_field(matrix, "/target", "VectifyAI PageIndex")?;
+	let openkb = support::find_by_field(matrix, "/target", "VectifyAI OpenKB")?;
+	let p3 = support::find_by_field(matrix, "/target", "P3 PageIndex/OpenKB adapter queue")?;
 
 	assert_eq!(pageindex.pointer("/status").and_then(Value::as_str), Some("not_tested"));
 	assert_eq!(openkb.pointer("/status").and_then(Value::as_str), Some("not_tested"));
@@ -228,12 +233,12 @@ fn p2_knowledge_workspace_closeout_preserves_pageindex_openkb_boundaries() -> Re
 		report.pointer("/p3_queue_decision/queued_label_applied").and_then(Value::as_bool),
 		Some(false)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Do not claim ELF beats PageIndex or OpenKB."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Do not queue a P3 issue in this lane."
@@ -259,13 +264,13 @@ fn p2_knowledge_workspace_closeout_preserves_pageindex_openkb_boundaries() -> Re
 #[test]
 fn operator_approved_public_proxy_private_addendum_preserves_boundary() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		operator_approved_public_proxy_private_addendum_report_json_path()?,
+		support::operator_approved_public_proxy_private_addendum_report_json_path()?,
 	)?)?;
 	let markdown = fs::read_to_string(
-		operator_approved_public_proxy_private_addendum_report_markdown_path()?,
+		support::operator_approved_public_proxy_private_addendum_report_markdown_path()?,
 	)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -311,8 +316,8 @@ fn operator_approved_public_proxy_private_addendum_preserves_boundary() -> Resul
 	assert_eq!(report.pointer("/backfill/completed_count").and_then(Value::as_u64), Some(12));
 	assert_eq!(report.pointer("/backfill/duplicate_source_notes").and_then(Value::as_u64), Some(0));
 
-	let queries = array_at(&report, "/queries")?;
-	let provider = find_by_field(queries, "/id", "q-explain-provider-blocker")?;
+	let queries = support::array_at(&report, "/queries")?;
+	let provider = support::find_by_field(queries, "/id", "q-explain-provider-blocker")?;
 
 	assert_eq!(queries.len(), 8);
 	assert_eq!(
@@ -320,22 +325,22 @@ fn operator_approved_public_proxy_private_addendum_preserves_boundary() -> Resul
 		Some("blocker-provider-missing")
 	);
 	assert_eq!(provider.pointer("/matched").and_then(Value::as_bool), Some(true));
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Do not call this real private-corpus production proof."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Do not claim provider-backed production quality; embedding mode was local."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/improvement_regression_readback/unchanged",
 		"Real private-corpus production quality is still not proven."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/next_optimization_direction/when_operator_inputs_exist",
 		"Run provider-backed embeddings with ELF_BASELINE_ELF_EMBEDDING_MODE=provider and a routed provider setup."
@@ -358,12 +363,12 @@ fn operator_approved_public_proxy_private_addendum_preserves_boundary() -> Resul
 #[test]
 fn openmemory_ui_export_product_recheck_preserves_blocked_boundary() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		openmemory_ui_export_product_readback_report_json_path()?,
+		support::openmemory_ui_export_product_readback_report_json_path()?,
 	)?)?;
 	let markdown =
-		fs::read_to_string(openmemory_ui_export_product_readback_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+		fs::read_to_string(support::openmemory_ui_export_product_readback_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -414,12 +419,12 @@ fn openmemory_ui_export_product_recheck_preserves_blocked_boundary() -> Result<(
 			.and_then(Value::as_bool),
 		Some(false)
 	);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/improvement_regression_readback/unchanged",
 		"OpenMemory product UI/export readback remains blocked before same-corpus product app database validation."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/next_optimization_direction/required_fields",
 		"same_corpus_import_into_openmemory_app_database"
@@ -438,12 +443,13 @@ fn openmemory_ui_export_product_recheck_preserves_blocked_boundary() -> Result<(
 #[test]
 fn graph_rag_citation_navigation_promotion_preserves_typed_non_passes() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		graph_rag_citation_navigation_promotion_report_json_path()?,
+		support::graph_rag_citation_navigation_promotion_report_json_path()?,
 	)?)?;
-	let markdown =
-		fs::read_to_string(graph_rag_citation_navigation_promotion_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown = fs::read_to_string(
+		support::graph_rag_citation_navigation_promotion_report_markdown_path()?,
+	)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -469,14 +475,14 @@ fn graph_rag_citation_navigation_promotion_preserves_typed_non_passes() -> Resul
 		Some(0.667)
 	);
 
-	let scenarios = array_at(&report, "/scenario_outcomes")?;
-	let ragflow = find_by_field(scenarios, "/project", "RAGFlow")?;
-	let lightrag = find_by_field(scenarios, "/project", "LightRAG")?;
-	let graphrag = find_by_field(scenarios, "/project", "GraphRAG")?;
-	let graphiti = find_by_field(scenarios, "/project", "Graphiti/Zep")?;
-	let graphify = find_by_field(scenarios, "/project", "graphify")?;
-	let llm_wiki = find_by_field(scenarios, "/project", "llm-wiki")?;
-	let gbrain = find_by_field(scenarios, "/project", "gbrain")?;
+	let scenarios = support::array_at(&report, "/scenario_outcomes")?;
+	let ragflow = support::find_by_field(scenarios, "/project", "RAGFlow")?;
+	let lightrag = support::find_by_field(scenarios, "/project", "LightRAG")?;
+	let graphrag = support::find_by_field(scenarios, "/project", "GraphRAG")?;
+	let graphiti = support::find_by_field(scenarios, "/project", "Graphiti/Zep")?;
+	let graphify = support::find_by_field(scenarios, "/project", "graphify")?;
+	let llm_wiki = support::find_by_field(scenarios, "/project", "llm-wiki")?;
+	let gbrain = support::find_by_field(scenarios, "/project", "gbrain")?;
 
 	assert_eq!(ragflow.pointer("/current_status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(lightrag.pointer("/current_status").and_then(Value::as_str), Some("incomplete"));
@@ -485,13 +491,17 @@ fn graph_rag_citation_navigation_promotion_preserves_typed_non_passes() -> Resul
 	assert_eq!(graphify.pointer("/current_status").and_then(Value::as_str), Some("wrong_result"));
 	assert_eq!(llm_wiki.pointer("/current_status").and_then(Value::as_str), Some("not_encoded"));
 	assert_eq!(gbrain.pointer("/current_status").and_then(Value::as_str), Some("blocked"));
-	assert!(array_contains_str(graphify, "/produced_evidence", "graphify-source-location-output")?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
+		graphify,
+		"/produced_evidence",
+		"graphify-source-location-output"
+	)?);
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Do not claim graph/RAG parity or broad graph-navigation quality."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/next_optimization_direction/required_fields",
 		"graphrag_output_table_rows_with_generated_evidence_ids"
@@ -512,11 +522,11 @@ fn graph_rag_citation_navigation_promotion_preserves_typed_non_passes() -> Resul
 #[test]
 fn graph_rag_adapter_matrix_report_preserves_no_parity_claims() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		graph_rag_adapter_matrix_report_json_path()?,
+		support::graph_rag_adapter_matrix_report_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(graph_rag_adapter_matrix_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown = fs::read_to_string(support::graph_rag_adapter_matrix_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -533,7 +543,7 @@ fn graph_rag_adapter_matrix_report_preserves_no_parity_claims() -> Result<()> {
 		Some("not_proven")
 	);
 
-	let rows = array_at(&report, "/adapter_matrix")?;
+	let rows = support::array_at(&report, "/adapter_matrix")?;
 	let ragflow_citation = find_matrix_row(rows, "RAGFlow", "citation_quality")?;
 	let lightrag_retrieval = find_matrix_row(rows, "LightRAG", "retrieval_quality")?;
 	let graphrag_navigation = find_matrix_row(rows, "GraphRAG", "navigation_quality")?;
@@ -543,7 +553,7 @@ fn graph_rag_adapter_matrix_report_preserves_no_parity_claims() -> Result<()> {
 	assert_eq!(lightrag_retrieval.pointer("/status").and_then(Value::as_str), Some("incomplete"));
 	assert_eq!(graphrag_navigation.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(graphrag_retrieval.pointer("/status").and_then(Value::as_str), Some("not_encoded"));
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Do not reposition ELF as a generic RAG platform from this adapter matrix."
@@ -560,11 +570,12 @@ fn graph_rag_adapter_matrix_report_preserves_no_parity_claims() -> Result<()> {
 #[test]
 fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Result<()> {
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(
-		p3_competitor_strength_absorption_report_json_path()?,
+		support::p3_competitor_strength_absorption_report_json_path()?,
 	)?)?;
-	let markdown = fs::read_to_string(p3_competitor_strength_absorption_report_markdown_path()?)?;
-	let benchmarking_index = fs::read_to_string(benchmarking_index_path()?)?;
-	let readme = fs::read_to_string(readme_path()?)?;
+	let markdown =
+		fs::read_to_string(support::p3_competitor_strength_absorption_report_markdown_path()?)?;
+	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
+	let readme = fs::read_to_string(support::readme_path()?)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -586,7 +597,7 @@ fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Resu
 		Some(true)
 	);
 
-	let products = array_at(&report, "/product_strengths")?;
+	let products = support::array_at(&report, "/product_strengths")?;
 
 	for product in [
 		"qmd",
@@ -600,14 +611,14 @@ fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Resu
 		"GraphRAG",
 		"LightRAG",
 	] {
-		find_by_field(products, "/product", product)?;
+		support::find_by_field(products, "/product", product)?;
 	}
 
-	let qmd = find_by_field(products, "/product", "qmd")?;
-	let pageindex = find_by_field(products, "/product", "VectifyAI PageIndex")?;
-	let mem0 = find_by_field(products, "/product", "mem0/OpenMemory")?;
-	let graphiti = find_by_field(products, "/product", "Graphiti/Zep")?;
-	let lightrag = find_by_field(products, "/product", "LightRAG")?;
+	let qmd = support::find_by_field(products, "/product", "qmd")?;
+	let pageindex = support::find_by_field(products, "/product", "VectifyAI PageIndex")?;
+	let mem0 = support::find_by_field(products, "/product", "mem0/OpenMemory")?;
+	let graphiti = support::find_by_field(products, "/product", "Graphiti/Zep")?;
+	let lightrag = support::find_by_field(products, "/product", "LightRAG")?;
 
 	assert_eq!(qmd.pointer("/current_status").and_then(Value::as_str), Some("mixed"));
 	assert!(
@@ -626,7 +637,7 @@ fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Resu
 		Some("incomplete_or_not_encoded")
 	);
 
-	let queue = array_at(&report, "/p4_optimization_queue")?;
+	let queue = support::array_at(&report, "/p4_optimization_queue")?;
 
 	for key in [
 		"qmd_candidate_replay_parity",
@@ -635,7 +646,7 @@ fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Resu
 		"memory_history_export_and_core_archive",
 		"temporal_trajectory_graph_rag_adapters",
 	] {
-		let item = find_by_field(queue, "/key", key)?;
+		let item = support::find_by_field(queue, "/key", key)?;
 
 		assert_eq!(
 			item.pointer("/ready_after_main_thread_acceptance").and_then(Value::as_bool),
@@ -646,12 +657,12 @@ fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Resu
 
 	assert_product_queue_items_reference_queue(products, queue)?;
 
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Typed non-pass states are not wins."
 	)?);
-	assert!(array_contains_str(
+	assert!(support::array_contains_str(
 		&report,
 		"/claim_boundaries/not_allowed",
 		"Do not apply decodex:queued:elf to a P4 issue until the main thread accepts the P3 closeout."

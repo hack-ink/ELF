@@ -4,4 +4,9 @@ mod helpers;
 mod service;
 mod types;
 
-pub use types::*;
+pub use types::{
+	AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasResponse,
+	AdminGraphPredicateAliasesListRequest, AdminGraphPredicateAliasesResponse,
+	AdminGraphPredicatePatchRequest, AdminGraphPredicateResponse, AdminGraphPredicatesListRequest,
+	AdminGraphPredicatesListResponse,
+};

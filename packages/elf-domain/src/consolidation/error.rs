@@ -1,10 +1,3 @@
-use std::{
-	error::Error,
-	fmt::{Display, Formatter},
-};
-
-use super::lifecycle::{ConsolidationReviewState, ConsolidationRunState};
-
 /// Error returned by consolidation contract validation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ConsolidationValidationError {
@@ -29,16 +22,16 @@ pub enum ConsolidationValidationError {
 	/// A proposal review transition is not allowed by the lifecycle.
 	InvalidReviewTransition {
 		/// Current review state.
-		from: ConsolidationReviewState,
+		from: super::lifecycle::ConsolidationReviewState,
 		/// Requested review state.
-		to: ConsolidationReviewState,
+		to: super::lifecycle::ConsolidationReviewState,
 	},
 	/// A run state transition is not allowed by the job lifecycle.
 	InvalidRunTransition {
 		/// Current run state.
-		from: ConsolidationRunState,
+		from: super::lifecycle::ConsolidationRunState,
 		/// Requested run state.
-		to: ConsolidationRunState,
+		to: super::lifecycle::ConsolidationRunState,
 	},
 	/// A stored state string is not part of the contract.
 	UnknownState {
@@ -48,8 +41,8 @@ pub enum ConsolidationValidationError {
 	/// The queued contract schema did not match the consolidation v1 contract.
 	InvalidContractSchema,
 }
-impl Display for ConsolidationValidationError {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl std::fmt::Display for ConsolidationValidationError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::MissingSourceRefs => write!(f, "source_refs must not be empty"),
 			Self::MissingSourceSnapshot => {
@@ -72,4 +65,4 @@ impl Display for ConsolidationValidationError {
 		}
 	}
 }
-impl Error for ConsolidationValidationError {}
+impl std::error::Error for ConsolidationValidationError {}

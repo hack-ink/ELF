@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::{
 	RelationTemporalStatus,
-	graph_report::{self, GraphReportFactRow},
+	graph_report::{self, GraphReportFactRow, ResolvedGraphReportSubject},
 };
 
 fn ts(value: i64) -> OffsetDateTime {
@@ -84,7 +84,7 @@ fn graph_report_suppresses_facts_without_readable_evidence() {
 
 #[test]
 fn graph_topic_map_preserves_fact_edges_and_source_markers() {
-	let subject = super::ResolvedGraphReportSubject {
+	let subject = ResolvedGraphReportSubject {
 		entity_id: Uuid::from_u128(42),
 		canonical: "Alice".to_string(),
 		kind: Some("person".to_string()),

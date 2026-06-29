@@ -1,15 +1,15 @@
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
-use super::{
-	sql::CONSOLIDATION_PROPOSAL_SELECT,
-	types::{
-		ConsolidationProposalReviewEventInsert, ConsolidationProposalReviewUpdate,
-		ConsolidationProposalTargetRefUpdate,
-	},
-};
 use crate::{
 	Result,
+	consolidation::{
+		sql::CONSOLIDATION_PROPOSAL_SELECT,
+		types::{
+			ConsolidationProposalReviewEventInsert, ConsolidationProposalReviewUpdate,
+			ConsolidationProposalTargetRefUpdate,
+		},
+	},
 	models::{ConsolidationProposal, ConsolidationProposalReviewEvent},
 };
 

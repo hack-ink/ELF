@@ -1,4 +1,9 @@
-use super::*;
+use crate::worker::{
+	self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationJobPayload, ConsolidationProposal,
+	ConsolidationProposalContract, ConsolidationReviewState, ConsolidationRunJob,
+	ConsolidationRunState, ConsolidationRunStateUpdate, ConsolidationValidationError, Db, Error,
+	OffsetDateTime, Result, ToString, Uuid, Value, consolidation,
+};
 
 pub(super) fn proposal_row_from_contract(
 	job: &ConsolidationRunJob,
@@ -17,20 +22,20 @@ pub(super) fn proposal_row_from_contract(
 		proposal_kind: proposal.proposal_kind,
 		apply_intent: proposal.apply_intent.as_str().to_string(),
 		review_state: ConsolidationReviewState::Proposed.as_str().to_string(),
-		source_refs: encode_json(&proposal.source_refs, "consolidation source_refs")?,
+		source_refs: worker::encode_json(&proposal.source_refs, "consolidation source_refs")?,
 		source_snapshot: proposal.source_snapshot,
-		lineage: encode_json(&proposal.lineage, "consolidation lineage")?,
-		diff: encode_json(&proposal.diff, "consolidation diff")?,
+		lineage: worker::encode_json(&proposal.lineage, "consolidation lineage")?,
+		diff: worker::encode_json(&proposal.diff, "consolidation diff")?,
 		confidence: proposal.confidence,
-		unsupported_claim_flags: encode_json(
+		unsupported_claim_flags: worker::encode_json(
 			&proposal.unsupported_claim_flags,
 			"consolidation unsupported_claim_flags",
 		)?,
-		contradiction_markers: encode_json(
+		contradiction_markers: worker::encode_json(
 			&proposal.markers.contradictions,
 			"consolidation contradiction_markers",
 		)?,
-		staleness_markers: encode_json(
+		staleness_markers: worker::encode_json(
 			&proposal.markers.staleness,
 			"consolidation staleness_markers",
 		)?,

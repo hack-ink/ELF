@@ -1,4 +1,4 @@
-use super::*;
+use crate::search::api::trace::{Deserialize, OffsetDateTime, SearchExplain, Serialize, Uuid};
 
 /// Context needed to replay ranking against stored candidates.
 #[derive(Clone, Debug, Deserialize, Serialize)]

@@ -1,4 +1,4 @@
-use super::*;
+use crate::search::api::trace::{Deserialize, OffsetDateTime, Serialize, Uuid, Value};
 
 /// Search trace metadata persisted for one search run.
 #[derive(Clone, Debug, Deserialize, Serialize)]

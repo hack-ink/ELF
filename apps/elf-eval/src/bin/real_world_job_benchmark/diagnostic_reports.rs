@@ -1,4 +1,4 @@
-use super::*;
+use crate::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(super) struct OperatorDebugEvidence {

@@ -1,4 +1,4 @@
-use super::*;
+use crate::validation::{self, BTreeSet, Path, RealWorldJob, Result, eyre};
 
 pub(super) fn validate_job_identity(job: &RealWorldJob, path: &Path) -> Result<()> {
 	if job.job_id.trim().is_empty()
@@ -57,7 +57,7 @@ pub(super) fn validate_corpus_items(job: &RealWorldJob, path: &Path) -> Result<(
 		}
 
 		if let Some(created_at) = &item.created_at {
-			validate_optional_rfc3339(created_at, path, item.evidence_id.as_str())?;
+			validation::validate_optional_rfc3339(created_at, path, item.evidence_id.as_str())?;
 		}
 
 		evidence_ids.insert(item.evidence_id.clone());
@@ -68,7 +68,7 @@ pub(super) fn validate_corpus_items(job: &RealWorldJob, path: &Path) -> Result<(
 		}
 
 		for evidence_id in &trap.evidence_ids {
-			ensure_known_evidence(path, &evidence_ids, evidence_id)?;
+			validation::ensure_known_evidence(path, &evidence_ids, evidence_id)?;
 		}
 	}
 
@@ -76,7 +76,7 @@ pub(super) fn validate_corpus_items(job: &RealWorldJob, path: &Path) -> Result<(
 }
 
 pub(super) fn validate_timeline(job: &RealWorldJob, path: &Path) -> Result<()> {
-	let evidence_ids = corpus_evidence_ids(job);
+	let evidence_ids = validation::corpus_evidence_ids(job);
 
 	for event in &job.timeline {
 		if event.event_id.trim().is_empty()
@@ -87,10 +87,10 @@ pub(super) fn validate_timeline(job: &RealWorldJob, path: &Path) -> Result<()> {
 			return Err(eyre::eyre!("{} has an incomplete timeline event.", path.display()));
 		}
 
-		validate_required_rfc3339(event.ts.as_str(), path, event.event_id.as_str())?;
+		validation::validate_required_rfc3339(event.ts.as_str(), path, event.event_id.as_str())?;
 
 		for evidence_id in &event.evidence_ids {
-			ensure_known_evidence(path, &evidence_ids, evidence_id)?;
+			validation::ensure_known_evidence(path, &evidence_ids, evidence_id)?;
 		}
 	}
 
@@ -139,15 +139,15 @@ pub(super) fn validate_expected_answer(job: &RealWorldJob, path: &Path) -> Resul
 }
 
 pub(super) fn validate_required_evidence(job: &RealWorldJob, path: &Path) -> Result<()> {
-	let evidence_ids = corpus_evidence_ids(job);
-	let corpus_text = corpus_text_by_id(job);
+	let evidence_ids = validation::corpus_evidence_ids(job);
+	let corpus_text = validation::corpus_text_by_id(job);
 
 	for evidence in &job.required_evidence {
 		if evidence.claim_id.trim().is_empty() || evidence.requirement.trim().is_empty() {
 			return Err(eyre::eyre!("{} has incomplete required evidence.", path.display()));
 		}
 
-		ensure_known_evidence(path, &evidence_ids, evidence.evidence_id.as_str())?;
+		validation::ensure_known_evidence(path, &evidence_ids, evidence.evidence_id.as_str())?;
 
 		if evidence.quote.is_none() && evidence.selector.is_none() {
 			return Err(eyre::eyre!(
@@ -174,7 +174,7 @@ pub(super) fn validate_required_evidence(job: &RealWorldJob, path: &Path) -> Res
 		}
 
 		for evidence_id in link.ids() {
-			ensure_known_evidence(path, &evidence_ids, evidence_id.as_str())?;
+			validation::ensure_known_evidence(path, &evidence_ids, evidence_id.as_str())?;
 		}
 	}
 

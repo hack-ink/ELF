@@ -1,6 +1,6 @@
-use super::*;
-
-use super::metadata::SearchTrace;
+use crate::search::api::trace::{
+	Deserialize, SearchExplain, Serialize, Uuid, Value, metadata::SearchTrace,
+};
 
 /// Request payload for loading one item-level explanation.
 #[derive(Clone, Debug, Deserialize, Serialize)]

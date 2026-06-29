@@ -1,4 +1,4 @@
-use super::*;
+use crate::routes::StatusCode;
 
 #[utoipa::path(
 	get,

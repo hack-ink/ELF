@@ -5,11 +5,11 @@ use std::{
 
 use color_eyre::Result;
 
-use super::support::*;
+use crate::support;
 
 #[test]
 fn operator_debug_json_report_renders_markdown_links() -> Result<()> {
-	let report = run_json_report_from(operator_debug_fixture_dir())?;
+	let report = support::run_json_report_from(support::operator_debug_fixture_dir())?;
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-job-operator-test-{}", process::id()));
 
@@ -47,7 +47,7 @@ fn operator_debug_json_report_renders_markdown_links() -> Result<()> {
 
 #[test]
 fn memory_evolution_report_renders_markdown_counters() -> Result<()> {
-	let report = run_json_report_from(evolution_fixture_dir())?;
+	let report = support::run_json_report_from(support::evolution_fixture_dir())?;
 	let temp_dir =
 		env::temp_dir().join(format!("elf-real-world-memory-evolution-test-{}", process::id()));
 

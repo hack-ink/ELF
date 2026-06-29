@@ -1,4 +1,13 @@
-use super::*;
+use crate::{
+	Error,
+	search::{
+		self, BuildQueryPlanArgs, BuildTraceArgs, DynamicGateSummary, ElfService, ExpansionMode,
+		FinishSearchArgs, FinishSearchScoringResult, HashMap, MAX_CANDIDATE_K,
+		MaybeDynamicSearchArgs, OffsetDateTime, RawSearchExecutionContext, RawSearchPath, Result,
+		SearchFilter, SearchRawPlannedResponse, SearchRequest, SearchResponse, SearchRetrievalArgs,
+		Uuid, ranking,
+	},
+};
 
 impl ElfService {
 	/// Runs the quick raw-search path and returns ranked items without a query plan.
@@ -90,7 +99,7 @@ impl ElfService {
 		path: RawSearchPath,
 		dynamic_gate_enabled: bool,
 	) -> Result<SearchRawPlannedResponse> {
-		let filter = build_search_filter(
+		let filter = search::build_search_filter(
 			context.tenant_id.as_str(),
 			context.project_id.as_str(),
 			context.agent_id.as_str(),
@@ -197,7 +206,7 @@ impl ElfService {
 			.filter(|value| !value.is_empty())
 			.map(|value| value.to_string());
 
-		validate_search_request_inputs(
+		search::validate_search_request_inputs(
 			tenant_id.as_str(),
 			project_id.as_str(),
 			agent_id.as_str(),
@@ -212,7 +221,7 @@ impl ElfService {
 			.as_ref()
 			.map(SearchFilter::parse)
 			.transpose()
-			.map_err(|err| crate::Error::InvalidRequest { message: err.to_string() })?;
+			.map_err(|err| Error::InvalidRequest { message: err.to_string() })?;
 		let effective_candidate_k = if filter.is_some() {
 			requested_candidate_k.saturating_mul(3).min(MAX_CANDIDATE_K).max(top_k)
 		} else {

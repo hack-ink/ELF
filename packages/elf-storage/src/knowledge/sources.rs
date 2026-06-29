@@ -1,11 +1,13 @@
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
-use super::types::{
-	KnowledgeDocChunkSource, KnowledgeDocSource, KnowledgeEventSource, KnowledgeNoteSource,
-	KnowledgeProposalSource, KnowledgeRelationSource, KnowledgeRelationSourcesFetch,
+use crate::{
+	Result,
+	knowledge::types::{
+		KnowledgeDocChunkSource, KnowledgeDocSource, KnowledgeEventSource, KnowledgeNoteSource,
+		KnowledgeProposalSource, KnowledgeRelationSource, KnowledgeRelationSourcesFetch,
+	},
 };
-use crate::Result;
 
 /// Fetches note sources by identifier for a knowledge page rebuild.
 pub async fn fetch_knowledge_note_sources<'e, E>(

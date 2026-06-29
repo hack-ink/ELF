@@ -1,4 +1,7 @@
-use super::*;
+use crate::feature_metrics::{
+	self, BTreeSet, MemorySummarySourceTrace, ProactiveBriefArtifact, ProactiveBriefJobMetrics,
+	ProactiveSuggestion, ProducedAnswer, RealWorldJob, UnsupportedClaimReport,
+};
 
 pub(super) fn proactive_brief_metrics_impl(
 	job: &RealWorldJob,
@@ -34,13 +37,54 @@ pub(super) fn proactive_brief_metrics_impl(
 	metrics.missing_required_suggestion_kind_count = metrics
 		.required_suggestion_kind_count
 		.saturating_sub(covered_required_suggestion_kind_count);
-	metrics.evidence_ref_coverage =
-		ratio(metrics.evidence_ref_suggestion_count, metrics.evidence_ref_required_count);
-	metrics.freshness_coverage = ratio(metrics.freshness_marker_count, metrics.suggestion_count);
+	metrics.evidence_ref_coverage = feature_metrics::ratio(
+		metrics.evidence_ref_suggestion_count,
+		metrics.evidence_ref_required_count,
+	);
+	metrics.freshness_coverage =
+		feature_metrics::ratio(metrics.freshness_marker_count, metrics.suggestion_count);
 	metrics.action_rationale_coverage =
-		ratio(metrics.action_rationale_count, metrics.suggestion_count);
+		feature_metrics::ratio(metrics.action_rationale_count, metrics.suggestion_count);
 
 	Some(metrics)
+}
+
+pub(super) fn proactive_tombstone_trace_refs_impl(
+	trace: &MemorySummarySourceTrace,
+) -> BTreeSet<&str> {
+	trace.tombstone_source_refs.iter().map(|item| item.evidence_id.as_str()).collect()
+}
+
+pub(super) fn unsupported_proactive_suggestions_impl(
+	job: &RealWorldJob,
+	answer: &ProducedAnswer,
+) -> Vec<UnsupportedClaimReport> {
+	answer
+		.proactive_briefs
+		.iter()
+		.flat_map(|brief| {
+			brief.suggestions.iter().filter_map(|suggestion| {
+				if suggestion.evidence_refs.is_empty() {
+					return Some(proactive_unsupported_claim_report(
+						job,
+						brief,
+						suggestion,
+						"proactive suggestion has no evidence refs",
+					));
+				}
+				if proactive_suggestion_is_unsupported_current(suggestion) {
+					return Some(proactive_unsupported_claim_report(
+						job,
+						brief,
+						suggestion,
+						"unsupported proactive claim is still recommended or marked current",
+					));
+				}
+
+				None
+			})
+		})
+		.collect()
 }
 
 fn accumulate_proactive_brief_metrics(
@@ -54,7 +98,8 @@ fn accumulate_proactive_brief_metrics(
 	metrics.source_trace_superseded_count += brief.source_trace.superseded_source_refs.len();
 	metrics.source_trace_tombstone_count += brief.source_trace.tombstone_source_refs.len();
 
-	let non_current_refs = memory_summary_non_current_trace_refs(&brief.source_trace);
+	let non_current_refs =
+		feature_metrics::memory_summary_non_current_trace_refs(&brief.source_trace);
 	let tombstone_refs = proactive_tombstone_trace_refs_impl(&brief.source_trace);
 
 	for suggestion in &brief.suggestions {
@@ -95,12 +140,6 @@ fn accumulate_proactive_brief_metrics(
 			metrics.tombstone_violation_count += 1;
 		}
 	}
-}
-
-pub(super) fn proactive_tombstone_trace_refs_impl(
-	trace: &MemorySummarySourceTrace,
-) -> BTreeSet<&str> {
-	trace.tombstone_source_refs.iter().map(|item| item.evidence_id.as_str()).collect()
 }
 
 fn accumulate_proactive_action_decision(decision: &str, metrics: &mut ProactiveBriefJobMetrics) {
@@ -167,38 +206,6 @@ fn proactive_suggestion_is_tombstone_violation(
 				.any(|evidence_id| tombstone_refs.contains(evidence_id.as_str())))
 }
 
-pub(super) fn unsupported_proactive_suggestions_impl(
-	job: &RealWorldJob,
-	answer: &ProducedAnswer,
-) -> Vec<UnsupportedClaimReport> {
-	answer
-		.proactive_briefs
-		.iter()
-		.flat_map(|brief| {
-			brief.suggestions.iter().filter_map(|suggestion| {
-				if suggestion.evidence_refs.is_empty() {
-					return Some(proactive_unsupported_claim_report(
-						job,
-						brief,
-						suggestion,
-						"proactive suggestion has no evidence refs",
-					));
-				}
-				if proactive_suggestion_is_unsupported_current(suggestion) {
-					return Some(proactive_unsupported_claim_report(
-						job,
-						brief,
-						suggestion,
-						"unsupported proactive claim is still recommended or marked current",
-					));
-				}
-
-				None
-			})
-		})
-		.collect()
-}
-
 fn proactive_unsupported_claim_report(
 	job: &RealWorldJob,
 	brief: &ProactiveBriefArtifact,
@@ -209,7 +216,7 @@ fn proactive_unsupported_claim_report(
 		suite_id: job.suite.clone(),
 		job_id: job.job_id.clone(),
 		claim_id: Some(format!("{}:{}", brief.brief_id, suggestion.suggestion_id)),
-		claim_text: bounded_text(suggestion.body.as_str(), 240),
+		claim_text: feature_metrics::bounded_text(suggestion.body.as_str(), 240),
 		reason: reason.to_string(),
 		evidence_ids: suggestion.evidence_refs.clone(),
 	}

@@ -1,4 +1,4 @@
-use super::super::{AdapterScenarioJudgment, ElfScenarioPosition, ScenarioComparisonOutcome};
+use crate::{AdapterScenarioJudgment, ElfScenarioPosition, ScenarioComparisonOutcome};
 
 pub(in super::super) fn scenario_comparison_outcome(
 	scenario: &AdapterScenarioJudgment,

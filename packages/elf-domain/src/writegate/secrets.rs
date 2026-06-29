@@ -1,4 +1,4 @@
-use super::*;
+use crate::writegate::Regex;
 
 /// Returns whether the input appears to contain secret material.
 pub fn contains_secrets(text: &str) -> bool {

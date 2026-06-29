@@ -7,8 +7,8 @@ use crate::{
 		AdminPostArgs, AdminSearchArgs, DiagnosticsArgs, DiagnosticsCommand, NoteProvenanceArgs,
 		RecentTracesArgs, TraceBundleArgs,
 	},
-	http::{JsonRequest, redact_url, request_json, request_json_query},
-	json::{search_body, write_json},
+	http::{self, JsonRequest, redact_url},
+	json::{self},
 };
 
 pub(crate) async fn run_diagnostics(client: &Client, args: DiagnosticsArgs) -> Result<()> {
@@ -22,7 +22,7 @@ pub(crate) async fn run_diagnostics(client: &Client, args: DiagnosticsArgs) -> R
 }
 
 async fn run_qdrant_rebuild(client: &Client, args: AdminPostArgs) -> Result<()> {
-	let response = request_json(
+	let response = http::request_json(
 		client,
 		JsonRequest {
 			method: Method::POST,
@@ -41,11 +41,11 @@ async fn run_qdrant_rebuild(client: &Client, args: AdminPostArgs) -> Result<()> 
 		"response": response,
 	});
 
-	write_json(&output, args.output.pretty)
+	json::write_json(&output, args.output.pretty)
 }
 
 async fn run_raw_search(client: &Client, args: AdminSearchArgs) -> Result<()> {
-	let body = search_body(
+	let body = json::search_body(
 		args.query,
 		args.mode,
 		args.top_k,
@@ -53,7 +53,7 @@ async fn run_raw_search(client: &Client, args: AdminSearchArgs) -> Result<()> {
 		args.payload_level,
 		args.filter_json.as_deref(),
 	)?;
-	let response = request_json(
+	let response = http::request_json(
 		client,
 		JsonRequest {
 			method: Method::POST,
@@ -81,7 +81,7 @@ async fn run_raw_search(client: &Client, args: AdminSearchArgs) -> Result<()> {
 		"response": response,
 	});
 
-	write_json(&output, args.output.pretty)
+	json::write_json(&output, args.output.pretty)
 }
 
 async fn run_recent_traces(client: &Client, args: RecentTracesArgs) -> Result<()> {
@@ -91,7 +91,7 @@ async fn run_recent_traces(client: &Client, args: RecentTracesArgs) -> Result<()
 		query.push(("limit", limit.to_string()));
 	}
 
-	let response = request_json_query(
+	let response = http::request_json_query(
 		client,
 		&args.endpoint.admin_url,
 		"/v2/admin/traces/recent",
@@ -106,7 +106,7 @@ async fn run_recent_traces(client: &Client, args: RecentTracesArgs) -> Result<()
 		"response": response,
 	});
 
-	write_json(&output, args.output.pretty)
+	json::write_json(&output, args.output.pretty)
 }
 
 async fn run_trace_bundle(client: &Client, args: TraceBundleArgs) -> Result<()> {
@@ -120,7 +120,7 @@ async fn run_trace_bundle(client: &Client, args: TraceBundleArgs) -> Result<()> 
 		query.push(("candidates_limit", limit.to_string()));
 	}
 
-	let response = request_json_query(
+	let response = http::request_json_query(
 		client,
 		&args.endpoint.admin_url,
 		&path,
@@ -136,12 +136,12 @@ async fn run_trace_bundle(client: &Client, args: TraceBundleArgs) -> Result<()> 
 		"response": response,
 	});
 
-	write_json(&output, args.output.pretty)
+	json::write_json(&output, args.output.pretty)
 }
 
 async fn run_note_provenance(client: &Client, args: NoteProvenanceArgs) -> Result<()> {
 	let path = format!("/v2/admin/notes/{}/provenance", args.note_id);
-	let response = request_json_query(
+	let response = http::request_json_query(
 		client,
 		&args.endpoint.admin_url,
 		&path,
@@ -157,5 +157,5 @@ async fn run_note_provenance(client: &Client, args: NoteProvenanceArgs) -> Resul
 		"response": response,
 	});
 
-	write_json(&output, args.output.pretty)
+	json::write_json(&output, args.output.pretty)
 }

@@ -1,4 +1,11 @@
-use super::*;
+use crate::routes::{
+	self, ApiError, AppState, CoreBlockAttachBody, CoreBlockAttachRequest, CoreBlockAttachResponse,
+	CoreBlockDetachRequest, CoreBlockDetachResponse, CoreBlockUpsertBody, CoreBlockUpsertRequest,
+	CoreBlockUpsertResponse, CoreBlocksGetRequest, CoreBlocksResponse, EntityMemoryQuery,
+	EntityMemoryViewRequest, EntityMemoryViewResponse, ErrorBody, Extension, HeaderMap, Json,
+	JsonRejection, Path, Query, QueryRejection, RequestContext, SecurityAuthRole, State,
+	StatusCode, Uuid,
+};
 
 #[utoipa::path(
 	get,
@@ -17,7 +24,7 @@ pub(super) async fn core_blocks_get(
 	headers: HeaderMap,
 ) -> Result<Json<CoreBlocksResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let response = state
 		.service
 		.core_blocks_get(CoreBlocksGetRequest {
@@ -54,7 +61,7 @@ pub(super) async fn entity_memory_get(
 	query: Result<Query<EntityMemoryQuery>, QueryRejection>,
 ) -> Result<Json<EntityMemoryViewResponse>, ApiError> {
 	let ctx = RequestContext::from_headers(&headers)?;
-	let read_profile = required_read_profile(&headers)?;
+	let read_profile = routes::required_read_profile(&headers)?;
 	let Query(query) = query.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid query parameters.");
 
@@ -105,12 +112,20 @@ pub(super) async fn admin_core_block_upsert(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let role = role.map(|Extension(role)| role);
 
 	if payload.scope.trim() == "org_shared" {
-		require_admin_for_org_shared_writes(state.service.cfg.security.auth_mode.as_str(), role)?;
+		routes::require_admin_for_org_shared_writes(
+			state.service.cfg.security.auth_mode.as_str(),
+			role,
+		)?;
 	}
 
 	let response = state
@@ -157,7 +172,12 @@ pub(super) async fn admin_core_block_attach(
 	let Json(payload) = payload.map_err(|err| {
 		tracing::warn!(error = %err, "Invalid request payload.");
 
-		json_error(StatusCode::BAD_REQUEST, "INVALID_REQUEST", "Invalid request payload.", None)
+		routes::json_error(
+			StatusCode::BAD_REQUEST,
+			"INVALID_REQUEST",
+			"Invalid request payload.",
+			None,
+		)
 	})?;
 	let response = state
 		.service

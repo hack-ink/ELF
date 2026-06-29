@@ -1,4 +1,8 @@
-use super::*;
+use crate::consolidation::{
+	self, CONSOLIDATION_CONTRACT_SCHEMA_V1, ConsolidationApplyIntent, ConsolidationInputRef,
+	ConsolidationMarkers, ConsolidationUnsupportedClaimFlag, ConsolidationValidationError,
+	Deserialize, Serialize, Uuid, Value,
+};
 
 /// Reviewable diff between prior derived output and proposed derived output.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -19,10 +23,12 @@ impl ConsolidationProposalDiff {
 			return Err(ConsolidationValidationError::EmptyText { field: "diff.summary" });
 		}
 
-		validate_json_object("diff.before", &self.before)?;
-		validate_json_object("diff.after", &self.after)?;
+		consolidation::validate_json_object("diff.before", &self.before)?;
+		consolidation::validate_json_object("diff.after", &self.after)?;
 
-		if contains_forbidden_diff_key(&self.before) || contains_forbidden_diff_key(&self.after) {
+		if consolidation::contains_forbidden_diff_key(&self.before)
+			|| consolidation::contains_forbidden_diff_key(&self.after)
+		{
 			return Err(ConsolidationValidationError::DestructiveDiff);
 		}
 
@@ -44,7 +50,7 @@ pub struct ConsolidationLineage {
 impl ConsolidationLineage {
 	/// Validates source lineage references.
 	pub fn validate(&self) -> Result<(), ConsolidationValidationError> {
-		validate_source_refs(&self.source_refs)
+		consolidation::validate_source_refs(&self.source_refs)
 	}
 }
 
@@ -85,8 +91,8 @@ impl ConsolidationProposalContract {
 			return Err(ConsolidationValidationError::EmptyText { field: "proposal_kind" });
 		}
 
-		validate_source_refs(&self.source_refs)?;
-		validate_json_object("source_snapshot", &self.source_snapshot)?;
+		consolidation::validate_source_refs(&self.source_refs)?;
+		consolidation::validate_json_object("source_snapshot", &self.source_snapshot)?;
 
 		self.lineage.validate()?;
 
@@ -102,8 +108,8 @@ impl ConsolidationProposalContract {
 
 		self.diff.validate()?;
 
-		validate_json_object("target_ref", &self.target_ref)?;
-		validate_json_object("proposed_payload", &self.proposed_payload)?;
+		consolidation::validate_json_object("target_ref", &self.target_ref)?;
+		consolidation::validate_json_object("proposed_payload", &self.proposed_payload)?;
 
 		Ok(())
 	}

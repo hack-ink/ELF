@@ -1,4 +1,6 @@
-use super::*;
+use crate::routes::types::{
+	Deserialize, DocType, TextPositionSelector, TextQuoteSelector, Uuid, Value, WritePolicy,
+};
 
 #[derive(Clone, Debug, Deserialize)]
 pub(in crate::routes) struct DocsPutBody {

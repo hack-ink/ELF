@@ -1,4 +1,14 @@
-use serde::Deserialize;
+mod chunking;
+mod context;
+mod lifecycle;
+mod memory;
+mod providers;
+mod ranking;
+mod scopes;
+mod search;
+mod security;
+mod service;
+mod storage;
 
 pub use self::{
 	chunking::Chunking,
@@ -21,17 +31,7 @@ pub use self::{
 	storage::{Postgres, Qdrant, Storage},
 };
 
-mod chunking;
-mod context;
-mod lifecycle;
-mod memory;
-mod providers;
-mod ranking;
-mod scopes;
-mod search;
-mod security;
-mod service;
-mod storage;
+use serde::Deserialize;
 
 /// Complete ELF runtime configuration loaded from `elf.toml`.
 #[derive(Debug, Deserialize)]

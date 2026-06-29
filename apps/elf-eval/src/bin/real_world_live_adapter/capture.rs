@@ -1,6 +1,9 @@
+use crate::{
+	CaptureMaterializationEvidence, CaptureRuntimeEvidence, CaptureRuntimeEvidenceItem,
+	CaptureRuntimeSourceRefEvidence, CorpusText, LiveCaptureAction, LoadedJob, Result, SearchItem,
+	eyre, serde_json,
+};
 use elf_domain::writegate::{self, WritePolicy};
-
-use super::*;
 
 pub(super) fn capture_runtime_evidence_from_search_items(
 	items: &[SearchItem],
@@ -59,7 +62,7 @@ pub(super) fn capture_with_runtime_source_refs(
 
 	for item in &runtime.items {
 		if let Some(source_id) = item.source_id.as_deref() {
-			push_unique(&mut capture.source_ids, source_id.to_string());
+			crate::push_unique(&mut capture.source_ids, source_id.to_string());
 		}
 
 		capture.runtime_source_refs.push(CaptureRuntimeSourceRefEvidence {
@@ -189,9 +192,7 @@ pub(super) fn validate_capture_runtime_evidence(
 	}
 }
 
-pub(super) fn elf_stored_corpus_texts(
-	corpus: &[CorpusText],
-) -> color_eyre::Result<Vec<CorpusText>> {
+pub(super) fn elf_stored_corpus_texts(corpus: &[CorpusText]) -> Result<Vec<CorpusText>> {
 	let mut stored = Vec::new();
 
 	for item in corpus {
@@ -209,23 +210,10 @@ pub(super) fn elf_stored_corpus_texts(
 	Ok(stored)
 }
 
-fn transformed_capture_text(item: &CorpusText) -> color_eyre::Result<String> {
-	let Some(policy_value) = &item.capture.write_policy else {
-		return Ok(item.text.clone());
-	};
-	let policy = write_policy_from_value(policy_value, item.evidence_id.as_str())?;
-	let result =
-		writegate::apply_write_policy(item.text.as_str(), Some(&policy)).map_err(|err| {
-			eyre::eyre!("Invalid write_policy for evidence {}: {err:?}", item.evidence_id)
-		})?;
-
-	Ok(result.transformed)
-}
-
 pub(super) fn write_policy_from_value(
 	value: &serde_json::Value,
 	evidence_id: &str,
-) -> color_eyre::Result<WritePolicy> {
+) -> Result<WritePolicy> {
 	serde_json::from_value::<WritePolicy>(value.clone()).map_err(|err| {
 		eyre::eyre!("Failed to parse write_policy for evidence {evidence_id}: {err}")
 	})
@@ -268,4 +256,17 @@ pub(super) fn capture_action_str(action: LiveCaptureAction) -> &'static str {
 		LiveCaptureAction::Store => "store",
 		LiveCaptureAction::Exclude => "exclude",
 	}
+}
+
+fn transformed_capture_text(item: &CorpusText) -> Result<String> {
+	let Some(policy_value) = &item.capture.write_policy else {
+		return Ok(item.text.clone());
+	};
+	let policy = write_policy_from_value(policy_value, item.evidence_id.as_str())?;
+	let result =
+		writegate::apply_write_policy(item.text.as_str(), Some(&policy)).map_err(|err| {
+			eyre::eyre!("Invalid write_policy for evidence {}: {err:?}", item.evidence_id)
+		})?;
+
+	Ok(result.transformed)
 }

@@ -1,11 +1,15 @@
-use super::*;
-
 #[path = "evidence_selection/claims.rs"] mod claims;
 #[path = "evidence_selection/common.rs"] mod common;
 #[path = "evidence_selection/required.rs"] mod required;
 #[path = "evidence_selection/temporal.rs"] mod temporal;
 
-pub(super) fn answer_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<serde_json::Value> {
+use crate::{
+	BTreeSet, CorpusText, IngestedCorpus, LiveExpectedClaim, LiveMemoryEvolution, LoadedJob,
+	SelectedEvidenceText, TemporalReconciliationMaterializationEvidence,
+	TemporalReconciliationSelection, TraceStageOutput, Value, push_unique, serde_json,
+};
+
+pub(super) fn answer_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<Value> {
 	claims::answer_claims_impl(loaded, evidence_ids)
 }
 
@@ -55,10 +59,7 @@ pub(super) fn elf_selected_evidence_text(
 	)
 }
 
-fn temporal_reconciliation_claims(
-	loaded: &LoadedJob,
-	evidence_ids: &[String],
-) -> Vec<serde_json::Value> {
+fn temporal_reconciliation_claims(loaded: &LoadedJob, evidence_ids: &[String]) -> Vec<Value> {
 	claims::temporal_reconciliation_claims_impl(loaded, evidence_ids)
 }
 

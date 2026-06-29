@@ -1,4 +1,4 @@
-use super::*;
+use crate::knowledge::support::{KnowledgeNoteSource, KnowledgePageKind};
 
 pub(in crate::knowledge) fn snippet_for_query(
 	content: &str,

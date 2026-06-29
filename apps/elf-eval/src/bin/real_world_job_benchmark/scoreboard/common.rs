@@ -1,4 +1,7 @@
-use super::*;
+use crate::scoreboard::{
+	self, AdapterStatusCounts, BTreeMap, BTreeSet, ExternalAdapterSection, ExternalAdapterSummary,
+	JobReport, RealWorldJob, SCOREBOARD_EVIDENCE_CLASSES, ScoreboardRow, TypedStatus,
+};
 
 pub(super) fn aggregate_job_report_state(job_reports: &[JobReport]) -> String {
 	if job_reports.is_empty() {
@@ -7,7 +10,7 @@ pub(super) fn aggregate_job_report_state(job_reports: &[JobReport]) -> String {
 
 	let refs = job_reports.iter().collect::<Vec<_>>();
 
-	scoreboard_result_state(aggregate_status(&refs)).to_string()
+	scoreboard_result_state(scoreboard::aggregate_status(&refs)).to_string()
 }
 
 pub(super) fn jobs_have_tag(jobs: &[RealWorldJob], tag: &str) -> bool {
@@ -15,7 +18,7 @@ pub(super) fn jobs_have_tag(jobs: &[RealWorldJob], tag: &str) -> bool {
 }
 
 pub(super) fn scoreboard_mean_metric(sum: f64, count: usize) -> f64 {
-	if count == 0 { 1.0 } else { round3(sum / count as f64) }
+	if count == 0 { 1.0 } else { scoreboard::round3(sum / count as f64) }
 }
 
 pub(super) fn scoreboard_is_update_job(job: &RealWorldJob) -> bool {
@@ -115,15 +118,6 @@ pub(super) fn external_typed_non_pass_count(summary: &ExternalAdapterSummary) ->
 		+ summary.scenario_outcome_counts.not_tested
 }
 
-fn scoreboard_adapter_typed_non_pass_count(counts: &AdapterStatusCounts) -> usize {
-	counts.blocked
-		+ counts.incomplete
-		+ counts.wrong_result
-		+ counts.lifecycle_fail
-		+ counts.not_encoded
-		+ counts.unsupported
-}
-
 pub(super) fn external_typed_non_pass_states_present(
 	summary: &ExternalAdapterSummary,
 ) -> Vec<String> {
@@ -202,4 +196,13 @@ pub(super) fn scoreboard_summary_claim(
 	} else {
 		"all_encoded_jobs_passed"
 	}
+}
+
+fn scoreboard_adapter_typed_non_pass_count(counts: &AdapterStatusCounts) -> usize {
+	counts.blocked
+		+ counts.incomplete
+		+ counts.wrong_result
+		+ counts.lifecycle_fail
+		+ counts.not_encoded
+		+ counts.unsupported
 }

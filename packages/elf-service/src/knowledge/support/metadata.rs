@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::support::{
+	self, DraftSection, KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1, KNOWLEDGE_PAGE_REBUILD_SCHEMA_V1,
+	KnowledgePageKind, KnowledgePageRebuildRequest, PREVIOUS_VERSION_DIFF_KEY, Result, Value,
+	serde_json,
+};
 
 pub(in crate::knowledge) fn rebuild_metadata(
 	source_hash: &str,
@@ -129,7 +133,7 @@ pub(in crate::knowledge) fn page_content_hash(
 ) -> Result<String> {
 	let stable_rebuild_metadata = content_hash_rebuild_metadata(rebuild_metadata);
 
-	hash_json(&serde_json::json!({
+	support::hash_json(&serde_json::json!({
 		"title": title,
 		"sections": sections.iter().map(section_hash_payload).collect::<Vec<_>>(),
 		"source_coverage": source_coverage,

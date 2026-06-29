@@ -1,4 +1,8 @@
-use super::*;
+use crate::feature_metrics::{
+	self, BTreeSet, ProducedAnswer, RealWorldJob, WorkContinuityExpectation,
+	WorkContinuityJobMetrics, WorkContinuityObserved, WorkJournalJanitorCandidateArtifact,
+	WorkJournalNextStepArtifact, WorkJournalReadbackArtifact, WorkJournalRejectedOptionArtifact,
+};
 
 pub(super) fn work_continuity_metrics_impl(
 	job: &RealWorldJob,
@@ -151,25 +155,37 @@ fn apply_observed_work_continuity_counts(
 }
 
 fn apply_work_continuity_rates(metrics: &mut WorkContinuityJobMetrics) {
-	metrics.reset_resume_success_rate =
-		ratio(metrics.reset_resume_success_count, metrics.reset_resume_required_count);
-	metrics.decision_rationale_recall_rate =
-		ratio(metrics.decision_rationale_recalled_count, metrics.decision_rationale_required_count);
-	metrics.rejected_option_suppression_rate =
-		ratio(metrics.rejected_option_suppressed_count, metrics.rejected_option_required_count);
-	metrics.explicit_next_step_precision = ratio_or(
+	metrics.reset_resume_success_rate = feature_metrics::ratio(
+		metrics.reset_resume_success_count,
+		metrics.reset_resume_required_count,
+	);
+	metrics.decision_rationale_recall_rate = feature_metrics::ratio(
+		metrics.decision_rationale_recalled_count,
+		metrics.decision_rationale_required_count,
+	);
+	metrics.rejected_option_suppression_rate = feature_metrics::ratio(
+		metrics.rejected_option_suppressed_count,
+		metrics.rejected_option_required_count,
+	);
+	metrics.explicit_next_step_precision = feature_metrics::ratio_or(
 		metrics.explicit_next_step_correct_count,
 		metrics.explicit_next_step_returned_count,
 		usize::from(metrics.explicit_next_step_required_count == 0) as f64,
 	);
-	metrics.inferred_next_step_labeling_rate =
-		ratio(metrics.inferred_next_step_labeled_count, metrics.inferred_next_step_required_count);
-	metrics.handoff_source_ref_coverage =
-		ratio(metrics.handoff_source_ref_covered_count, metrics.handoff_source_ref_required_count);
+	metrics.inferred_next_step_labeling_rate = feature_metrics::ratio(
+		metrics.inferred_next_step_labeled_count,
+		metrics.inferred_next_step_required_count,
+	);
+	metrics.handoff_source_ref_coverage = feature_metrics::ratio(
+		metrics.handoff_source_ref_covered_count,
+		metrics.handoff_source_ref_required_count,
+	);
 	metrics.redaction_rate =
-		ratio(metrics.redaction_applied_count, metrics.redaction_required_count);
-	metrics.janitor_false_promotion_rate =
-		ratio(metrics.janitor_false_promotion_count, metrics.janitor_candidate_count);
+		feature_metrics::ratio(metrics.redaction_applied_count, metrics.redaction_required_count);
+	metrics.janitor_false_promotion_rate = feature_metrics::ratio(
+		metrics.janitor_false_promotion_count,
+		metrics.janitor_candidate_count,
+	);
 }
 
 fn work_journal_reset_resume_entry_ids(answer: &ProducedAnswer) -> BTreeSet<&str> {

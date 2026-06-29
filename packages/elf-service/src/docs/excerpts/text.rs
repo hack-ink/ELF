@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::docs::{DocsSparseMode, TextQuoteSelector};
 
 pub(in crate::docs) fn truncate_bytes(text: &str, max: usize) -> String {
 	if text.len() <= max {

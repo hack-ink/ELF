@@ -1,6 +1,6 @@
-use super::{
-	super::*,
-	memory::{MemorySummaryFreshness, MemorySummarySourceTrace},
+use crate::{
+	Deserialize, Serialize, Value,
+	artifacts::memory::{MemorySummaryFreshness, MemorySummarySourceTrace},
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

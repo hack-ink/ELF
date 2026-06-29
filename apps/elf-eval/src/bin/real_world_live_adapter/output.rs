@@ -1,4 +1,8 @@
-use super::*;
+use crate::{
+	EVIDENCE_SCHEMA, LoadedJob, MaterializationEvidence, MaterializationStatus, MaterializedJob,
+	MaterializedJobEvidence, MaterializedJobInput, MaterializedOutput, Path, PathBuf, Result,
+	Value, eyre, fs, serde_json,
+};
 
 pub(super) fn failure_jobs(
 	adapter_id: &str,
@@ -8,7 +12,7 @@ pub(super) fn failure_jobs(
 ) -> Vec<MaterializedJob> {
 	jobs.iter()
 		.map(|job| {
-			materialized_job(
+			crate::materialized_job(
 				job,
 				adapter_id,
 				MaterializedJobInput {
@@ -40,7 +44,7 @@ pub(super) fn failure_jobs(
 		.collect()
 }
 
-pub(super) fn write_materialized_output(output: MaterializedOutput<'_>) -> color_eyre::Result<()> {
+pub(super) fn write_materialized_output(output: MaterializedOutput<'_>) -> Result<()> {
 	if output.out_fixtures.exists() {
 		fs::remove_dir_all(output.out_fixtures)?;
 	}
@@ -65,13 +69,13 @@ pub(super) fn write_materialized_output(output: MaterializedOutput<'_>) -> color
 			adapter_response.remove("consolidation");
 		}
 
-		value["corpus"]["adapter_response"] = serde_json::Value::Object(adapter_response);
+		value["corpus"]["adapter_response"] = Value::Object(adapter_response);
 
 		if let Some(operator_debug) = &materialized.operator_debug {
 			value["operator_debug"] = operator_debug.clone();
 		}
 		if let Some(capture) = &materialized.evidence.capture {
-			apply_capture_runtime_source_refs(&mut value, capture);
+			crate::apply_capture_runtime_source_refs(&mut value, capture);
 
 			value["capture_materialization"] = serde_json::to_value(capture)?;
 		}
@@ -120,6 +124,20 @@ pub(super) fn write_materialized_output(output: MaterializedOutput<'_>) -> color
 	Ok(())
 }
 
+pub(super) fn aggregate_status(jobs: &[MaterializedJob]) -> MaterializationStatus {
+	if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::Incomplete) {
+		MaterializationStatus::Incomplete
+	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::Blocked) {
+		MaterializationStatus::Blocked
+	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::WrongResult) {
+		MaterializationStatus::WrongResult
+	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::NotEncoded) {
+		MaterializationStatus::NotEncoded
+	} else {
+		MaterializationStatus::Pass
+	}
+}
+
 fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvidence {
 	MaterializedJobEvidence {
 		job_id: evidence.job_id.clone(),
@@ -143,20 +161,6 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 	}
 }
 
-pub(super) fn aggregate_status(jobs: &[MaterializedJob]) -> MaterializationStatus {
-	if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::Incomplete) {
-		MaterializationStatus::Incomplete
-	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::Blocked) {
-		MaterializationStatus::Blocked
-	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::WrongResult) {
-		MaterializationStatus::WrongResult
-	} else if jobs.iter().any(|job| job.evidence.status == MaterializationStatus::NotEncoded) {
-		MaterializationStatus::NotEncoded
-	} else {
-		MaterializationStatus::Pass
-	}
-}
-
 fn materialization_status_str(status: MaterializationStatus) -> &'static str {
 	match status {
 		MaterializationStatus::Pass => "pass",
@@ -167,11 +171,7 @@ fn materialization_status_str(status: MaterializationStatus) -> &'static str {
 	}
 }
 
-fn output_fixture_path(
-	fixtures: &Path,
-	out_fixtures: &Path,
-	fixture: &Path,
-) -> color_eyre::Result<PathBuf> {
+fn output_fixture_path(fixtures: &Path, out_fixtures: &Path, fixture: &Path) -> Result<PathBuf> {
 	if fixtures.is_dir() {
 		let relative = fixture.strip_prefix(fixtures).map_err(|err| {
 			eyre::eyre!(

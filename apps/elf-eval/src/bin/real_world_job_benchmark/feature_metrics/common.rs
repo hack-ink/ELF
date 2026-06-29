@@ -1,4 +1,4 @@
-use super::*;
+use crate::feature_metrics::{FORBIDDEN_SOURCE_MUTATION_KEYS, Value};
 
 pub(super) fn forbidden_diff_key_count_impl(value: &Value) -> usize {
 	match value {

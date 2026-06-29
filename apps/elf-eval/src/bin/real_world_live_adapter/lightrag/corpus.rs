@@ -1,14 +1,14 @@
 use std::fs;
 
-use super::super::*;
+use crate::{CorpusText, LightragArgs, LightragSource, LoadedJob, Result};
 
 pub(super) fn write_lightrag_corpus(
 	args: &LightragArgs,
 	loaded: &LoadedJob,
 	corpus: &[CorpusText],
 	run_slug: &str,
-) -> color_eyre::Result<Vec<LightragSource>> {
-	let job_slug = slug(&loaded.job.job_id);
+) -> Result<Vec<LightragSource>> {
+	let job_slug = crate::slug(&loaded.job.job_id);
 	let corpus_dir = args.work_dir.join("corpus").join(run_slug).join(&job_slug);
 
 	fs::create_dir_all(&corpus_dir)?;
@@ -16,7 +16,7 @@ pub(super) fn write_lightrag_corpus(
 	corpus
 		.iter()
 		.map(|item| {
-			let file_name = format!("{}.md", slug(&item.evidence_id));
+			let file_name = format!("{}.md", crate::slug(&item.evidence_id));
 			let artifact_path = corpus_dir.join(&file_name);
 			let file_source = format!("elf-real-world/{run_slug}/{job_slug}/{file_name}");
 
@@ -28,5 +28,5 @@ pub(super) fn write_lightrag_corpus(
 }
 
 pub(super) fn lightrag_keywords(query: &str) -> Vec<String> {
-	terms(query).into_iter().take(12).collect()
+	crate::terms(query).into_iter().take(12).collect()
 }

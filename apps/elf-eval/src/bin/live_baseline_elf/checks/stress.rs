@@ -1,14 +1,19 @@
-use super::*;
+use color_eyre::Result;
+
+use crate::checks::{
+	self, Arc, BaselineRuntime, CheckResult, Duration, ElfService, Instant, JoinSet, Report, Uuid,
+	eyre, time,
+};
 
 pub(super) async fn run_concurrent_write_check_impl(
 	runtime: &BaselineRuntime,
 	service: Arc<ElfService>,
-) -> color_eyre::Result<CheckResult> {
-	let note_count = concurrent_note_count();
+) -> Result<CheckResult> {
+	let note_count = checks::concurrent_note_count();
 	let mut set = JoinSet::new();
 
 	for index in 0..note_count {
-		let request = concurrent_add_request(index);
+		let request = checks::concurrent_add_request(index);
 		let service_ref = Arc::clone(&service);
 
 		set.spawn(async move {
@@ -30,16 +35,17 @@ pub(super) async fn run_concurrent_write_check_impl(
 	}
 
 	let worker_evidence =
-		run_worker_until_indexed(runtime, &service, &note_ids, "concurrent_upsert").await?;
-	let probe_indexes = concurrency_probe_indexes(note_count);
+		checks::run_worker_until_indexed(runtime, &service, &note_ids, "concurrent_upsert").await?;
+	let probe_indexes = checks::concurrency_probe_indexes(note_count);
 	let mut query_results = Vec::new();
 
 	for index in probe_indexes {
-		query_results.push(run_single_query(&service, concurrent_query_case(index)).await?);
+		query_results
+			.push(checks::run_single_query(&service, checks::concurrent_query_case(index)).await?);
 	}
 
 	let pass_count = query_results.iter().filter(|result| result.matched).count();
-	let pass = outbox_done(&worker_evidence.after, worker_evidence.expected_note_count)
+	let pass = checks::outbox_done(&worker_evidence.after, worker_evidence.expected_note_count)
 		&& pass_count == query_results.len();
 
 	Ok(CheckResult {
@@ -68,8 +74,8 @@ pub(super) async fn run_concurrent_write_check_impl(
 pub(super) async fn run_soak_stability_check_impl(
 	runtime: &BaselineRuntime,
 	service: Arc<ElfService>,
-) -> color_eyre::Result<Option<CheckResult>> {
-	let config = soak_config();
+) -> Result<Option<CheckResult>> {
+	let config = checks::soak_config();
 
 	if config.target_seconds == 0 && config.write_rounds == 0 {
 		return Ok(None);
@@ -83,7 +89,7 @@ pub(super) async fn run_soak_stability_check_impl(
 	let mut query_results = Vec::new();
 
 	for index in 0..write_rounds {
-		let response = service.add_note(soak_add_request(index)).await?;
+		let response = service.add_note(checks::soak_add_request(index)).await?;
 		let note_id = response
 			.results
 			.first()
@@ -91,9 +97,11 @@ pub(super) async fn run_soak_stability_check_impl(
 			.ok_or_else(|| eyre::eyre!("Soak add_note did not return a note_id."))?;
 
 		note_ids.push(note_id);
-		worker_runs
-			.push(run_worker_until_indexed(runtime, &service, &[note_id], "soak_upsert").await?);
-		query_results.push(run_single_query(&service, soak_query_case(index)).await?);
+		worker_runs.push(
+			checks::run_worker_until_indexed(runtime, &service, &[note_id], "soak_upsert").await?,
+		);
+		query_results
+			.push(checks::run_single_query(&service, checks::soak_query_case(index)).await?);
 
 		if config.target_seconds > 0 && write_rounds > 1 {
 			let target_elapsed = target_duration.mul_f64((index + 1) as f64 / write_rounds as f64);
@@ -109,7 +117,8 @@ pub(super) async fn run_soak_stability_check_impl(
 	while started_at.elapsed() < target_duration {
 		let index = probe_index % write_rounds;
 
-		query_results.push(run_single_query(&service, soak_query_case(index)).await?);
+		query_results
+			.push(checks::run_single_query(&service, checks::soak_query_case(index)).await?);
 
 		probe_index += 1;
 
@@ -125,7 +134,7 @@ pub(super) async fn run_soak_stability_check_impl(
 	let pass_count = query_results.iter().filter(|result| result.matched).count();
 	let query_fail_count = query_results.len().saturating_sub(pass_count);
 	let worker_pass =
-		worker_runs.iter().all(|run| outbox_done(&run.after, run.expected_note_count));
+		worker_runs.iter().all(|run| checks::outbox_done(&run.after, run.expected_note_count));
 	let duration_pass = target_duration.is_zero() || started_at.elapsed() >= target_duration;
 	let pass = worker_pass && duration_pass && query_fail_count == 0;
 	let failed_queries = query_results.iter().filter(|result| !result.matched).collect::<Vec<_>>();

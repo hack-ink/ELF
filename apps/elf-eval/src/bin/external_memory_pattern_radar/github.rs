@@ -7,7 +7,7 @@ use reqwest::{
 };
 use serde::Deserialize;
 
-use super::types::{ProjectObservation, RadarMode, RadarProject, ReleaseObservation};
+use crate::types::{ProjectObservation, RadarMode, RadarProject, ReleaseObservation};
 
 #[derive(Debug, Deserialize)]
 struct GithubRepoResponse {

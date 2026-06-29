@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::{BTreeSet, Deserialize, Serialize};
 
 pub(crate) struct WorkContinuityObserved<'a> {
 	pub(crate) reset_resume_entry_ids: BTreeSet<&'a str>,

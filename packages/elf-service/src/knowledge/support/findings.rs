@@ -1,4 +1,7 @@
-use super::*;
+use crate::knowledge::support::{
+	KnowledgePage, KnowledgePageSourceRef, KnowledgeSourceKind, LintDraft, SourceSnapshot, Value,
+	serde_json,
+};
 
 pub(in crate::knowledge) fn low_source_coverage_finding(page: &KnowledgePage) -> LintDraft {
 	LintDraft {

@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::watch::{
+	BTreeSet, Error, KnowledgePage, KnowledgePageChangedSource, KnowledgePageKind,
+	KnowledgePageRebuildRequest, KnowledgePageSourceRef, Result, SourceIds, Uuid, Value,
+	empty_object,
+};
 
 pub(in crate::knowledge) fn normalized_changed_sources(
 	changed_sources: &[KnowledgePageChangedSource],

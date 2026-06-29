@@ -4,9 +4,8 @@ use sqlx::FromRow;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::app::SearchMode;
 use elf_service::{RankingRequestOverride, SearchRequest, search::TraceReplayItem};
-
-use super::SearchMode;
 
 #[derive(Debug, Deserialize)]
 pub(super) struct EvalDataset {

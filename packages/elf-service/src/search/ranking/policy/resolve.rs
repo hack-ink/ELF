@@ -1,14 +1,14 @@
-use elf_config::{Config, RankingBlend, RankingDiversity, RankingRetrievalSources};
-
 use crate::{
 	Error, Result,
-	search::{BlendRankingOverride, DiversityRankingOverride, RetrievalSourcesRankingOverride},
+	search::{
+		BlendRankingOverride, DiversityRankingOverride, RetrievalSourcesRankingOverride,
+		ranking::policy::types::{
+			BlendSegment, NormalizationKind, ResolvedBlendPolicy, ResolvedDiversityPolicy,
+			ResolvedRetrievalSourcesPolicy,
+		},
+	},
 };
-
-use super::types::{
-	BlendSegment, NormalizationKind, ResolvedBlendPolicy, ResolvedDiversityPolicy,
-	ResolvedRetrievalSourcesPolicy,
-};
+use elf_config::{Config, RankingBlend, RankingDiversity, RankingRetrievalSources};
 
 pub fn resolve_blend_policy(
 	cfg: &RankingBlend,

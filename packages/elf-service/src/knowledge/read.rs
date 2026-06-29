@@ -1,4 +1,10 @@
-use super::*;
+use crate::knowledge::{
+	ElfService, Error, KnowledgePage, KnowledgePageGetRequest, KnowledgePageKind,
+	KnowledgePageLintFindingResponse, KnowledgePageResponse, KnowledgePageSearchRequest,
+	KnowledgePageSearchResponse, KnowledgePageSourceRefResponse, KnowledgePageSummary,
+	KnowledgePagesListRequest, KnowledgePagesListResponse, Result, access, english_gate, knowledge,
+	search,
+};
 
 impl ElfService {
 	/// Gets one derived knowledge page with sections, source refs, and lint findings.
@@ -29,7 +35,7 @@ impl ElfService {
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
 			page_kind,
-			bounded_limit(req.limit),
+			crate::knowledge::bounded_limit(req.limit),
 		)
 		.await?
 		.into_iter()
@@ -44,11 +50,11 @@ impl ElfService {
 		&self,
 		req: KnowledgePageSearchRequest,
 	) -> Result<KnowledgePageSearchResponse> {
-		validate_non_empty("tenant_id", req.tenant_id.as_str())?;
-		validate_non_empty("project_id", req.project_id.as_str())?;
-		validate_non_empty("agent_id", req.agent_id.as_str())?;
-		validate_non_empty("read_profile", req.read_profile.as_str())?;
-		validate_non_empty("query", req.query.as_str())?;
+		crate::knowledge::validate_non_empty("tenant_id", req.tenant_id.as_str())?;
+		crate::knowledge::validate_non_empty("project_id", req.project_id.as_str())?;
+		crate::knowledge::validate_non_empty("agent_id", req.agent_id.as_str())?;
+		crate::knowledge::validate_non_empty("read_profile", req.read_profile.as_str())?;
+		crate::knowledge::validate_non_empty("query", req.query.as_str())?;
 
 		if !english_gate::is_english_natural_language(req.query.as_str()) {
 			return Err(Error::NonEnglishInput { field: "$.query".to_string() });
@@ -74,10 +80,12 @@ impl ElfService {
 			req.project_id.as_str(),
 			page_kind,
 			query_pattern.as_str(),
-			bounded_limit(req.limit),
+			crate::knowledge::bounded_limit(req.limit),
 		)
 		.await?;
-		let page_ids = sorted_unique(&rows.iter().map(|row| row.page_id).collect::<Vec<_>>());
+		let page_ids = crate::knowledge::sorted_unique(
+			&rows.iter().map(|row| row.page_id).collect::<Vec<_>>(),
+		);
 		let source_refs =
 			knowledge::list_knowledge_page_source_refs_for_pages(&self.db.pool, &page_ids).await?;
 		let current_source_keys = self
@@ -90,14 +98,18 @@ impl ElfService {
 				&source_refs,
 			)
 			.await?;
-		let source_refs_by_section = source_refs_by_section(&source_refs);
+		let source_refs_by_section = crate::knowledge::source_refs_by_section(&source_refs);
 		let items = rows
 			.into_iter()
 			.filter_map(|row| {
-				let refs = cloned_source_refs(source_refs_by_section.get(&row.section_id));
+				let refs = crate::knowledge::cloned_source_refs(
+					source_refs_by_section.get(&row.section_id),
+				);
 
-				recallable_source_refs(refs.as_slice(), &current_source_keys)
-					.then(|| knowledge_page_search_item(row, refs, req.query.as_str()))
+				crate::knowledge::recallable_source_refs(refs.as_slice(), &current_source_keys)
+					.then(|| {
+						crate::knowledge::knowledge_page_search_item(row, refs, req.query.as_str())
+					})
 			})
 			.collect();
 
@@ -112,13 +124,15 @@ impl ElfService {
 		let section_rows = knowledge::list_knowledge_page_sections(&self.db.pool, page_id).await?;
 		let source_ref_rows =
 			knowledge::list_knowledge_page_source_refs(&self.db.pool, page_id).await?;
-		let source_refs_by_section = source_refs_by_section(&source_ref_rows);
+		let source_refs_by_section = crate::knowledge::source_refs_by_section(&source_ref_rows);
 		let sections = section_rows
 			.into_iter()
 			.map(|section| {
-				let refs = cloned_source_refs(source_refs_by_section.get(&section.section_id));
+				let refs = crate::knowledge::cloned_source_refs(
+					source_refs_by_section.get(&section.section_id),
+				);
 
-				section_response(section, refs)
+				crate::knowledge::section_response(section, refs)
 			})
 			.collect();
 		let source_refs =

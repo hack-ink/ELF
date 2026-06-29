@@ -1,12 +1,16 @@
-use super::*;
+use crate::knowledge::{
+	self, DraftSection, Error, HashMap, KnowledgePage, KnowledgePageSection,
+	KnowledgePageSourceRef, KnowledgeSourceKind, LintDraft, Result, SourceSnapshot, Uuid, Value,
+	serde_json,
+};
 
 pub(super) fn build_sections(sources: &[SourceSnapshot]) -> Result<Vec<DraftSection>> {
-	let doc_indexes = source_indexes(sources, KnowledgeSourceKind::Doc);
-	let doc_chunk_indexes = source_indexes(sources, KnowledgeSourceKind::DocChunk);
-	let note_indexes = source_indexes(sources, KnowledgeSourceKind::Note);
-	let event_indexes = source_indexes(sources, KnowledgeSourceKind::Event);
-	let relation_indexes = source_indexes(sources, KnowledgeSourceKind::Relation);
-	let proposal_indexes = source_indexes(sources, KnowledgeSourceKind::Proposal);
+	let doc_indexes = knowledge::source_indexes(sources, KnowledgeSourceKind::Doc);
+	let doc_chunk_indexes = knowledge::source_indexes(sources, KnowledgeSourceKind::DocChunk);
+	let note_indexes = knowledge::source_indexes(sources, KnowledgeSourceKind::Note);
+	let event_indexes = knowledge::source_indexes(sources, KnowledgeSourceKind::Event);
+	let relation_indexes = knowledge::source_indexes(sources, KnowledgeSourceKind::Relation);
+	let proposal_indexes = knowledge::source_indexes(sources, KnowledgeSourceKind::Proposal);
 	let mut sections = Vec::new();
 
 	push_section(
@@ -101,7 +105,7 @@ pub(super) fn lint_unsupported_sections(sections: &[DraftSection]) -> Vec<LintDr
 				details: serde_json::json!({
 					"section_key": section.section_key,
 					"unsupported_reason": reason,
-					"repair_guidance": repair_guidance_for_finding_type("unsupported_claim"),
+					"repair_guidance": knowledge::repair_guidance_for_finding_type("unsupported_claim"),
 				}),
 			})
 		})
@@ -113,15 +117,15 @@ pub(super) fn lint_page_sections(
 	sections: &[KnowledgePageSection],
 	source_refs: &[KnowledgePageSourceRef],
 ) -> Vec<LintDraft> {
-	let source_refs_by_section = source_refs_by_section(source_refs);
+	let source_refs_by_section = knowledge::source_refs_by_section(source_refs);
 	let mut findings = Vec::new();
 
 	for section in sections {
 		findings.extend(lint_one_section(section, &source_refs_by_section));
 	}
 
-	if !coverage_complete(page.source_coverage.as_object()) {
-		findings.push(low_source_coverage_finding(page));
+	if !knowledge::coverage_complete(page.source_coverage.as_object()) {
+		findings.push(knowledge::low_source_coverage_finding(page));
 	}
 
 	findings
@@ -131,7 +135,7 @@ pub(super) fn lint_one_section(
 	section: &KnowledgePageSection,
 	source_refs_by_section: &HashMap<Uuid, Vec<KnowledgePageSourceRef>>,
 ) -> Vec<LintDraft> {
-	let citation_count = citation_count(&section.citations);
+	let citation_count = knowledge::citation_count(&section.citations);
 	let source_ref_count =
 		source_refs_by_section.get(&section.section_id).map(Vec::len).unwrap_or_default();
 	let mut findings = Vec::new();
@@ -186,10 +190,10 @@ pub(super) fn section_finding(
 		source_kind: None,
 		source_id: None,
 		message: message.to_string(),
-		details: with_repair_guidance(
+		details: knowledge::with_repair_guidance(
 			details,
 			section.section_key.as_str(),
-			repair_guidance_for_finding_type(finding_type),
+			knowledge::repair_guidance_for_finding_type(finding_type),
 		),
 	}
 }

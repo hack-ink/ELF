@@ -1,4 +1,7 @@
-use super::*;
+use crate::search::{
+	self, BuildTraceArgs, MAX_TRAJECTORY_STAGE_ITEMS, SEARCH_RETRIEVAL_TRAJECTORY_SCHEMA_V1,
+	TraceTrajectoryStageItemRecord, TraceTrajectoryStageRecord, Uuid, Value, ranking,
+};
 
 pub(super) fn build_trace_audit(actor_id: &str, token_id: Option<&str>) -> Value {
 	match token_id.map(str::trim).filter(|value| !value.is_empty()) {
@@ -10,7 +13,7 @@ pub(super) fn build_trace_audit(actor_id: &str, token_id: Option<&str>) -> Value
 pub(super) fn build_trace_trajectory_stages(
 	args: &BuildTraceArgs<'_>,
 ) -> Vec<TraceTrajectoryStageRecord> {
-	let path_label = raw_search_path_label(args.path);
+	let path_label = search::raw_search_path_label(args.path);
 
 	vec![
 		build_trace_rewrite_stage(args, path_label),
@@ -25,7 +28,7 @@ pub(super) fn build_trace_rewrite_stage(
 	args: &BuildTraceArgs<'_>,
 	path_label: &str,
 ) -> TraceTrajectoryStageRecord {
-	let expanded_queries = sorted_unique_strings(args.expanded_queries.clone());
+	let expanded_queries = search::sorted_unique_strings(args.expanded_queries.clone());
 
 	TraceTrajectoryStageRecord {
 		stage_id: Uuid::new_v4(),

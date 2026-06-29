@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::docs::{Error, HashSet, PointIdOptions, Result, ScoredPoint, SharedSpaceGrantKey, Uuid};
 
 pub(in crate::docs) fn doc_read_allowed(
 	requester_agent_id: &str,

@@ -1,4 +1,4 @@
-use super::*;
+use crate::search::{ChunkCandidate, Config, FieldHit, HashMap, HashSet, Uuid, ranking};
 
 pub(super) fn build_structured_field_matches(
 	rows: Vec<FieldHit>,

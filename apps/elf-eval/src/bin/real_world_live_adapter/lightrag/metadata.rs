@@ -1,10 +1,10 @@
-use super::super::*;
+use crate::{LightragArgs, Value, serde_json};
 
 pub(super) fn lightrag_api_base(args: &LightragArgs) -> String {
 	args.api_base.trim_end_matches('/').to_string()
 }
 
-pub(super) fn lightrag_metadata(args: &LightragArgs, run_slug: &str) -> serde_json::Value {
+pub(super) fn lightrag_metadata(args: &LightragArgs, run_slug: &str) -> Value {
 	serde_json::json!({
 		"schema": "elf.lightrag_context_export_metadata/v1",
 		"run_slug": run_slug,

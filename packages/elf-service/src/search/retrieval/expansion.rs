@@ -1,4 +1,7 @@
-use super::super::*;
+use crate::search::{
+	self, CacheKind, Duration, ElfService, ExpansionCachePayload, ExpansionOutput, OffsetDateTime,
+	SearchCache, ranking,
+};
 
 impl ElfService {
 	pub(in crate::search::retrieval) async fn expand_queries(&self, query: &str) -> Vec<String> {
@@ -79,7 +82,7 @@ impl ElfService {
 		cache_cfg: &SearchCache,
 		now: OffsetDateTime,
 	) -> Option<Vec<String>> {
-		match fetch_cache_payload(&self.db.pool, CacheKind::Expansion, key, now).await {
+		match search::fetch_cache_payload(&self.db.pool, CacheKind::Expansion, key, now).await {
 			Ok(Some(payload)) => {
 				tracing::info!(
 					cache_kind = CacheKind::Expansion.as_str(),
@@ -154,7 +157,7 @@ impl ElfService {
 		let stored_at = OffsetDateTime::now_utc();
 		let expires_at = stored_at + Duration::days(cache_cfg.expansion_ttl_days);
 
-		match store_cache_payload(
+		match search::store_cache_payload(
 			&self.db.pool,
 			CacheKind::Expansion,
 			key,

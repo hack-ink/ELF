@@ -1,4 +1,4 @@
-use super::*;
+use crate::graph::{self, Error, GraphEntity, PgConnection, Result, Uuid};
 
 /// Resolves an entity surface against canonical names and aliases within one tenant/project.
 pub async fn resolve_entity_by_surface(
@@ -15,7 +15,7 @@ pub async fn resolve_entity_by_surface(
 		));
 	}
 
-	let canonical_norm = normalize_entity_name(entity_surface);
+	let canonical_norm = graph::normalize_entity_name(entity_surface);
 	let canonical = sqlx::query_as::<_, GraphEntity>(
 		"\
 SELECT
@@ -91,7 +91,7 @@ pub async fn upsert_entity(
 	canonical: &str,
 	kind: Option<&str>,
 ) -> Result<Uuid> {
-	let canonical_norm = normalize_entity_name(canonical);
+	let canonical_norm = graph::normalize_entity_name(canonical);
 	let row: (Uuid,) = sqlx::query_as(
 		"\
 INSERT INTO graph_entities (
@@ -133,7 +133,7 @@ pub async fn upsert_entity_alias(
 	entity_id: Uuid,
 	alias: &str,
 ) -> Result<()> {
-	let alias_norm = normalize_entity_name(alias);
+	let alias_norm = graph::normalize_entity_name(alias);
 
 	sqlx::query(
 		"\

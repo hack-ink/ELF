@@ -1,4 +1,4 @@
-use super::*;
+use crate::summary::{self, ConsolidationSummaryReport, JobReport};
 
 pub(super) fn consolidation_summary_impl(jobs: &[JobReport]) -> ConsolidationSummaryReport {
 	let reports = jobs.iter().filter_map(|job| job.consolidation.as_ref()).collect::<Vec<_>>();
@@ -12,13 +12,13 @@ pub(super) fn consolidation_summary_impl(jobs: &[JobReport]) -> ConsolidationSum
 
 	ConsolidationSummaryReport {
 		proposal_count: proposals.len(),
-		proposal_usefulness: mean_proposal_metric(
+		proposal_usefulness: summary::mean_proposal_metric(
 			proposals.iter().map(|proposal| proposal.usefulness_score),
 		),
-		lineage_completeness: mean_proposal_metric(
+		lineage_completeness: summary::mean_proposal_metric(
 			proposals.iter().map(|proposal| proposal.lineage_completeness),
 		),
-		review_action_correctness: mean_proposal_metric(
+		review_action_correctness: summary::mean_proposal_metric(
 			proposals.iter().map(|proposal| if proposal.review_action_correct { 1.0 } else { 0.0 }),
 		),
 		source_mutation_count: proposals

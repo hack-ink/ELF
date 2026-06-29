@@ -1,4 +1,6 @@
-use super::*;
+use crate::validation::{
+	self, BTreeSet, Path, RealWorldJob, Result, TraceStageExplainability, eyre,
+};
 
 pub(super) fn validate_trace_explainability(job: &RealWorldJob, path: &Path) -> Result<()> {
 	let Some(trace) = job
@@ -9,7 +11,7 @@ pub(super) fn validate_trace_explainability(job: &RealWorldJob, path: &Path) -> 
 	else {
 		return Ok(());
 	};
-	let known = corpus_evidence_ids(job);
+	let known = validation::corpus_evidence_ids(job);
 	let stage_names =
 		trace.stages.iter().map(|stage| stage.stage_name.as_str()).collect::<BTreeSet<_>>();
 
@@ -57,7 +59,7 @@ fn validate_trace_stage(
 		.chain(stage.demoted_evidence.iter())
 		.chain(stage.distractor_evidence.iter())
 	{
-		ensure_known_evidence(path, known, evidence_id)?;
+		validation::ensure_known_evidence(path, known, evidence_id)?;
 	}
 
 	Ok(())

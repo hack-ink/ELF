@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{dataset, metrics, types::ExpectedKind};
+use crate::app::{dataset, metrics, types::ExpectedKind};
 
 #[test]
 fn resolve_expected_mode_requires_exactly_one_definition() {

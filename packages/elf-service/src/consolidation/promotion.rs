@@ -3,10 +3,10 @@ use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::types::PromotedMemoryPayload;
 use crate::{
 	Error, InsertVersionArgs, Result,
 	access::{self, ORG_PROJECT_ID},
+	consolidation::types::PromotedMemoryPayload,
 };
 use elf_config::Config;
 use elf_domain::{
@@ -65,10 +65,6 @@ pub(super) fn validate_promoted_memory_payload(
 	Ok(())
 }
 
-fn invalid_score(score: f32) -> bool {
-	!score.is_finite() || !(0.0..=1.0).contains(&score)
-}
-
 pub(super) fn target_note_id(proposal: &ConsolidationProposal) -> Result<Uuid> {
 	let raw = proposal
 		.target_ref
@@ -83,10 +79,6 @@ pub(super) fn target_note_id(proposal: &ConsolidationProposal) -> Result<Uuid> {
 	Uuid::parse_str(raw).map_err(|err| Error::InvalidRequest {
 		message: format!("target_ref note id is invalid: {err}"),
 	})
-}
-
-fn normalized_optional_string(value: Option<String>) -> Option<String> {
-	value.map(|raw| raw.trim().to_string()).filter(|trimmed| !trimmed.is_empty())
 }
 
 pub(super) fn promoted_memory_scope(
@@ -307,6 +299,14 @@ FOR UPDATE",
 	crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", &note.embedding_version, now).await?;
 
 	Ok(note_id)
+}
+
+fn invalid_score(score: f32) -> bool {
+	!score.is_finite() || !(0.0..=1.0).contains(&score)
+}
+
+fn normalized_optional_string(value: Option<String>) -> Option<String> {
+	value.map(|raw| raw.trim().to_string()).filter(|trimmed| !trimmed.is_empty())
 }
 
 async fn update_promoted_note_row(

@@ -3,13 +3,15 @@ use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{NoteOp, structured_fields::StructuredFields};
+use crate::{
+	NoteOp,
+	ingestion_profiles::{IngestionProfileRef, IngestionProfileSelector},
+	structured_fields::StructuredFields,
+};
 use elf_domain::{
 	memory_policy::MemoryPolicyDecision,
 	writegate::{WritePolicy, WritePolicyAudit},
 };
-
-use crate::ingestion_profiles::{IngestionProfileRef, IngestionProfileSelector};
 
 pub(super) type ProcessedEventOutput =
 	(Vec<EventMessage>, Vec<bool>, Option<Vec<WritePolicyAudit>>);

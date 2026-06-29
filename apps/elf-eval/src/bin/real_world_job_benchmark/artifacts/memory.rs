@@ -1,4 +1,4 @@
-use super::super::*;
+use crate::{Deserialize, Serialize, Value};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct MemorySummaryArtifact {

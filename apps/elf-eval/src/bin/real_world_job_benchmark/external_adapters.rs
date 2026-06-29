@@ -3,27 +3,27 @@
 #[path = "external_adapters/summary.rs"] mod summary;
 #[path = "external_adapters/validation.rs"] mod validation;
 
+pub(super) use outcome::scenario_comparison_outcome;
+
 use std::fs;
 
-use super::*;
-
-use manifest::{empty_external_adapter_section, resolve_external_adapter_manifest_path};
-pub(super) use outcome::scenario_comparison_outcome;
-use summary::external_adapter_summary;
-use validation::validate_external_adapter_manifest;
+use crate::{
+	EXTERNAL_ADAPTER_REPORT_SCHEMA, ExternalAdapterManifest, ExternalAdapterSection, Path, Result,
+	eyre,
+};
 
 pub(super) fn external_adapter_section(
 	manifest_path: &Path,
 	skip_manifest: bool,
 ) -> Result<ExternalAdapterSection> {
 	if skip_manifest {
-		return Ok(empty_external_adapter_section("skipped"));
+		return Ok(manifest::empty_external_adapter_section("skipped"));
 	}
 
-	let manifest_path = resolve_external_adapter_manifest_path(manifest_path);
+	let manifest_path = manifest::resolve_external_adapter_manifest_path(manifest_path);
 
 	if !manifest_path.exists() {
-		return Ok(empty_external_adapter_section("missing"));
+		return Ok(manifest::empty_external_adapter_section("missing"));
 	}
 
 	let raw = fs::read_to_string(&manifest_path)?;
@@ -31,9 +31,9 @@ pub(super) fn external_adapter_section(
 		eyre::eyre!("Failed to parse external adapter manifest {}: {err}", manifest_path.display())
 	})?;
 
-	validate_external_adapter_manifest(&manifest, &manifest_path)?;
+	validation::validate_external_adapter_manifest(&manifest, &manifest_path)?;
 
-	let summary = external_adapter_summary(&manifest.adapters);
+	let summary = summary::external_adapter_summary(&manifest.adapters);
 
 	Ok(ExternalAdapterSection {
 		schema: EXTERNAL_ADAPTER_REPORT_SCHEMA.to_string(),

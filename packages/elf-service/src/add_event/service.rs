@@ -2,23 +2,19 @@ use serde_json;
 use sqlx::{PgConnection, Postgres, Transaction};
 use time::{Duration, OffsetDateTime};
 
-use super::{
-	audit::record_ingest_decision,
-	materialize::persist_extracted_note_decision,
-	policy::{
-		apply_policy_ignore_adjustments, base_decision_for_update, build_result_from_decision,
-		ignore_reason_code_for_policy, resolve_policy_for_update,
-	},
-	rejection::record_extracted_note_rejections,
-	types::{
-		AddEventContext, AddEventRequest, AddEventResponse, AddEventResult, ExtractedNote,
-		ExtractorOutput, NoteProcessingData, PersistExtractedNoteArgs,
-	},
-	validation::{apply_write_policies_to_messages, validate_add_event_request},
-};
 use crate::{
 	ElfService, Error, ResolveUpdateArgs, Result, UpdateDecision,
 	access::ORG_PROJECT_ID,
+	add_event::{
+		audit, materialize,
+		policy::{self},
+		rejection,
+		types::{
+			AddEventContext, AddEventRequest, AddEventResponse, AddEventResult, ExtractedNote,
+			ExtractorOutput, NoteProcessingData, PersistExtractedNoteArgs,
+		},
+		validation::{self},
+	},
 	ingestion_profiles::{self, IngestionProfileRef},
 };
 use elf_domain::{memory_policy::MemoryPolicyDecision, ttl, writegate::WritePolicyAudit};
@@ -26,7 +22,7 @@ use elf_domain::{memory_policy::MemoryPolicyDecision, ttl, writegate::WritePolic
 impl ElfService {
 	/// Extracts notes from an event transcript and optionally persists the accepted results.
 	pub async fn add_event(&self, req: AddEventRequest) -> Result<AddEventResponse> {
-		validate_add_event_request(&req)?;
+		validation::validate_add_event_request(&req)?;
 
 		let resolved_profile = ingestion_profiles::resolve_add_event_profile(
 			&self.db.pool,
@@ -36,7 +32,7 @@ impl ElfService {
 		)
 		.await?;
 		let (messages, message_policy_applied, write_policy_audits) =
-			apply_write_policies_to_messages(req.messages.as_slice())?;
+			validation::apply_write_policies_to_messages(req.messages.as_slice())?;
 		let message_texts: Vec<String> =
 			messages.iter().map(|message| message.content.clone()).collect();
 		let messages_json =
@@ -122,7 +118,7 @@ impl ElfService {
 		};
 		let mut tx = self.db.pool.begin().await?;
 
-		if let Some(result) = record_extracted_note_rejections(
+		if let Some(result) = rejection::record_extracted_note_rejections(
 			&mut tx,
 			&self.cfg,
 			&ctx,
@@ -180,27 +176,30 @@ impl ElfService {
 	) -> Result<AddEventResult> {
 		let decision = self.resolve_extracted_note_update(note, req, note_data, tx, now).await?;
 		let metadata = decision.metadata();
-		let base_decision = base_decision_for_update(
+		let base_decision = policy::base_decision_for_update(
 			&decision,
 			note_data.structured_present,
 			note_data.graph_present,
 		);
 		let (policy_decision, decision_policy_rule, min_confidence, min_importance) =
-			resolve_policy_for_update(&self.cfg, note_data, base_decision);
-		let ignore_reason_code =
-			ignore_reason_code_for_policy(base_decision, policy_decision, metadata.matched_dup);
+			policy::resolve_policy_for_update(&self.cfg, note_data, base_decision);
+		let ignore_reason_code = policy::ignore_reason_code_for_policy(
+			base_decision,
+			policy_decision,
+			metadata.matched_dup,
+		);
 		let should_apply = matches!(
 			policy_decision,
 			MemoryPolicyDecision::Remember | MemoryPolicyDecision::Update
 		);
-		let mut result = build_result_from_decision(
+		let mut result = policy::build_result_from_decision(
 			&decision,
 			policy_decision,
 			note_data.reason.clone(),
 			note_data.structured_present || note_data.graph_present,
 		);
 
-		apply_policy_ignore_adjustments(
+		policy::apply_policy_ignore_adjustments(
 			&mut result,
 			&decision,
 			policy_decision,
@@ -238,9 +237,13 @@ impl ElfService {
 				now,
 				embed_version,
 			};
-			let persisted =
-				persist_extracted_note_decision(tx, persist_args, decision, policy_decision)
-					.await?;
+			let persisted = materialize::persist_extracted_note_decision(
+				tx,
+				persist_args,
+				decision,
+				policy_decision,
+			)
+			.await?;
 
 			result = persisted.0;
 			note_version_id = persisted.1;
@@ -248,7 +251,7 @@ impl ElfService {
 
 		result.write_policy_audits = write_policy_audits.cloned();
 
-		record_ingest_decision(
+		audit::record_ingest_decision(
 			tx,
 			&self.cfg,
 			ctx,

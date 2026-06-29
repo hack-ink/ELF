@@ -1,4 +1,11 @@
-use super::*;
+use crate::knowledge::{
+	ConsolidationLineage, ConsolidationRunCreateRequest, ElfService,
+	KNOWLEDGE_PAGE_WATCH_REBUILD_SCHEMA_V1, KnowledgeDeltaMemoryCandidate, KnowledgePage,
+	KnowledgePageChangedSource, KnowledgePageKind, KnowledgePageProposalRunSummary,
+	KnowledgePageSection, KnowledgePageSourceRef, KnowledgePageWatchRebuildRequest,
+	KnowledgePageWatchRebuildResponse, LintDraft, Result, WatchRebuildOutcome,
+	candidate_proposal_input, knowledge,
+};
 
 impl ElfService {
 	/// Rebuilds pages affected by changed source refs and queues reviewable candidates.
@@ -6,10 +13,14 @@ impl ElfService {
 		&self,
 		req: KnowledgePageWatchRebuildRequest,
 	) -> Result<KnowledgePageWatchRebuildResponse> {
-		validate_context(req.tenant_id.as_str(), req.project_id.as_str(), req.agent_id.as_str())?;
+		crate::knowledge::validate_context(
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			req.agent_id.as_str(),
+		)?;
 
-		let changed_sources = normalized_changed_sources(&req.changed_sources)?;
-		let (source_kinds, source_ids) = changed_source_arrays(&changed_sources);
+		let changed_sources = crate::knowledge::normalized_changed_sources(&req.changed_sources)?;
+		let (source_kinds, source_ids) = crate::knowledge::changed_source_arrays(&changed_sources);
 		let page_kind = req.page_kind.map(KnowledgePageKind::as_str);
 		let pages = knowledge::list_knowledge_pages_for_sources(
 			&self.db.pool,
@@ -18,7 +29,7 @@ impl ElfService {
 			page_kind,
 			&source_kinds,
 			&source_ids,
-			bounded_limit(req.limit),
+			crate::knowledge::bounded_limit(req.limit),
 		)
 		.await?;
 		let mut items = Vec::new();
@@ -37,8 +48,13 @@ impl ElfService {
 		} else {
 			None
 		};
-		let summary = watch_rebuild_summary(changed_sources.len(), &items, candidates.len());
-		let operator_summary = watch_operator_summary(&summary, proposal_run.as_ref());
+		let summary = crate::knowledge::watch_rebuild_summary(
+			changed_sources.len(),
+			&items,
+			candidates.len(),
+		);
+		let operator_summary =
+			crate::knowledge::watch_operator_summary(&summary, proposal_run.as_ref());
 
 		Ok(KnowledgePageWatchRebuildResponse {
 			schema: KNOWLEDGE_PAGE_WATCH_REBUILD_SCHEMA_V1.to_string(),
@@ -60,21 +76,22 @@ impl ElfService {
 			knowledge::list_knowledge_page_source_refs(&self.db.pool, page.page_id).await?;
 		let sections = knowledge::list_knowledge_page_sections(&self.db.pool, page.page_id).await?;
 		let before_lint = self.watch_rebuild_lint(&page, &sections, &source_refs).await?;
-		let request = rebuild_request_from_page(agent_id, &page, &source_refs);
+		let request = crate::knowledge::rebuild_request_from_page(agent_id, &page, &source_refs);
 		let rebuild = match request {
 			Ok(request) => self.knowledge_page_rebuild(request).await,
 			Err(err) => Err(err),
 		};
 
 		match rebuild {
-			Ok(response) => Ok(successful_watch_rebuild(
+			Ok(response) => Ok(crate::knowledge::successful_watch_rebuild(
 				sections,
 				source_refs,
 				before_lint,
 				response.page,
 				changed_sources,
 			)),
-			Err(err) => Ok(blocked_watch_rebuild(page, sections, before_lint, err)),
+			Err(err) =>
+				Ok(crate::knowledge::blocked_watch_rebuild(page, sections, before_lint, err)),
 		}
 	}
 
@@ -86,7 +103,7 @@ impl ElfService {
 	) -> Result<Vec<LintDraft>> {
 		let mut lint = self.lint_source_refs(page, source_refs).await?;
 
-		lint.extend(lint_page_sections(page, sections, source_refs));
+		lint.extend(crate::knowledge::lint_page_sections(page, sections, source_refs));
 
 		Ok(lint)
 	}
@@ -97,8 +114,9 @@ impl ElfService {
 		changed_sources: &[KnowledgePageChangedSource],
 		candidates: &[KnowledgeDeltaMemoryCandidate],
 	) -> Result<KnowledgePageProposalRunSummary> {
-		let source_refs = candidate_run_input_refs(candidates);
-		let source_snapshot = knowledge_delta_source_snapshot(changed_sources, candidates);
+		let source_refs = crate::knowledge::candidate_run_input_refs(candidates);
+		let source_snapshot =
+			crate::knowledge::knowledge_delta_source_snapshot(changed_sources, candidates);
 		let lineage = ConsolidationLineage {
 			source_refs: source_refs.clone(),
 			parent_run_id: None,
@@ -118,6 +136,6 @@ impl ElfService {
 			})
 			.await?;
 
-		Ok(proposal_run_summary(created, candidates.len()))
+		Ok(crate::knowledge::proposal_run_summary(created, candidates.len()))
 	}
 }

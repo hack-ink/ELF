@@ -1,4 +1,21 @@
-use super::*;
+use color_eyre::Result;
+use reqwest::{Client, RequestBuilder};
+use rmcp::{
+	ErrorData,
+	handler::server::router::tool::ToolRouter,
+	model::{CallToolResult, JsonObject},
+};
+use serde_json::Value;
+use uuid::Uuid;
+
+use crate::app::{
+	McpAuthState,
+	server::{
+		self, HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID, HEADER_READ_PROFILE,
+		HEADER_REQUEST_ID, HEADER_TENANT_ID,
+	},
+};
+use elf_config::McpContext;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum HttpMethod {
@@ -54,7 +71,7 @@ impl ElfMcp {
 	}
 
 	pub(super) fn api_base_for_path(&self, path: &str) -> &str {
-		if is_admin_path(path) { &self.admin_api_base } else { &self.http_api_base }
+		if server::is_admin_path(path) { &self.admin_api_base } else { &self.http_api_base }
 	}
 
 	fn apply_context_headers(
@@ -98,7 +115,7 @@ impl ElfMcp {
 				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
-		handle_response(response).await
+		server::handle_response(response).await
 	}
 
 	async fn forward_patch(
@@ -121,7 +138,7 @@ impl ElfMcp {
 				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
-		handle_response(response).await
+		server::handle_response(response).await
 	}
 
 	async fn forward_put(
@@ -144,7 +161,7 @@ impl ElfMcp {
 				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
-		handle_response(response).await
+		server::handle_response(response).await
 	}
 
 	async fn forward_delete(
@@ -162,7 +179,7 @@ impl ElfMcp {
 				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
-		handle_response(response).await
+		server::handle_response(response).await
 	}
 
 	async fn forward_get(
@@ -173,7 +190,7 @@ impl ElfMcp {
 		request_id: Uuid,
 	) -> Result<CallToolResult, ErrorData> {
 		let url = format!("{}{}", self.api_base_for_path(path), path);
-		let query = params_to_query(params);
+		let query = server::params_to_query(params);
 		let response = self
 			.apply_context_headers(
 				self.client.get(url).query(&query),
@@ -186,7 +203,7 @@ impl ElfMcp {
 				ErrorData::internal_error(format!("ELF API request failed: {err}"), None)
 			})?;
 
-		handle_response(response).await
+		server::handle_response(response).await
 	}
 
 	pub(super) async fn forward(

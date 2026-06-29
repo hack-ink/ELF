@@ -1,9 +1,10 @@
 use axum::http::HeaderMap;
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::routes::{
 	self, ADMIN_VIEWER_PATH, HEADER_AGENT_ID, HEADER_AUTHORIZATION, HEADER_PROJECT_ID,
-	HEADER_READ_PROFILE, HEADER_REQUEST_ID, HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID,
+	HEADER_READ_PROFILE, HEADER_REQUEST_ID, HEADER_TENANT_ID, HEADER_TRUSTED_TOKEN_ID, VIEWER_HTML,
 };
 use elf_config::{SecurityAuthKey, SecurityAuthRole};
 
@@ -36,7 +37,7 @@ fn require_admin_for_org_shared_writes_allows_non_static_keys_auth_mode() {
 
 #[test]
 fn admin_viewer_uses_admin_operator_routes_without_raw_memory_bypasses() {
-	let html = routes::VIEWER_HTML;
+	let html = VIEWER_HTML;
 
 	assert_eq!(ADMIN_VIEWER_PATH, "/viewer");
 	assert!(html.contains("/v2/admin/searches"));
@@ -287,7 +288,7 @@ fn inject_request_id_into_json_body_adds_request_id_to_object() {
 	let response_body = routes::inject_request_id_into_json_body(body.as_bytes(), &request_id)
 		.expect("Expected request_id field to be injected.");
 	let response_value =
-		serde_json::from_slice::<serde_json::Value>(&response_body).expect("Expected valid JSON");
+		serde_json::from_slice::<Value>(&response_body).expect("Expected valid JSON");
 
 	assert_eq!(response_value["request_id"], request_id.to_string());
 }

@@ -1,9 +1,8 @@
 use color_eyre::Result;
 use uuid::Uuid;
 
+use crate::rows::{CandidateRow, ItemRow, StageItemRow, StageRow, TraceRow};
 use elf_storage::db::Db;
-
-use super::rows::{CandidateRow, ItemRow, StageItemRow, StageRow, TraceRow};
 
 pub(super) async fn fetch_traces(db: &Db, trace_ids: &[Uuid]) -> Result<Vec<TraceRow>> {
 	let rows: Vec<TraceRow> = sqlx::query_as::<_, TraceRow>(

@@ -1,4 +1,7 @@
-use super::*;
+use crate::feature_metrics::{
+	self, DerivedPageArtifact, DerivedPageRebuild, DerivedPageSection, KnowledgeJobMetrics,
+	NegativeTrap, ProducedAnswer, RealWorldJob, UnsupportedClaimReport, Value,
+};
 
 pub(super) fn unsupported_page_claims_impl(answer: &ProducedAnswer) -> Vec<UnsupportedClaimReport> {
 	answer
@@ -14,7 +17,7 @@ pub(super) fn unsupported_page_claims_impl(answer: &ProducedAnswer) -> Vec<Unsup
 					suite_id: String::new(),
 					job_id: String::new(),
 					claim_id: Some(format!("{}:{}", page.page_id, section.section_id)),
-					claim_text: bounded_text(section.content.as_str(), 240),
+					claim_text: feature_metrics::bounded_text(section.content.as_str(), 240),
 					reason:
 						"derived page section has no source evidence and is not flagged unsupported"
 							.to_string(),
@@ -47,13 +50,17 @@ pub(super) fn knowledge_metrics_impl(
 		.iter()
 		.filter(|trap| page_artifacts_detect_stale_trap(&answer.pages, trap))
 		.count();
-	metrics.citation_coverage = ratio(metrics.traced_section_count, metrics.section_count);
+	metrics.citation_coverage =
+		feature_metrics::ratio(metrics.traced_section_count, metrics.section_count);
 	metrics.stale_claim_detection =
-		ratio_or_full(metrics.stale_traps_detected, metrics.stale_trap_count);
-	metrics.rebuild_determinism = ratio(metrics.deterministic_rebuild_count, metrics.page_count);
-	metrics.backlink_coverage = ratio(metrics.pages_with_backlinks, metrics.page_count);
-	metrics.version_diff_coverage = ratio(metrics.pages_with_version_diff, metrics.page_count);
-	metrics.page_usefulness = round3(
+		feature_metrics::ratio_or_full(metrics.stale_traps_detected, metrics.stale_trap_count);
+	metrics.rebuild_determinism =
+		feature_metrics::ratio(metrics.deterministic_rebuild_count, metrics.page_count);
+	metrics.backlink_coverage =
+		feature_metrics::ratio(metrics.pages_with_backlinks, metrics.page_count);
+	metrics.version_diff_coverage =
+		feature_metrics::ratio(metrics.pages_with_version_diff, metrics.page_count);
+	metrics.page_usefulness = feature_metrics::round3(
 		(metrics.citation_coverage
 			+ metrics.stale_claim_detection
 			+ metrics.rebuild_determinism
@@ -62,6 +69,14 @@ pub(super) fn knowledge_metrics_impl(
 	);
 
 	Some(metrics)
+}
+
+pub(super) fn missed_stale_finding_count_impl(metrics: &KnowledgeJobMetrics) -> usize {
+	metrics.stale_trap_count.saturating_sub(metrics.stale_traps_detected)
+}
+
+pub(super) fn page_usefulness_failure_count_impl(metrics: &KnowledgeJobMetrics) -> usize {
+	if metrics.page_usefulness < 0.8 { 1 } else { 0 }
 }
 
 fn stale_traps(job: &RealWorldJob) -> Vec<&NegativeTrap> {
@@ -143,12 +158,4 @@ fn page_artifacts_detect_stale_trap(pages: &[DerivedPageArtifact], trap: &Negati
 					.any(|evidence_id| trap.evidence_ids.contains(evidence_id))
 		})
 	})
-}
-
-pub(super) fn missed_stale_finding_count_impl(metrics: &KnowledgeJobMetrics) -> usize {
-	metrics.stale_trap_count.saturating_sub(metrics.stale_traps_detected)
-}
-
-pub(super) fn page_usefulness_failure_count_impl(metrics: &KnowledgeJobMetrics) -> usize {
-	if metrics.page_usefulness < 0.8 { 1 } else { 0 }
 }

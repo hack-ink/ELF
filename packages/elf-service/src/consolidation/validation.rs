@@ -2,8 +2,10 @@ use serde::Serialize;
 use serde_json::Value;
 use time::OffsetDateTime;
 
-use super::types::{DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT};
-use crate::{Error, Result};
+use crate::{
+	Error, Result,
+	consolidation::types::{DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT},
+};
 use elf_domain::consolidation::{
 	ConsolidationReviewAction, ConsolidationReviewState, ConsolidationRunState,
 	ConsolidationValidationError,
@@ -25,14 +27,6 @@ pub(super) fn validate_job_kind(job_kind: &str) -> Result<()> {
 			message: "job_kind must be fixture or manual for consolidation v1.".to_string(),
 		}),
 	}
-}
-
-fn validate_non_empty(field: &'static str, value: &str) -> Result<()> {
-	if value.trim().is_empty() {
-		return Err(Error::InvalidRequest { message: format!("{field} must not be empty.") });
-	}
-
-	Ok(())
 }
 
 pub(super) fn validate_object(field: &str, value: &Value) -> Result<()> {
@@ -105,4 +99,12 @@ pub(super) fn terminal_time(
 		| ConsolidationRunState::Cancelled => Some(now),
 		ConsolidationRunState::Pending | ConsolidationRunState::Running => None,
 	}
+}
+
+fn validate_non_empty(field: &'static str, value: &str) -> Result<()> {
+	if value.trim().is_empty() {
+		return Err(Error::InvalidRequest { message: format!("{field} must not be empty.") });
+	}
+
+	Ok(())
 }

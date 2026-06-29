@@ -1,4 +1,4 @@
-use super::*;
+use crate::markdown::{self, RealWorldReport, TraceExplainability};
 
 pub(super) fn render_markdown_trace_explainability(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Trace Explainability\n\n");
@@ -20,12 +20,12 @@ pub(super) fn render_markdown_trace_explainability(out: &mut String, report: &Re
 
 		out.push_str(&format!(
 			"| {} | {} | `{}` | `{}` | {} | {} |\n",
-			md_cell(job.suite_id.as_str()),
-			md_cell(job.job_id.as_str()),
-			md_inline(trace.and_then(|trace| trace.trace_id.as_deref()).unwrap_or("-")),
-			md_inline(trace_failure_stage(trace).unwrap_or("-")),
-			md_cell(trace_failure_reason(trace).unwrap_or("-")),
-			md_cell(trace_stage_summary(trace).as_str())
+			markdown::md_cell(job.suite_id.as_str()),
+			markdown::md_cell(job.job_id.as_str()),
+			markdown::md_inline(trace.and_then(|trace| trace.trace_id.as_deref()).unwrap_or("-")),
+			markdown::md_inline(markdown::trace_failure_stage(trace).unwrap_or("-")),
+			markdown::md_cell(trace_failure_reason(trace).unwrap_or("-")),
+			markdown::md_cell(trace_stage_summary(trace).as_str())
 		));
 	}
 

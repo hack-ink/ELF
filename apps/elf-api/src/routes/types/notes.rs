@@ -1,4 +1,6 @@
-use super::*;
+use crate::routes::types::{
+	AddNoteInput, Deserialize, MemoryCorrectionAction, Serialize, Uuid, Value,
+};
 
 #[derive(Clone, Debug, Deserialize)]
 pub(in crate::routes) struct NotesIngestRequest {

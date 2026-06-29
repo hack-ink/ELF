@@ -1,4 +1,7 @@
-use super::*;
+use crate::knowledge::support::{
+	BTreeMap, BTreeSet, DraftSection, KNOWLEDGE_PAGE_VERSION_DIFF_SCHEMA_V1, KnowledgePage,
+	KnowledgePageSection, Value, serde_json,
+};
 
 pub(in crate::knowledge) fn previous_version_diff_value(
 	previous: Option<&KnowledgePage>,

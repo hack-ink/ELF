@@ -1,20 +1,19 @@
-use crate::{ElfService, Result};
-use elf_config::SecurityAuthRole;
-use elf_storage::graph;
-
-use super::{
-	helpers::{
-		AdminGraphPredicateScope, PredicateAccess, graph_predicate_scope_keys,
-		load_predicate_in_context, map_storage_error, predicate_status_transition_allowed,
-		stable_sort_aliases, to_alias_response, to_predicate_response,
-	},
-	types::{
-		AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
-		AdminGraphPredicateAliasesResponse, AdminGraphPredicatePatchRequest,
-		AdminGraphPredicateResponse, AdminGraphPredicatesListRequest,
-		AdminGraphPredicatesListResponse,
+use crate::{
+	ElfService, Error, Result,
+	admin_graph_predicates::{
+		helpers::{
+			self, AdminGraphPredicateScope, PredicateAccess, map_storage_error, to_alias_response,
+		},
+		types::{
+			AdminGraphPredicateAliasAddRequest, AdminGraphPredicateAliasesListRequest,
+			AdminGraphPredicateAliasesResponse, AdminGraphPredicatePatchRequest,
+			AdminGraphPredicateResponse, AdminGraphPredicatesListRequest,
+			AdminGraphPredicatesListResponse,
+		},
 	},
 };
+use elf_config::SecurityAuthRole;
+use elf_storage::graph;
 
 impl ElfService {
 	fn is_super_admin_token_id(&self, token_id: Option<&str>) -> bool {
@@ -39,17 +38,22 @@ impl ElfService {
 		req: AdminGraphPredicatesListRequest,
 	) -> Result<AdminGraphPredicatesListResponse> {
 		let raw = req.scope.as_deref().unwrap_or("all");
-		let scope =
-			AdminGraphPredicateScope::parse(raw).ok_or_else(|| crate::Error::InvalidRequest {
-				message: "scope must be one of tenant_project|project|global|all".to_string(),
-			})?;
-		let scope_keys =
-			graph_predicate_scope_keys(req.tenant_id.as_str(), req.project_id.as_str(), scope);
+		let scope = AdminGraphPredicateScope::parse(raw).ok_or_else(|| Error::InvalidRequest {
+			message: "scope must be one of tenant_project|project|global|all".to_string(),
+		})?;
+		let scope_keys = helpers::graph_predicate_scope_keys(
+			req.tenant_id.as_str(),
+			req.project_id.as_str(),
+			scope,
+		);
 		let mut conn = self.db.pool.acquire().await?;
 		let predicates = graph::list_predicates_by_scope_keys(&mut conn, &scope_keys)
 			.await
 			.map_err(map_storage_error)?;
-		let predicates = predicates.into_iter().map(to_predicate_response).collect();
+		let predicates = predicates
+			.into_iter()
+			.map(crate::admin_graph_predicates::helpers::to_predicate_response)
+			.collect();
 
 		Ok(AdminGraphPredicatesListResponse { predicates })
 	}
@@ -60,7 +64,7 @@ impl ElfService {
 		req: AdminGraphPredicatePatchRequest,
 	) -> Result<AdminGraphPredicateResponse> {
 		if req.status.is_none() && req.cardinality.is_none() {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "At least one of status or cardinality is required.".to_string(),
 			});
 		}
@@ -68,22 +72,20 @@ impl ElfService {
 		let status = req.status.as_deref().map(str::trim);
 
 		if status.is_some_and(str::is_empty) {
-			return Err(crate::Error::InvalidRequest {
-				message: "status must be non-empty.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "status must be non-empty.".to_string() });
 		}
 
 		let cardinality = req.cardinality.as_deref().map(str::trim);
 
 		if cardinality.is_some_and(str::is_empty) {
-			return Err(crate::Error::InvalidRequest {
+			return Err(Error::InvalidRequest {
 				message: "cardinality must be non-empty.".to_string(),
 			});
 		}
 
 		let allow_global_mutation = self.is_super_admin_token_id(req.token_id.as_deref());
 		let mut conn = self.db.pool.acquire().await?;
-		let existing = load_predicate_in_context(
+		let existing = helpers::load_predicate_in_context(
 			&mut conn,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -96,7 +98,7 @@ impl ElfService {
 		let old_cardinality = existing.cardinality.clone();
 
 		if old_status == "deprecated" {
-			return Err(crate::Error::Conflict {
+			return Err(Error::Conflict {
 				message: "graph predicate is deprecated and cannot be modified.".to_string(),
 			});
 		}
@@ -107,14 +109,16 @@ impl ElfService {
 				let raw = raw.to_string();
 
 				if !matches!(raw.as_str(), "pending" | "active" | "deprecated") {
-					return Err(crate::Error::InvalidRequest {
+					return Err(Error::InvalidRequest {
 						message: "status must be one of pending|active|deprecated.".to_string(),
 					});
 				}
 				if raw != old_status
-					&& !predicate_status_transition_allowed(old_status.as_str(), raw.as_str())
-				{
-					return Err(crate::Error::Conflict {
+					&& !helpers::predicate_status_transition_allowed(
+						old_status.as_str(),
+						raw.as_str(),
+					) {
+					return Err(Error::Conflict {
 						message: format!(
 							"Invalid graph predicate status transition; from={old_status} to={raw}.",
 						),
@@ -130,7 +134,7 @@ impl ElfService {
 				let raw = raw.to_string();
 
 				if !matches!(raw.as_str(), "single" | "multi") {
-					return Err(crate::Error::InvalidRequest {
+					return Err(Error::InvalidRequest {
 						message: "cardinality must be one of single|multi.".to_string(),
 					});
 				}
@@ -159,7 +163,7 @@ impl ElfService {
 			"Admin graph predicate patched."
 		);
 
-		Ok(to_predicate_response(updated))
+		Ok(helpers::to_predicate_response(updated))
 	}
 
 	/// Adds an alias to a mutable graph predicate.
@@ -170,14 +174,12 @@ impl ElfService {
 		let alias = req.alias.trim();
 
 		if alias.is_empty() {
-			return Err(crate::Error::InvalidRequest {
-				message: "alias must be non-empty.".to_string(),
-			});
+			return Err(Error::InvalidRequest { message: "alias must be non-empty.".to_string() });
 		}
 
 		let allow_global_mutation = self.is_super_admin_token_id(req.token_id.as_deref());
 		let mut conn = self.db.pool.acquire().await?;
-		let predicate = load_predicate_in_context(
+		let predicate = helpers::load_predicate_in_context(
 			&mut conn,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -188,7 +190,7 @@ impl ElfService {
 		.await?;
 
 		if predicate.status == "deprecated" {
-			return Err(crate::Error::Conflict {
+			return Err(Error::Conflict {
 				message: "graph predicate is deprecated and cannot be modified.".to_string(),
 			});
 		}
@@ -208,7 +210,7 @@ impl ElfService {
 			.await
 			.map_err(map_storage_error)?;
 
-		stable_sort_aliases(&mut aliases);
+		helpers::stable_sort_aliases(&mut aliases);
 
 		let aliases = aliases.into_iter().map(to_alias_response).collect();
 
@@ -222,7 +224,7 @@ impl ElfService {
 	) -> Result<AdminGraphPredicateAliasesResponse> {
 		let mut conn = self.db.pool.acquire().await?;
 
-		load_predicate_in_context(
+		helpers::load_predicate_in_context(
 			&mut conn,
 			req.tenant_id.as_str(),
 			req.project_id.as_str(),
@@ -236,7 +238,7 @@ impl ElfService {
 			.await
 			.map_err(map_storage_error)?;
 
-		stable_sort_aliases(&mut aliases);
+		helpers::stable_sort_aliases(&mut aliases);
 
 		let aliases = aliases.into_iter().map(to_alias_response).collect();
 

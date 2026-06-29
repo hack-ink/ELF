@@ -1,4 +1,7 @@
-use super::*;
+use crate::graph_report::{
+	Deserialize, GraphQueryEntityRef, GraphQueryObject, GraphQueryPredicateRef, OffsetDateTime,
+	RelationTemporalStatus, Serialize, Uuid,
+};
 
 /// Request payload for a graph topic-map report.
 #[derive(Clone, Debug, Deserialize, Serialize)]

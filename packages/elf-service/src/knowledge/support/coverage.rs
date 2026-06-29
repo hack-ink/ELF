@@ -1,4 +1,8 @@
-use super::*;
+use crate::knowledge::support::{
+	BTreeMap, BTreeSet, DraftSection, KNOWLEDGE_PAGE_CONTRACT_SCHEMA_V1,
+	KNOWLEDGE_PAGE_SOURCE_COVERAGE_SCHEMA_V1, KnowledgePageKind, KnowledgeSourceKind, Map,
+	SourceSnapshot, Value, serde_json,
+};
 
 pub(in crate::knowledge) fn coverage_complete(coverage: Option<&Map<String, Value>>) -> bool {
 	let Some(coverage) = coverage else {

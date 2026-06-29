@@ -1,4 +1,4 @@
-use super::*;
+use crate::{BTreeMap, CostReport, Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(super) struct ScoreboardReport {
