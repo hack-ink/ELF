@@ -1,3 +1,4 @@
+mod finalize;
 mod metadata;
 mod relations;
 mod rerank;
