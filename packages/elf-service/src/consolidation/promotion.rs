@@ -1,4 +1,8 @@
-use serde_json::Value;
+mod payload;
+
+pub(super) use self::payload::promoted_memory_target_ref;
+#[cfg(test)] pub(super) use self::payload::{promoted_memory_project_id, promoted_memory_scope};
+
 use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -6,141 +10,13 @@ use uuid::Uuid;
 use crate::{
 	Error, InsertVersionArgs, Result,
 	access::{self, ORG_PROJECT_ID},
-	consolidation::types::PromotedMemoryPayload,
 };
 use elf_config::Config;
-use elf_domain::{
-	ttl,
-	writegate::{self, NoteInput},
-};
+use elf_domain::ttl;
 use elf_storage::{
 	models::{ConsolidationProposal, MemoryNote},
 	queries,
 };
-
-pub(super) fn decode_promoted_memory_payload(
-	proposal: &ConsolidationProposal,
-) -> Result<PromotedMemoryPayload> {
-	let payload: PromotedMemoryPayload = serde_json::from_value(proposal.proposed_payload.clone())
-		.map_err(|err| Error::InvalidRequest {
-			message: format!("proposed_payload is not a memory note payload: {err}"),
-		})?;
-
-	if !matches!(payload.source_ref, Value::Object(_)) {
-		return Err(Error::InvalidRequest {
-			message: "proposed_payload.source_ref must be a JSON object when provided.".to_string(),
-		});
-	}
-	if payload.importance.is_some_and(invalid_score)
-		|| payload.confidence.is_some_and(invalid_score)
-	{
-		return Err(Error::InvalidRequest {
-			message: "proposed memory scores must be finite values in 0.0..=1.0.".to_string(),
-		});
-	}
-
-	Ok(payload)
-}
-
-pub(super) fn validate_promoted_memory_payload(
-	payload: &PromotedMemoryPayload,
-	effective_scope: &str,
-	cfg: &Config,
-) -> Result<()> {
-	let gate = NoteInput {
-		note_type: payload.note_type.clone(),
-		scope: effective_scope.to_string(),
-		text: payload.text.clone(),
-	};
-
-	if let Err(code) = writegate::writegate(&gate, cfg) {
-		return Err(Error::InvalidRequest {
-			message: format!(
-				"proposed memory failed writegate: {}",
-				crate::writegate_reason_code(code)
-			),
-		});
-	}
-
-	Ok(())
-}
-
-pub(super) fn target_note_id(proposal: &ConsolidationProposal) -> Result<Uuid> {
-	let raw = proposal
-		.target_ref
-		.get("id")
-		.or_else(|| proposal.target_ref.get("note_id"))
-		.and_then(Value::as_str)
-		.ok_or_else(|| Error::InvalidRequest {
-			message: "update_derived_note requires target_ref.id or target_ref.note_id."
-				.to_string(),
-		})?;
-
-	Uuid::parse_str(raw).map_err(|err| Error::InvalidRequest {
-		message: format!("target_ref note id is invalid: {err}"),
-	})
-}
-
-pub(super) fn promoted_memory_scope(
-	payload: &PromotedMemoryPayload,
-	default_scope: &str,
-) -> Result<String> {
-	match payload.scope.as_deref() {
-		Some(raw) => {
-			let scope = raw.trim();
-
-			if scope.is_empty() {
-				return Err(Error::InvalidRequest {
-					message: "proposed_payload.scope must not be empty when provided.".to_string(),
-				});
-			}
-
-			Ok(scope.to_string())
-		},
-		None => Ok(default_scope.to_string()),
-	}
-}
-
-pub(super) fn promoted_memory_project_id<'a>(proposal_project_id: &'a str, scope: &str) -> &'a str {
-	if scope == "org_shared" { ORG_PROJECT_ID } else { proposal_project_id }
-}
-
-pub(super) fn promotion_source_ref(
-	proposal: &ConsolidationProposal,
-	proposed_source_ref: &Value,
-	reviewer_agent_id: &str,
-	review_comment: Option<&str>,
-	now: OffsetDateTime,
-) -> Value {
-	serde_json::json!({
-		"schema": "elf.memory_promotion/v1",
-		"proposal_id": proposal.proposal_id,
-		"run_id": proposal.run_id,
-		"proposal_kind": proposal.proposal_kind,
-		"apply_intent": proposal.apply_intent,
-		"source_refs": proposal.source_refs,
-		"source_snapshot": proposal.source_snapshot,
-		"lineage": proposal.lineage,
-		"unsupported_claim_flags": proposal.unsupported_claim_flags,
-		"review": {
-			"action": "apply",
-			"reviewer_agent_id": reviewer_agent_id,
-			"review_comment": review_comment,
-			"applied_at": now,
-		},
-		"proposed_source_ref": proposed_source_ref,
-	})
-}
-
-pub(super) fn promoted_memory_target_ref(note_id: Uuid, now: OffsetDateTime) -> Value {
-	serde_json::json!({
-		"schema": "elf.memory_record_ref/v1",
-		"kind": "note",
-		"id": note_id,
-		"status": "active",
-		"applied_at": now,
-	})
-}
 
 pub(super) async fn create_promoted_memory_note(
 	tx: &mut Transaction<'_, Postgres>,
@@ -150,16 +26,21 @@ pub(super) async fn create_promoted_memory_note(
 	cfg: &Config,
 	now: OffsetDateTime,
 ) -> Result<Uuid> {
-	let payload = decode_promoted_memory_payload(proposal)?;
-	let scope = promoted_memory_scope(&payload, "agent_private")?;
+	let payload = payload::decode_promoted_memory_payload(proposal)?;
+	let scope = payload::promoted_memory_scope(&payload, "agent_private")?;
 
-	validate_promoted_memory_payload(&payload, &scope, cfg)?;
+	payload::validate_promoted_memory_payload(&payload, &scope, cfg)?;
 
-	let project_id = promoted_memory_project_id(proposal.project_id.as_str(), &scope);
+	let project_id = payload::promoted_memory_project_id(proposal.project_id.as_str(), &scope);
 	let note_type = payload.note_type;
 	let expires_at = ttl::compute_expires_at(payload.ttl_days, &note_type, cfg, now);
-	let source_ref =
-		promotion_source_ref(proposal, &payload.source_ref, reviewer_agent_id, review_comment, now);
+	let source_ref = payload::promotion_source_ref(
+		proposal,
+		&payload.source_ref,
+		reviewer_agent_id,
+		review_comment,
+		now,
+	);
 	let note_id = Uuid::new_v4();
 
 	access::ensure_active_project_scope_grant(
@@ -178,7 +59,7 @@ pub(super) async fn create_promoted_memory_note(
 		agent_id: proposal.agent_id.clone(),
 		scope,
 		r#type: note_type,
-		key: normalized_optional_string(payload.key),
+		key: payload::normalized_optional_string(payload.key),
 		text: payload.text,
 		importance: payload.importance.unwrap_or(proposal.confidence),
 		confidence: payload.confidence.unwrap_or(proposal.confidence),
@@ -219,8 +100,8 @@ pub(super) async fn update_promoted_memory_note(
 	cfg: &Config,
 	now: OffsetDateTime,
 ) -> Result<Uuid> {
-	let payload = decode_promoted_memory_payload(proposal)?;
-	let note_id = target_note_id(proposal)?;
+	let payload = payload::decode_promoted_memory_payload(proposal)?;
+	let note_id = payload::target_note_id(proposal)?;
 	let mut note = sqlx::query_as::<_, MemoryNote>(
 		"\
 SELECT *
@@ -249,17 +130,17 @@ FOR UPDATE",
 		});
 	}
 
-	let scope = promoted_memory_scope(&payload, note.scope.as_str())?;
+	let scope = payload::promoted_memory_scope(&payload, note.scope.as_str())?;
 
-	validate_promoted_memory_payload(&payload, &scope, cfg)?;
+	payload::validate_promoted_memory_payload(&payload, &scope, cfg)?;
 
-	let project_id = promoted_memory_project_id(proposal.project_id.as_str(), &scope);
+	let project_id = payload::promoted_memory_project_id(proposal.project_id.as_str(), &scope);
 	let prev_snapshot = crate::note_snapshot(&note);
 
 	note.project_id = project_id.to_string();
 	note.scope = scope;
 	note.r#type = payload.note_type;
-	note.key = normalized_optional_string(payload.key);
+	note.key = payload::normalized_optional_string(payload.key);
 	note.text = payload.text;
 	note.importance = payload.importance.unwrap_or(note.importance);
 	note.confidence = payload.confidence.unwrap_or(note.confidence);
@@ -269,8 +150,13 @@ FOR UPDATE",
 	}
 
 	note.updated_at = now;
-	note.source_ref =
-		promotion_source_ref(proposal, &payload.source_ref, reviewer_agent_id, review_comment, now);
+	note.source_ref = payload::promotion_source_ref(
+		proposal,
+		&payload.source_ref,
+		reviewer_agent_id,
+		review_comment,
+		now,
+	);
 
 	access::ensure_active_project_scope_grant(
 		&mut **tx,
@@ -299,14 +185,6 @@ FOR UPDATE",
 	crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", &note.embedding_version, now).await?;
 
 	Ok(note_id)
-}
-
-fn invalid_score(score: f32) -> bool {
-	!score.is_finite() || !(0.0..=1.0).contains(&score)
-}
-
-fn normalized_optional_string(value: Option<String>) -> Option<String> {
-	value.map(|raw| raw.trim().to_string()).filter(|trimmed| !trimmed.is_empty())
 }
 
 async fn update_promoted_note_row(
