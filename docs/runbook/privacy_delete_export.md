@@ -15,7 +15,8 @@ tags:
 source_refs: []
 code_refs:
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
+  - apps/elf-mcp/src/app/server/tools/docs.rs
   - packages/elf-service/src/delete.rs
   - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs
@@ -33,7 +34,8 @@ related:
 drift_watch:
   - docs/runbook/privacy_delete_export.md
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
+  - apps/elf-mcp/src/app/server/tools/docs.rs
   - packages/elf-service/src/delete.rs
   - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs

@@ -17,7 +17,8 @@ code_refs:
   - scripts/local-agent-loop.sh
   - config/local/elf.docker.toml
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
+  - apps/elf-mcp/src/app/server/tools/docs.rs
 related:
   - docs/runbook/agent-setup.md
   - docs/runbook/agent_skills_cookbook.md
@@ -27,7 +28,8 @@ drift_watch:
   - scripts/local-agent-loop.sh
   - config/local/elf.docker.toml
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
+  - apps/elf-mcp/src/app/server/tools/docs.rs
 ---
 # Local Agent Loop Drift Audit
 
@@ -67,7 +69,8 @@ provider quality evidence.
   - `POST /v2/admin/consolidation/runs`
   - `POST /v2/admin/consolidation/proposals/{proposal_id}/review`
   - `POST /v2/admin/notes/{note_id}/corrections`
-- `apps/elf-mcp/src/server.rs` exposes the agent-facing MCP tools:
+- `apps/elf-mcp/src/app/server.rs` and
+  `apps/elf-mcp/src/app/server/tools/docs.rs` expose the agent-facing MCP tools:
   - `elf_docs_put`
   - `elf_notes_ingest`
   - `elf_searches_create`
@@ -97,4 +100,5 @@ pass
 - `scripts/local-agent-loop.sh`
 - `config/local/elf.docker.toml`
 - `apps/elf-api/src/routes.rs`
-- `apps/elf-mcp/src/server.rs`
+- `apps/elf-mcp/src/app/server.rs`
+- `apps/elf-mcp/src/app/server/tools/docs.rs`

@@ -23,7 +23,7 @@ drift_watch:
   - scripts/local-agent-loop.sh
   - config/local/elf.docker.toml
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
 ---
 # Agent Setup Runbook
 
