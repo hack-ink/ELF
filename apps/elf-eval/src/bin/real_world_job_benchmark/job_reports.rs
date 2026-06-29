@@ -1,6 +1,12 @@
+mod consolidation_reports;
+
+pub(super) use consolidation_reports::{
+	ConsolidationExecutableGapReport, ConsolidationJobReport, ConsolidationProposalReport,
+};
+
 use crate::{
-	AuthorityRecoveryDrillArtifact, ConsolidationReviewAction, CostReport, Deserialize,
-	OperatorDebugEvidence, Serialize, TraceExplainability, TypedStatus,
+	AuthorityRecoveryDrillArtifact, CostReport, Deserialize, OperatorDebugEvidence, Serialize,
+	TraceExplainability, TypedStatus,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -106,40 +112,6 @@ pub(super) struct RetrievalQualityReport {
 	pub(super) irrelevant_context_count: usize,
 	pub(super) irrelevant_context_ratio: f64,
 	pub(super) trap_context_count: usize,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct ConsolidationJobReport {
-	pub(super) proposal_count: usize,
-	pub(super) proposal_usefulness: Option<f64>,
-	pub(super) lineage_completeness: Option<f64>,
-	pub(super) review_action_correctness: Option<f64>,
-	pub(super) source_mutation_count: usize,
-	pub(super) proposal_unsupported_claim_count: usize,
-	pub(super) executable_gaps: Vec<ConsolidationExecutableGapReport>,
-	pub(super) proposals: Vec<ConsolidationProposalReport>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct ConsolidationProposalReport {
-	pub(super) proposal_id: String,
-	pub(super) proposal_kind: String,
-	pub(super) usefulness_score: f64,
-	pub(super) min_usefulness_score: f64,
-	pub(super) lineage_completeness: f64,
-	pub(super) expected_review_action: ConsolidationReviewAction,
-	pub(super) actual_review_action: ConsolidationReviewAction,
-	pub(super) review_action_correct: bool,
-	pub(super) source_mutation_count: usize,
-	pub(super) unsupported_claim_count: usize,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct ConsolidationExecutableGapReport {
-	pub(super) primitive: String,
-	pub(super) follow_up_issue: String,
-	pub(super) reason: String,
-	pub(super) blocks_fixture_pass: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
