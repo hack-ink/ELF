@@ -1,10 +1,12 @@
+mod publish;
+
 use crate::routes::{
 	self, AddNoteRequest, AddNoteResponse, ApiError, AppState, DeleteRequest, DeleteResponse,
 	ErrorBody, Extension, HeaderMap, Json, JsonRejection, ListRequest, ListResponse,
 	MAX_NOTES_PER_INGEST, NoteFetchRequest, NoteFetchResponse, NotePatchRequest,
-	NotesIngestRequest, NotesListQuery, Path, PublishNoteRequest, PublishResponseV2, Query,
-	QueryRejection, RequestContext, SecurityAuthRole, ShareScope, ShareScopeBody, State,
-	StatusCode, UnpublishNoteRequest, UpdateRequest, UpdateResponse, Uuid,
+	NotesIngestRequest, NotesListQuery, Path, PublishResponseV2, Query, QueryRejection,
+	RequestContext, SecurityAuthRole, ShareScopeBody, State, StatusCode, UpdateRequest,
+	UpdateResponse, Uuid,
 };
 
 #[utoipa::path(
@@ -255,42 +257,9 @@ pub(super) async fn notes_publish(
 	Path(note_id): Path<Uuid>,
 	payload: Result<Json<ShareScopeBody>, JsonRejection>,
 ) -> Result<Json<PublishResponseV2>, ApiError> {
-	let ctx = RequestContext::from_headers(&headers)?;
-	let Json(payload) = payload.map_err(|err| {
-		tracing::warn!(error = %err, "Invalid request payload.");
-
-		routes::json_error(
-			StatusCode::BAD_REQUEST,
-			"INVALID_REQUEST",
-			"Invalid request payload.",
-			None,
-		)
-	})?;
-	let scope = routes::parse_space(payload.space.as_str())?;
 	let role = role.map(|Extension(role)| role);
 
-	if matches!(scope, ShareScope::OrgShared) {
-		routes::require_admin_for_org_shared_writes(
-			state.service.cfg.security.auth_mode.as_str(),
-			role,
-		)?;
-	}
-
-	let response = state
-		.service
-		.publish_note(PublishNoteRequest {
-			tenant_id: ctx.tenant_id,
-			project_id: ctx.project_id,
-			agent_id: ctx.agent_id,
-			note_id,
-			scope,
-		})
-		.await?;
-
-	Ok(Json(PublishResponseV2 {
-		note_id: response.note_id,
-		space: routes::format_scope(response.scope.as_str())?.to_string(),
-	}))
+	publish::notes_publish_inner(state, headers, role, note_id, payload).await
 }
 
 #[utoipa::path(
@@ -315,39 +284,7 @@ pub(super) async fn notes_unpublish(
 	Path(note_id): Path<Uuid>,
 	payload: Result<Json<ShareScopeBody>, JsonRejection>,
 ) -> Result<Json<PublishResponseV2>, ApiError> {
-	let ctx = RequestContext::from_headers(&headers)?;
-	let Json(payload) = payload.map_err(|err| {
-		tracing::warn!(error = %err, "Invalid request payload.");
-
-		routes::json_error(
-			StatusCode::BAD_REQUEST,
-			"INVALID_REQUEST",
-			"Invalid request payload.",
-			None,
-		)
-	})?;
-	let scope = routes::parse_space(payload.space.as_str())?;
 	let role = role.map(|Extension(role)| role);
 
-	if matches!(scope, ShareScope::OrgShared) {
-		routes::require_admin_for_org_shared_writes(
-			state.service.cfg.security.auth_mode.as_str(),
-			role,
-		)?;
-	}
-
-	let response = state
-		.service
-		.unpublish_note(UnpublishNoteRequest {
-			tenant_id: ctx.tenant_id,
-			project_id: ctx.project_id,
-			agent_id: ctx.agent_id,
-			note_id,
-		})
-		.await?;
-
-	Ok(Json(PublishResponseV2 {
-		note_id: response.note_id,
-		space: routes::format_scope(response.scope.as_str())?.to_string(),
-	}))
+	publish::notes_unpublish_inner(state, headers, role, note_id, payload).await
 }
