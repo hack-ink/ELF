@@ -1,10 +1,11 @@
+mod payload;
+
 use std::{
 	cmp::Ordering,
 	collections::{HashMap, HashSet},
 };
 
-use qdrant_client::qdrant::{PointId, ScoredPoint, Value, point_id::PointIdOptions, value::Kind};
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
+use qdrant_client::qdrant::ScoredPoint;
 use uuid::Uuid;
 
 use crate::search::{
@@ -29,8 +30,8 @@ pub fn collect_chunk_candidates(
 		let chunk_id = point
 			.id
 			.as_ref()
-			.and_then(point_id_to_uuid)
-			.or_else(|| payload_uuid(&point.payload, "chunk_id"));
+			.and_then(payload::point_id_to_uuid)
+			.or_else(|| payload::payload_uuid(&point.payload, "chunk_id"));
 		let Some(chunk_id) = chunk_id else {
 			tracing::warn!("Chunk candidate missing chunk_id.");
 
@@ -41,19 +42,19 @@ pub fn collect_chunk_candidates(
 			continue;
 		}
 
-		let Some(note_id) = payload_uuid(&point.payload, "note_id") else {
+		let Some(note_id) = payload::payload_uuid(&point.payload, "note_id") else {
 			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing note_id.");
 
 			continue;
 		};
-		let Some(chunk_index) = payload_i32(&point.payload, "chunk_index") else {
+		let Some(chunk_index) = payload::payload_i32(&point.payload, "chunk_index") else {
 			tracing::warn!(chunk_id = %chunk_id, "Chunk candidate missing chunk_index.");
 
 			continue;
 		};
-		let updated_at = payload_rfc3339(&point.payload, "updated_at");
-		let embedding_version = payload_string(&point.payload, "embedding_version");
-		let scope = payload_string(&point.payload, "scope");
+		let updated_at = payload::payload_rfc3339(&point.payload, "updated_at");
+		let embedding_version = payload::payload_string(&point.payload, "embedding_version");
+		let scope = payload::payload_string(&point.payload, "scope");
 
 		out.push(ChunkCandidate {
 			chunk_id,
@@ -306,50 +307,5 @@ pub fn cmp_f32_desc(a: f32, b: f32) -> Ordering {
 		(true, false) => Ordering::Greater,
 		(false, true) => Ordering::Less,
 		(false, false) => b.partial_cmp(&a).unwrap_or(Ordering::Equal),
-	}
-}
-pub fn point_id_to_uuid(point_id: &PointId) -> Option<Uuid> {
-	match &point_id.point_id_options {
-		Some(PointIdOptions::Uuid(id)) => Uuid::parse_str(id).ok(),
-		_ => None,
-	}
-}
-
-pub fn payload_uuid(payload: &HashMap<String, Value>, key: &str) -> Option<Uuid> {
-	let value = payload.get(key)?;
-
-	match &value.kind {
-		Some(Kind::StringValue(text)) => Uuid::parse_str(text).ok(),
-		_ => None,
-	}
-}
-
-pub fn payload_string(payload: &HashMap<String, Value>, key: &str) -> Option<String> {
-	let value = payload.get(key)?;
-
-	match &value.kind {
-		Some(Kind::StringValue(text)) => Some(text.to_string()),
-		_ => None,
-	}
-}
-
-pub fn payload_rfc3339(payload: &HashMap<String, Value>, key: &str) -> Option<OffsetDateTime> {
-	let text = payload_string(payload, key)?;
-
-	OffsetDateTime::parse(text.as_str(), &Rfc3339).ok()
-}
-
-pub fn payload_i32(payload: &HashMap<String, Value>, key: &str) -> Option<i32> {
-	let value = payload.get(key)?;
-
-	match &value.kind {
-		Some(Kind::IntegerValue(value)) => i32::try_from(*value).ok(),
-		Some(Kind::DoubleValue(value)) =>
-			if value.fract() == 0.0 {
-				i32::try_from(*value as i64).ok()
-			} else {
-				None
-			},
-		_ => None,
 	}
 }
