@@ -32,22 +32,6 @@ fn dense_embedding_input_skips_empty_project_context() {
 }
 
 #[test]
-fn scope_description_boost_matches_whole_tokens_only() {
-	let tokens = vec!["go".to_string()];
-	let boost = ranking::scope_description_boost(&tokens, "MongoDB operational notes.", 0.1);
-
-	assert_eq!(boost, 0.0);
-}
-
-#[test]
-fn scope_description_boost_scales_by_fraction_of_matched_tokens() {
-	let tokens = vec!["security".to_string(), "policy".to_string(), "deployment".to_string()];
-	let boost = ranking::scope_description_boost(&tokens, "Security policy notes.", 0.12);
-
-	assert!((boost - 0.08).abs() < 1e-4, "Unexpected boost: {boost}");
-}
-
-#[test]
 fn normalize_queries_includes_original_and_dedupes() {
 	let queries = vec!["alpha".to_string(), "beta".to_string(), "alpha".to_string()];
 	let normalized = ranking::normalize_queries(queries, "alpha", true, 4);

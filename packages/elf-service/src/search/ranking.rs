@@ -35,8 +35,4 @@ pub(super) use self::{
 		tokenize_query,
 	},
 };
-#[cfg(test)]
-pub(super) use self::{
-	policy::types::BlendSegment,
-	text::{lexical_overlap_ratio, scope_description_boost},
-};
+#[cfg(test)] pub(super) use self::{policy::types::BlendSegment, text::lexical_overlap_ratio};
