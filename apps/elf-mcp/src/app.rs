@@ -1,4 +1,4 @@
-#[path = "server.rs"] mod server;
+mod server;
 
 use std::{net::SocketAddr, path::PathBuf};
 

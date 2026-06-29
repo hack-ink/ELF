@@ -1,32 +1,28 @@
-#[path = "server/runtime.rs"] mod runtime;
-#[path = "server/schemas.rs"] mod schemas;
-#[path = "server/state.rs"] mod state;
-#[path = "server/support.rs"] mod support;
+mod runtime;
+mod schemas;
+mod state;
+mod support;
+mod tools;
 
 pub use runtime::serve_mcp;
 
 use color_eyre::Result;
 use rmcp::{
 	ErrorData,
+	handler::server::router::tool::ToolRouter,
 	model::{CallToolResult, JsonObject},
 };
 
 use schemas::{
-	admin_ingestion_profile_default_get_schema, admin_ingestion_profile_default_set_schema,
-	admin_ingestion_profile_get_schema, admin_ingestion_profile_versions_list_schema,
-	admin_ingestion_profiles_create_schema, admin_ingestion_profiles_list_schema,
-	admin_memory_history_get_schema, admin_note_provenance_get_schema,
-	admin_trace_bundle_get_schema, admin_trace_get_schema, admin_trace_item_get_schema,
-	admin_traces_recent_list_schema, admin_trajectory_get_schema, core_blocks_get_schema,
-	docs_excerpts_get_schema, docs_get_schema, docs_put_schema, docs_search_l0_schema,
-	dreaming_review_queue_schema, entity_memory_get_schema, events_ingest_schema,
-	graph_query_schema, graph_report_schema, notes_get_schema, notes_ingest_schema,
-	notes_list_schema, notes_patch_schema, notes_publish_schema, notes_unpublish_schema,
-	recall_debug_panel_schema, searches_create_schema, searches_get_schema, searches_notes_schema,
-	searches_timeline_schema, space_grant_revoke_schema, space_grant_upsert_schema,
-	space_grants_list_schema, work_journal_entry_create_schema, work_journal_entry_get_schema,
-	work_journal_session_readback_schema,
+	core_blocks_get_schema, dreaming_review_queue_schema, entity_memory_get_schema,
+	events_ingest_schema, graph_query_schema, graph_report_schema, notes_get_schema,
+	notes_ingest_schema, notes_list_schema, notes_patch_schema, notes_publish_schema,
+	notes_unpublish_schema, recall_debug_panel_schema, searches_create_schema, searches_get_schema,
+	searches_notes_schema, searches_timeline_schema, space_grant_revoke_schema,
+	space_grant_upsert_schema, space_grants_list_schema, work_journal_entry_create_schema,
+	work_journal_entry_get_schema, work_journal_session_readback_schema,
 };
+#[cfg(test)] use schemas::{docs_excerpts_get_schema, docs_put_schema, docs_search_l0_schema};
 use state::{ElfContextHeaders, ElfMcp, HttpMethod};
 #[cfg(test)] use support::is_authorized;
 use support::{
@@ -40,7 +36,7 @@ const HEADER_READ_PROFILE: &str = "X-ELF-Read-Profile";
 const HEADER_REQUEST_ID: &str = "X-ELF-Request-Id";
 const HEADER_AUTHORIZATION: &str = "Authorization";
 
-#[rmcp::tool_router]
+#[rmcp::tool_router(router = core_tool_router, vis = "pub(in crate::app::server)")]
 impl ElfMcp {
 	#[rmcp::tool(
 		name = "elf_notes_ingest",
@@ -76,63 +72,6 @@ impl ElfMcp {
 	)]
 	async fn elf_events_ingest(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
 		self.forward(HttpMethod::Post, "/v2/events/ingest", params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_docs_put",
-		description = "Store a document (evidence source) in ELF Doc Extension v1.",
-		input_schema = docs_put_schema()
-	)]
-	async fn elf_docs_put(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		self.forward(HttpMethod::Post, "/v2/docs", params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_docs_get",
-		description = "Fetch a single document's metadata by doc_id.",
-		input_schema = docs_get_schema()
-	)]
-	async fn elf_docs_get(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let doc_id = support::take_required_string(&mut params, "doc_id")?;
-		let path = format!("/v2/docs/{doc_id}");
-
-		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_docs_delete",
-		description = "Delete a Source Library document by doc_id and enqueue derived doc-vector removal.",
-		input_schema = docs_get_schema()
-	)]
-	async fn elf_docs_delete(&self, mut params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		let doc_id = support::take_required_string(&mut params, "doc_id")?;
-		let path = format!("/v2/docs/{doc_id}");
-
-		self.forward(HttpMethod::Delete, &path, JsonObject::new(), None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_docs_search_l0",
-		description = "Run a minimal Doc search (L0): chunk-level results with short snippets.",
-		input_schema = docs_search_l0_schema()
-	)]
-	async fn elf_docs_search_l0(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		// read_profile is part of the MCP server configuration and is not client-controlled.
-		let _ = support::take_optional_string(&mut params, "read_profile")?;
-
-		self.forward(HttpMethod::Post, "/v2/docs/search/l0", params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_docs_excerpts_get",
-		description = "Hydrate a verifiable excerpt (L1 or L2) from a stored document.",
-		input_schema = docs_excerpts_get_schema()
-	)]
-	async fn elf_docs_excerpts_get(&self, params: JsonObject) -> Result<CallToolResult, ErrorData> {
-		self.forward(HttpMethod::Post, "/v2/docs/excerpts", params, None).await
 	}
 
 	#[rmcp::tool(
@@ -406,201 +345,12 @@ impl ElfMcp {
 
 		self.forward(HttpMethod::Post, &path, params, None).await
 	}
+}
 
-	#[rmcp::tool(
-		name = "elf_admin_traces_recent_list",
-		description = "List recent traces by tenant/project with optional cursor and filters.",
-		input_schema = admin_traces_recent_list_schema()
-	)]
-	async fn elf_admin_traces_recent_list(
-		&self,
-		params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		self.forward(HttpMethod::Get, "/v2/admin/traces/recent", params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_trace_get",
-		description = "Fetch trace metadata, items, and optional trajectory summary by trace_id.",
-		input_schema = admin_trace_get_schema()
-	)]
-	async fn elf_admin_trace_get(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let trace_id = support::take_required_string(&mut params, "trace_id")?;
-		let path = format!("/v2/admin/traces/{trace_id}");
-
-		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_trajectory_get",
-		description = "Fetch trace trajectory and stage payload by trace_id.",
-		input_schema = admin_trajectory_get_schema()
-	)]
-	async fn elf_admin_trajectory_get(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let trace_id = support::take_required_string(&mut params, "trace_id")?;
-		let path = format!("/v2/admin/trajectories/{trace_id}");
-
-		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_trace_item_get",
-		description = "Fetch a trace item explain payload by item_id.",
-		input_schema = admin_trace_item_get_schema()
-	)]
-	async fn elf_admin_trace_item_get(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let item_id = support::take_required_string(&mut params, "item_id")?;
-		let path = format!("/v2/admin/trace-items/{item_id}");
-
-		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_note_provenance_get",
-		description = "Fetch provenance bundle and related history for one note.",
-		input_schema = admin_note_provenance_get_schema()
-	)]
-	async fn elf_admin_note_provenance_get(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let note_id = support::take_required_string(&mut params, "note_id")?;
-		let path = format!("/v2/admin/notes/{note_id}/provenance");
-
-		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_memory_history_get",
-		description = "Fetch chronological memory history for one note.",
-		input_schema = admin_memory_history_get_schema()
-	)]
-	async fn elf_admin_memory_history_get(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let note_id = support::take_required_string(&mut params, "note_id")?;
-		let path = format!("/v2/admin/notes/{note_id}/history");
-
-		self.forward(HttpMethod::Get, &path, JsonObject::new(), None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_trace_bundle_get",
-		description = "Fetch trace bundle for replay and diagnostics by trace_id.",
-		input_schema = admin_trace_bundle_get_schema()
-	)]
-	async fn elf_admin_trace_bundle_get(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let trace_id = support::take_required_string(&mut params, "trace_id")?;
-		let path = format!("/v2/admin/traces/{trace_id}/bundle");
-
-		self.forward(HttpMethod::Get, &path, params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_events_ingestion_profiles_list",
-		description = "List latest ingestion profiles for add_event.",
-		input_schema = admin_ingestion_profiles_list_schema()
-	)]
-	async fn elf_admin_events_ingestion_profiles_list(
-		&self,
-		_params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		self.forward(
-			HttpMethod::Get,
-			"/v2/admin/events/ingestion-profiles",
-			JsonObject::new(),
-			None,
-		)
-		.await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_events_ingestion_profiles_create",
-		description = "Create a new ingestion profile version for add_event.",
-		input_schema = admin_ingestion_profiles_create_schema()
-	)]
-	async fn elf_admin_events_ingestion_profiles_create(
-		&self,
-		params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		self.forward(HttpMethod::Post, "/v2/admin/events/ingestion-profiles", params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_events_ingestion_profile_get",
-		description = "Get a single ingestion profile by id/version for add_event.",
-		input_schema = admin_ingestion_profile_get_schema()
-	)]
-	async fn elf_admin_events_ingestion_profile_get(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let profile_id = support::take_required_string(&mut params, "profile_id")?;
-		let path = format!("/v2/admin/events/ingestion-profiles/{profile_id}");
-
-		self.forward(HttpMethod::Get, &path, params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_events_ingestion_profile_versions_list",
-		description = "List all versions of one ingestion profile for add_event.",
-		input_schema = admin_ingestion_profile_versions_list_schema()
-	)]
-	async fn elf_admin_events_ingestion_profile_versions_list(
-		&self,
-		mut params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		let profile_id = support::take_required_string(&mut params, "profile_id")?;
-		let path = format!("/v2/admin/events/ingestion-profiles/{profile_id}/versions");
-
-		self.forward(HttpMethod::Get, &path, params, None).await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_events_ingestion_profile_default_get",
-		description = "Get the active default ingestion profile for add_event.",
-		input_schema = admin_ingestion_profile_default_get_schema()
-	)]
-	async fn elf_admin_events_ingestion_profile_default_get(
-		&self,
-		_params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		self.forward(
-			HttpMethod::Get,
-			"/v2/admin/events/ingestion-profiles/default",
-			JsonObject::new(),
-			None,
-		)
-		.await
-	}
-
-	#[rmcp::tool(
-		name = "elf_admin_events_ingestion_profile_default_set",
-		description = "Set the default ingestion profile for add_event.",
-		input_schema = admin_ingestion_profile_default_set_schema()
-	)]
-	async fn elf_admin_events_ingestion_profile_default_set(
-		&self,
-		params: JsonObject,
-	) -> Result<CallToolResult, ErrorData> {
-		self.forward(HttpMethod::Put, "/v2/admin/events/ingestion-profiles/default", params, None)
-			.await
+impl ElfMcp {
+	pub(in crate::app::server) fn tool_router() -> ToolRouter<Self> {
+		Self::core_tool_router() + Self::docs_tool_router() + Self::admin_tool_router()
 	}
 }
 
-#[cfg(test)]
-#[path = "server/tests.rs"]
-mod tests;
+#[cfg(test)] mod tests;

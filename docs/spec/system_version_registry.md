@@ -120,7 +120,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Type: Filter parameters and required Qdrant payload/index requirements for
   `docs_search_l0` (HTTP/MCP).
 - Defined in: `docs/spec/system_doc_extension_v1_filters.md`.
-- Consumers: `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`, `packages/elf-service/src/docs.rs`.
+- Consumers: `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/app/server/tools/docs.rs`, `packages/elf-service/src/docs.rs`.
 - Bump rule: Introduce `docs_search_filters/v2` only if accepted filter keys,
   value constraints, evaluation semantics, or required Qdrant filter/index fields
   become incompatible.
@@ -247,7 +247,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 
 - Identifier: `search_filter_expr/v1`.
 - Type: JSON envelope schema for structured search filters (`filter` request payload on search endpoints).
-- Defined in: `docs/spec/system_search_filter_expr_v1.md`, `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/server.rs`, `packages/elf-service/src/search.rs` (`SearchFilter`).
+- Defined in: `docs/spec/system_search_filter_expr_v1.md`, `apps/elf-api/src/routes.rs`, `apps/elf-mcp/src/app/server.rs`, `packages/elf-service/src/search.rs` (`SearchFilter`).
 - Consumers: Search creation endpoints (`/v2/searches`, `/v2/admin/searches/raw`) and admin/observability surfaces.
 - Bump rule: Introduce `search_filter_expr/v2` only if filter field allowlist, operators, parsing limits, value typing, or parse error model become incompatible.
 
