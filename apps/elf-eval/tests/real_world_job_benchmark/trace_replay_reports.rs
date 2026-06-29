@@ -48,7 +48,7 @@ fn graph_topic_map_report_wires_source_backed_graph_lite_readback() -> Result<()
 	let api_routes =
 		fs::read_to_string(support::workspace_root()?.join("apps/elf-api/src/routes.rs"))?;
 	let mcp_server =
-		fs::read_to_string(support::workspace_root()?.join("apps/elf-mcp/src/server.rs"))?;
+		fs::read_to_string(support::workspace_root()?.join("apps/elf-mcp/src/app/server.rs"))?;
 	let graph_spec = fs::read_to_string(
 		support::workspace_root()?.join("docs/spec/system_graph_memory_postgres_v1.md"),
 	)?;

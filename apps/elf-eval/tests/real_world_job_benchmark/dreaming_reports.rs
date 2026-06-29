@@ -664,7 +664,7 @@ fn dreaming_review_queue_report_wires_reviewable_policy_contract() -> color_eyre
 	)?;
 	let service_lib = fs::read_to_string(workspace.join("packages/elf-service/src/lib.rs"))?;
 	let routes = read_rust_module_sources(&workspace.join("apps/elf-api/src"), "routes")?;
-	let mcp = fs::read_to_string(workspace.join("apps/elf-mcp/src/server.rs"))?;
+	let mcp = fs::read_to_string(workspace.join("apps/elf-mcp/src/app/server.rs"))?;
 	let consolidation_spec =
 		fs::read_to_string(workspace.join("docs/spec/system_consolidation_proposals_v1.md"))?;
 	let service_spec =

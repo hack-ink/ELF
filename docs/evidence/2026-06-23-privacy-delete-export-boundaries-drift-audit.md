@@ -16,7 +16,7 @@ source_refs:
   - docs/runbook/privacy_delete_export.md
 code_refs:
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server/tools/docs.rs
   - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs
   - packages/elf-service/src/graph_report.rs
@@ -39,7 +39,7 @@ drift_watch:
   - docs/spec/system_graph_memory_postgres_v1.md
   - docs/spec/system_knowledge_pages_v1.md
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server/tools/docs.rs
   - packages/elf-service/src/docs.rs
   - packages/elf-service/src/graph_query.rs
   - packages/elf-service/src/graph_report.rs
@@ -79,7 +79,7 @@ Library, Knowledge Workspace, graph memory, and core service specs.
 
 - `apps/elf-api/src/routes.rs` exposes `DELETE /v2/docs/{doc_id}` through the public
   docs router and OpenAPI path list.
-- `apps/elf-mcp/src/server.rs` exposes `elf_docs_delete` as a thin MCP forwarding
+- `apps/elf-mcp/src/app/server/tools/docs.rs` exposes `elf_docs_delete` as a thin MCP forwarding
   tool with no policy logic.
 - `packages/elf-service/src/docs.rs` marks owned Source Library documents deleted and
   enqueues one doc-index `DELETE` outbox job per persisted chunk.

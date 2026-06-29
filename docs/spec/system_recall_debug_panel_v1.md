@@ -16,7 +16,7 @@ source_refs: []
 code_refs:
   - packages/elf-service/src/recall_debug.rs
   - apps/elf-api/src/routes.rs
-  - apps/elf-mcp/src/server.rs
+  - apps/elf-mcp/src/app/server.rs
 related:
   - docs/spec/system_elf_memory_service_v2.md
   - docs/spec/system_doc_extension_v1_trajectory.md
