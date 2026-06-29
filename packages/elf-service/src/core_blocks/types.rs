@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::FromRow;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -228,115 +225,6 @@ pub struct CoreBlockDetachResponse {
 	pub attachment_id: Uuid,
 	/// Whether an active attachment was detached.
 	pub detached: bool,
-}
-
-#[derive(Clone, Debug, FromRow)]
-pub(super) struct CoreBlockRow {
-	pub(super) block_id: Uuid,
-	pub(super) tenant_id: String,
-	pub(super) project_id: String,
-	pub(super) agent_id: String,
-	pub(super) scope: String,
-	pub(super) key: String,
-	pub(super) title: String,
-	pub(super) content: String,
-	pub(super) source_ref: Value,
-	pub(super) status: String,
-	pub(super) created_at: OffsetDateTime,
-	pub(super) updated_at: OffsetDateTime,
-}
-impl CoreBlockRow {
-	pub(super) fn into_record(self) -> CoreBlockRecord {
-		CoreBlockRecord {
-			block_id: self.block_id,
-			tenant_id: self.tenant_id,
-			project_id: self.project_id,
-			agent_id: self.agent_id,
-			scope: self.scope,
-			key: self.key,
-			title: self.title,
-			content: self.content,
-			source_ref: self.source_ref,
-			status: self.status,
-			created_at: self.created_at,
-			updated_at: self.updated_at,
-		}
-	}
-}
-
-#[derive(Clone, Debug, FromRow)]
-pub(super) struct CoreBlockAttachmentRow {
-	pub(super) attachment_id: Uuid,
-	pub(super) block_id: Uuid,
-	pub(super) tenant_id: String,
-	pub(super) project_id: String,
-	pub(super) agent_id: String,
-	pub(super) read_profile: String,
-	pub(super) attached_by_agent_id: String,
-	pub(super) attached_at: OffsetDateTime,
-	pub(super) detached_by_agent_id: Option<String>,
-	pub(super) detached_at: Option<OffsetDateTime>,
-}
-
-#[derive(Clone, Debug, FromRow)]
-pub(super) struct CoreBlockJoinedRow {
-	pub(super) attachment_id: Uuid,
-	pub(super) attachment_agent_id: String,
-	pub(super) attached_by_agent_id: String,
-	pub(super) attached_at: OffsetDateTime,
-	pub(super) block_id: Uuid,
-	pub(super) tenant_id: String,
-	pub(super) project_id: String,
-	pub(super) agent_id: String,
-	pub(super) scope: String,
-	pub(super) key: String,
-	pub(super) title: String,
-	pub(super) content: String,
-	pub(super) source_ref: Value,
-	pub(super) status: String,
-	pub(super) created_at: OffsetDateTime,
-	pub(super) updated_at: OffsetDateTime,
-}
-impl CoreBlockJoinedRow {
-	pub(super) fn into_item(
-		self,
-		audit_by_block: &HashMap<Uuid, Vec<CoreBlockAuditEvent>>,
-	) -> CoreBlockItem {
-		let audit_history = audit_by_block.get(&self.block_id).cloned().unwrap_or_else(Vec::new);
-
-		CoreBlockItem {
-			block_id: self.block_id,
-			attachment_id: self.attachment_id,
-			tenant_id: self.tenant_id,
-			project_id: self.project_id,
-			agent_id: self.agent_id,
-			scope: self.scope,
-			key: self.key,
-			title: self.title,
-			content: self.content,
-			source_ref: self.source_ref,
-			status: self.status,
-			updated_at: self.updated_at,
-			attached_at: self.attached_at,
-			attached_by_agent_id: self.attached_by_agent_id,
-			audit_history,
-		}
-	}
-}
-
-#[derive(Clone, Debug, FromRow)]
-pub(super) struct CoreBlockEventRow {
-	pub(super) event_id: Uuid,
-	pub(super) block_id: Uuid,
-	pub(super) attachment_id: Option<Uuid>,
-	pub(super) actor_agent_id: String,
-	pub(super) event_type: String,
-	pub(super) target_agent_id: Option<String>,
-	pub(super) read_profile: Option<String>,
-	pub(super) prev_snapshot: Option<Value>,
-	pub(super) new_snapshot: Option<Value>,
-	pub(super) reason: String,
-	pub(super) ts: OffsetDateTime,
 }
 
 pub(super) struct PreparedGetRequest {

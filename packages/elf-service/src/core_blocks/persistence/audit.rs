@@ -5,7 +5,10 @@ use uuid::Uuid;
 
 use crate::{
 	Result,
-	core_blocks::types::{CoreBlockAuditEvent, CoreBlockEventInput, CoreBlockEventRow},
+	core_blocks::{
+		rows::CoreBlockEventRow,
+		types::{CoreBlockAuditEvent, CoreBlockEventInput},
+	},
 };
 
 pub(in crate::core_blocks) async fn fetch_audit_history<'e, E>(

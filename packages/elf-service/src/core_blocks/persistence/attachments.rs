@@ -5,8 +5,9 @@ use uuid::Uuid;
 use crate::{
 	Error, Result,
 	access::ORG_PROJECT_ID,
-	core_blocks::types::{
-		CoreBlockAttachmentRow, CoreBlockRow, PreparedAttachRequest, PreparedDetachRequest,
+	core_blocks::{
+		rows::{CoreBlockAttachmentRow, CoreBlockRow},
+		types::{PreparedAttachRequest, PreparedDetachRequest},
 	},
 };
 
