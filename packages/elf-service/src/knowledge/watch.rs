@@ -2,6 +2,7 @@ mod candidates;
 mod inputs;
 mod outcomes;
 mod outputs;
+mod states;
 mod summary;
 
 pub(super) use self::{
@@ -14,10 +15,8 @@ pub(super) use self::{
 		rebuild_request_from_page,
 	},
 	outcomes::{blocked_watch_rebuild, successful_watch_rebuild},
-	outputs::{
-		blocked_outputs, blocked_section_states, candidate_reasons_by_section, rebuild_outputs,
-		successful_rebuild_state, successful_section_states,
-	},
+	outputs::{blocked_outputs, candidate_reasons_by_section, rebuild_outputs},
+	states::{blocked_section_states, successful_rebuild_state, successful_section_states},
 	summary::{page_operator_summary, watch_operator_summary, watch_rebuild_summary},
 };
 
