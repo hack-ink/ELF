@@ -1,15 +1,18 @@
+mod session;
+
+pub(super) use session::{
+	HitItem, NewSearchSession, SESSION_ABSOLUTE_TTL_HOURS, SESSION_SLIDING_TTL_HOURS,
+	SearchSession, SearchSessionItemRecord, SearchSessionRow, SearchSessionizePath,
+	SearchSessionizedOutput,
+};
+
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use sqlx::FromRow;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{NoteFetchResponse, PayloadLevel, QueryPlan, SearchTrajectorySummary};
-
-pub(super) const SESSION_SLIDING_TTL_HOURS: i64 = 6;
-pub(super) const SESSION_ABSOLUTE_TTL_HOURS: i64 = 24;
 
 /// Lightweight session-storable search hit used by progressive-search APIs.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -241,105 +244,4 @@ pub struct SearchDetailsResponse {
 	pub expires_at: OffsetDateTime,
 	/// Per-note results.
 	pub results: Vec<SearchDetailsResult>,
-}
-
-pub(super) struct HitItem {
-	pub(super) note_id: Uuid,
-	pub(super) chunk_id: Uuid,
-	pub(super) rank: u32,
-	pub(super) final_score: f32,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum SearchSessionizePath {
-	Quick,
-	Planned,
-}
-
-pub(super) struct SearchSessionizedOutput {
-	pub(super) index: SearchIndexResponse,
-	pub(super) query_plan: Option<QueryPlan>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub(super) struct SearchSessionItemRecord {
-	pub(super) rank: u32,
-	pub(super) note_id: Uuid,
-	pub(super) chunk_id: Uuid,
-	pub(super) final_score: f32,
-	#[serde(with = "crate::time_serde")]
-	pub(super) updated_at: OffsetDateTime,
-	#[serde(with = "crate::time_serde::option")]
-	pub(super) expires_at: Option<OffsetDateTime>,
-	pub(super) r#type: String,
-	pub(super) key: Option<String>,
-	pub(super) scope: String,
-	pub(super) importance: f32,
-	pub(super) confidence: f32,
-	pub(super) summary: String,
-}
-impl SearchSessionItemRecord {
-	pub(super) fn to_index_item(&self) -> SearchIndexItem {
-		SearchIndexItem {
-			note_id: self.note_id,
-			r#type: self.r#type.clone(),
-			key: self.key.clone(),
-			scope: self.scope.clone(),
-			importance: self.importance,
-			confidence: self.confidence,
-			updated_at: self.updated_at,
-			expires_at: self.expires_at,
-			final_score: self.final_score,
-			summary: self.summary.clone(),
-		}
-	}
-}
-
-pub(super) struct SearchSession {
-	pub(super) search_session_id: Uuid,
-	pub(super) trace_id: Uuid,
-	pub(super) tenant_id: String,
-	pub(super) project_id: String,
-	pub(super) agent_id: String,
-	pub(super) read_profile: String,
-	pub(super) query: String,
-	pub(super) mode: SearchSessionMode,
-	pub(super) trajectory_summary: Option<SearchTrajectorySummary>,
-	pub(super) query_plan: Option<QueryPlan>,
-	pub(super) items: Vec<SearchSessionItemRecord>,
-	pub(super) created_at: OffsetDateTime,
-	pub(super) expires_at: OffsetDateTime,
-}
-
-#[derive(FromRow)]
-pub(super) struct SearchSessionRow {
-	pub(super) search_session_id: Uuid,
-	pub(super) trace_id: Uuid,
-	pub(super) tenant_id: String,
-	pub(super) project_id: String,
-	pub(super) agent_id: String,
-	pub(super) read_profile: String,
-	pub(super) query: String,
-	pub(super) mode: String,
-	pub(super) trajectory_summary: Option<Value>,
-	pub(super) query_plan: Option<Value>,
-	pub(super) items: Value,
-	pub(super) created_at: OffsetDateTime,
-	pub(super) expires_at: OffsetDateTime,
-}
-
-pub(super) struct NewSearchSession<'a> {
-	pub(super) search_session_id: Uuid,
-	pub(super) trace_id: Uuid,
-	pub(super) tenant_id: &'a str,
-	pub(super) project_id: &'a str,
-	pub(super) agent_id: &'a str,
-	pub(super) read_profile: &'a str,
-	pub(super) query: &'a str,
-	pub(super) mode: SearchSessionMode,
-	pub(super) trajectory_summary: Option<&'a SearchTrajectorySummary>,
-	pub(super) query_plan: Option<&'a QueryPlan>,
-	pub(super) items: &'a [SearchSessionItemRecord],
-	pub(super) created_at: OffsetDateTime,
-	pub(super) expires_at: OffsetDateTime,
 }
