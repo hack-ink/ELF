@@ -1,7 +1,7 @@
 use crate::{
 	ElfService, Error, Result, SearchRequest,
 	progressive_search::types::{
-		SearchIndexPlannedResponse, SearchIndexResponse, SearchSessionizePath,
+		SearchIndexPlannedResponse, SearchIndexResponse, session::SearchSessionizePath,
 	},
 };
 
