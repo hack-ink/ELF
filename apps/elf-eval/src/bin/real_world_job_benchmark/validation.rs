@@ -1,16 +1,16 @@
-#[path = "validation/adapter.rs"] mod adapter;
-#[path = "validation/basics.rs"] mod basics;
-#[path = "validation/common.rs"] mod common;
-#[path = "validation/consolidation.rs"] mod consolidation;
-#[path = "validation/expectations.rs"] mod expectations;
-#[path = "validation/job_rules.rs"] mod job_rules;
-#[path = "validation/memory_summary.rs"] mod memory_summary;
-#[path = "validation/page.rs"] mod page;
-#[path = "validation/proactive.rs"] mod proactive;
-#[path = "validation/recovery_artifact.rs"] mod recovery_artifact;
-#[path = "validation/scheduled.rs"] mod scheduled;
-#[path = "validation/trace.rs"] mod trace;
-#[path = "validation/work_journal.rs"] mod work_journal;
+mod adapter;
+mod basics;
+mod common;
+mod consolidation;
+mod expectations;
+mod job_rules;
+mod memory_summary;
+mod page;
+mod proactive;
+mod recovery_artifact;
+mod scheduled;
+mod trace;
+mod work_journal;
 
 use self::{
 	common::{
