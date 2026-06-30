@@ -6,7 +6,7 @@ use serde_json::Value;
 use tower::util::ServiceExt as _;
 use uuid::Uuid;
 
-use crate::{TEST_AGENT_A, TEST_PROJECT_ID, TEST_TENANT_ID};
+use crate::helpers::{self, TEST_AGENT_A, TEST_PROJECT_ID, TEST_TENANT_ID};
 use elf_api::{routes, state::AppState};
 
 fn payload_level_source_ref() -> Value {
@@ -26,10 +26,10 @@ fn payload_level_source_ref() -> Value {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn health_ok() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else {
 		return;
 	};
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let _ = routes::admin_router(state);
@@ -51,10 +51,10 @@ async fn health_ok() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_non_english_in_add_note() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else {
 		return;
 	};
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
@@ -100,10 +100,10 @@ async fn rejects_non_english_in_add_note() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_cyrillic_in_add_note() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else {
 		return;
 	};
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
@@ -149,8 +149,8 @@ async fn rejects_cyrillic_in_add_note() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_non_english_in_add_event() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else { return };
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else { return };
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
@@ -192,8 +192,8 @@ async fn rejects_non_english_in_add_event() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_cyrillic_in_add_event() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else { return };
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else { return };
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 	let payload = serde_json::json!({
@@ -235,10 +235,10 @@ async fn rejects_cyrillic_in_add_event() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_non_english_in_search() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else {
 		return;
 	};
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 
@@ -283,10 +283,10 @@ async fn rejects_non_english_in_search() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn rejects_cyrillic_in_search() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else {
 		return;
 	};
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state);
 
@@ -331,10 +331,10 @@ async fn rejects_cyrillic_in_search() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else {
 		return;
 	};
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let source_ref = payload_level_source_ref();
@@ -342,10 +342,10 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 	let note_text =
 		"Payload shaping note used in contract tests for search details output shaping.";
 	let note_id =
-		crate::create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone())
+		helpers::create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone())
 			.await;
 
-	crate::insert_note_summary_field(&state, note_id, structured_summary).await;
+	helpers::insert_note_summary_field(&state, note_id, structured_summary).await;
 
 	let search_response = app
 		.clone()
@@ -391,11 +391,11 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 	)
 	.expect("Invalid search_id value.");
 	let notes_l0 =
-		crate::fetch_search_notes_for_payload_level(&app, search_id, note_id, "l0").await;
+		helpers::fetch_search_notes_for_payload_level(&app, search_id, note_id, "l0").await;
 	let notes_l1 =
-		crate::fetch_search_notes_for_payload_level(&app, search_id, note_id, "l1").await;
+		helpers::fetch_search_notes_for_payload_level(&app, search_id, note_id, "l1").await;
 	let notes_l2 =
-		crate::fetch_search_notes_for_payload_level(&app, search_id, note_id, "l2").await;
+		helpers::fetch_search_notes_for_payload_level(&app, search_id, note_id, "l2").await;
 	let search_get_response = app
 		.clone()
 		.oneshot(
@@ -447,10 +447,10 @@ async fn searches_notes_payload_level_shapes_source_ref_and_structured() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_GRPC_URL (or ELF_QDRANT_URL) to run."]
 async fn admin_searches_raw_payload_level_shapes_source_ref() {
-	let Some((test_db, qdrant_url, collection)) = crate::test_env().await else {
+	let Some((test_db, qdrant_url, collection)) = helpers::test_env().await else {
 		return;
 	};
-	let config = crate::test_config(test_db.dsn().to_string(), qdrant_url, collection);
+	let config = helpers::test_config(test_db.dsn().to_string(), qdrant_url, collection);
 	let state = AppState::new(config).await.expect("Failed to initialize app state.");
 	let app = routes::router(state.clone());
 	let admin_app = routes::admin_router(state.clone());
@@ -468,14 +468,14 @@ async fn admin_searches_raw_payload_level_shapes_source_ref() {
 	let note_text =
 		"Admin raw search payload shaping contract note. This long note should be indexed.";
 	let _note_id =
-		crate::create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone())
+		helpers::create_note_for_payload_level_tests(&app, &state, note_text, source_ref.clone())
 			.await;
 	let raw_l0 =
-		crate::fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l0").await;
+		helpers::fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l0").await;
 	let raw_l1 =
-		crate::fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l1").await;
+		helpers::fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l1").await;
 	let raw_l2 =
-		crate::fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l2").await;
+		helpers::fetch_admin_search_raw_source_ref(&admin_app, "payload shaping", "l2").await;
 
 	assert_eq!(raw_l0, serde_json::json!({}));
 	assert_eq!(raw_l1, serde_json::json!({}));
