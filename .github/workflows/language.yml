@@ -35,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fetch latest code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Set up Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659
         with:
           cache: true
           rustflags: ''
@@ -48,7 +48,7 @@ jobs:
         run: rustup toolchain install nightly --component rustfmt
 
       - name: Install cargo-make
-        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5
         with:
           tool: cargo-make
 
@@ -68,12 +68,12 @@ jobs:
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Install nextest
-        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5
         with:
           tool: nextest
 
       - name: Install taplo
-        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5
         with:
           tool: taplo
 
