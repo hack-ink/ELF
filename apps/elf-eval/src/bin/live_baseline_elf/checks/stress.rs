@@ -5,7 +5,7 @@ use crate::checks::{
 	eyre, time,
 };
 
-pub(super) async fn run_concurrent_write_check_impl(
+pub(crate) async fn run_concurrent_write_check_impl(
 	runtime: &BaselineRuntime,
 	service: Arc<ElfService>,
 ) -> Result<CheckResult> {
@@ -71,7 +71,7 @@ pub(super) async fn run_concurrent_write_check_impl(
 	})
 }
 
-pub(super) async fn run_soak_stability_check_impl(
+pub(crate) async fn run_soak_stability_check_impl(
 	runtime: &BaselineRuntime,
 	service: Arc<ElfService>,
 ) -> Result<Option<CheckResult>> {
