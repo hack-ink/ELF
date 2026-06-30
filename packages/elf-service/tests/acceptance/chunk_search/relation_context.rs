@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::acceptance::{
 	self, StubRerank,
-	chunk_search::{self, TestContext},
+	chunk_search::tests_helpers::{self, TestContext},
 };
 use elf_service::{ElfService, Providers, RelationTemporalStatus, SearchRequest};
 
@@ -171,7 +171,7 @@ async fn setup_graph_context_test(
 		acceptance::build_service(cfg, providers).await.expect("Failed to build service.");
 
 	acceptance::reset_db(&service.db.pool).await.expect("Failed to reset test database.");
-	chunk_search::reset_collection(&service).await;
+	tests_helpers::reset_collection(&service).await;
 
 	let embedding_version = format!(
 		"{}:{}:{}",
@@ -201,15 +201,15 @@ async fn seed_relation_context_fixture(
 	let note_1_evidence_created_at = now - Duration::seconds(30);
 	let note_2_evidence_created_at = now - Duration::seconds(10);
 
-	chunk_search::insert_note(&service.db.pool, note_id, chunk_text, embedding_version).await;
-	chunk_search::insert_note(
+	tests_helpers::insert_note(&service.db.pool, note_id, chunk_text, embedding_version).await;
+	tests_helpers::insert_note(
 		&service.db.pool,
 		note_id_2,
 		"Second note for evidence ordering.",
 		embedding_version,
 	)
 	.await;
-	chunk_search::insert_chunk(
+	tests_helpers::insert_chunk(
 		&service.db.pool,
 		chunk_id,
 		note_id,
@@ -220,7 +220,7 @@ async fn seed_relation_context_fixture(
 		embedding_version,
 	)
 	.await;
-	chunk_search::upsert_point(
+	tests_helpers::upsert_point(
 		service,
 		chunk_id,
 		note_id,
@@ -283,7 +283,7 @@ async fn seed_relation_context_fixture(
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn search_raw_quick_includes_relation_context_and_respects_fact_bounds() {
-	let providers = chunk_search::build_providers(StubRerank);
+	let providers = tests_helpers::build_providers(StubRerank);
 	let Some(context) = setup_graph_context_test(
 		"search_raw_quick_includes_relation_context_and_respects_fact_bounds",
 		providers,
@@ -339,7 +339,7 @@ async fn search_raw_quick_includes_relation_context_and_respects_fact_bounds() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn search_raw_quick_marks_historical_relation_context() {
-	let providers = chunk_search::build_providers(StubRerank);
+	let providers = tests_helpers::build_providers(StubRerank);
 	let Some(context) = setup_graph_context_test(
 		"search_raw_quick_marks_historical_relation_context",
 		providers,
