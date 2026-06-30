@@ -1,6 +1,7 @@
-use crate::{Deserialize, Serialize};
-
-use super::{ExternalAdapterReport, ExternalAdapterSummary};
+use crate::{
+	Deserialize, Serialize,
+	external_adapter_reports::{ExternalAdapterReport, ExternalAdapterSummary},
+};
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct ExternalAdapterManifest {

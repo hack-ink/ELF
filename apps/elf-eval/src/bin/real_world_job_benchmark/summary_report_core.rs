@@ -1,8 +1,9 @@
-use crate::{CostReport, Deserialize, Serialize};
-
-use super::{
-	KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport,
-	ScheduledMemorySummaryReport, WorkContinuitySummaryReport,
+use crate::{
+	CostReport, Deserialize, Serialize,
+	summary_reports::{
+		KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport,
+		ScheduledMemorySummaryReport, WorkContinuitySummaryReport,
+	},
 };
 
 #[derive(Debug, Default, Deserialize, Serialize)]

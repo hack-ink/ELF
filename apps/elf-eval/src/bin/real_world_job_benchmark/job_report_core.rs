@@ -1,11 +1,10 @@
 use crate::{
 	AuthorityRecoveryDrillArtifact, CostReport, Deserialize, OperatorDebugEvidence, Serialize,
 	TraceExplainability, TypedStatus,
-};
-
-use super::{
-	ConsolidationJobReport, EvolutionJobReport, KnowledgeJobMetrics, MemorySummaryJobMetrics,
-	ProactiveBriefJobMetrics, ScheduledMemoryJobMetrics, WorkContinuityJobMetrics,
+	job_reports::{
+		ConsolidationJobReport, EvolutionJobReport, KnowledgeJobMetrics, MemorySummaryJobMetrics,
+		ProactiveBriefJobMetrics, ScheduledMemoryJobMetrics, WorkContinuityJobMetrics,
+	},
 };
 
 #[derive(Debug, Deserialize, Serialize)]
