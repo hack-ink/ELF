@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
 	Error, Result,
-	progressive_search::{storage::hash, types::HitItem},
+	progressive_search::{storage::hash, types::session::HitItem},
 };
 use elf_domain::english_gate;
 

@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use elf_config::Context;
 use elf_domain::english_gate;
 
-pub(super) fn build_scope_context_boost_by_scope<'a>(
+pub(crate) fn build_scope_context_boost_by_scope<'a>(
 	tokens: &[String],
 	context: Option<&'a Context>,
 ) -> HashMap<&'a str, f32> {

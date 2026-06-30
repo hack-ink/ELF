@@ -5,8 +5,8 @@ use crate::{
 	progressive_search::{
 		details, storage,
 		types::{
-			SearchSessionItemRecord, SearchTimelineGroup, SearchTimelineRequest,
-			SearchTimelineResponse,
+			SearchTimelineGroup, SearchTimelineRequest, SearchTimelineResponse,
+			session::SearchSessionItemRecord,
 		},
 	},
 };

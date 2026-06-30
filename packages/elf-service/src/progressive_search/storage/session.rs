@@ -8,8 +8,11 @@ use uuid::Uuid;
 use crate::{
 	Error, Result,
 	progressive_search::types::{
-		NewSearchSession, SESSION_ABSOLUTE_TTL_HOURS, SESSION_SLIDING_TTL_HOURS, SearchSession,
-		SearchSessionItemRecord, SearchSessionMode, SearchSessionRow,
+		SearchSessionMode,
+		session::{
+			NewSearchSession, SESSION_ABSOLUTE_TTL_HOURS, SESSION_SLIDING_TTL_HOURS, SearchSession,
+			SearchSessionItemRecord, SearchSessionRow,
+		},
 	},
 };
 

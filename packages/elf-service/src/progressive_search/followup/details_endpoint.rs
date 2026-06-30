@@ -9,7 +9,7 @@ use crate::{
 	progressive_search::{
 		details::{self, SearchDetailsBuildArgs},
 		storage,
-		types::{SearchDetailsRequest, SearchDetailsResponse, SearchSessionItemRecord},
+		types::{SearchDetailsRequest, SearchDetailsResponse, session::SearchSessionItemRecord},
 	},
 	structured_fields,
 };
