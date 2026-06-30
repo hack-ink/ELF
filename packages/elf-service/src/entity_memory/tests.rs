@@ -3,7 +3,10 @@ use uuid::Uuid;
 
 use crate::{
 	EntityMemoryItem,
-	entity_memory::{build, storage::EntityCoreBlockRow},
+	entity_memory::{
+		build::{self, core_blocks, lifecycle},
+		storage::EntityCoreBlockRow,
+	},
 };
 
 #[test]
@@ -11,17 +14,17 @@ fn entity_memory_note_lifecycle_classifies_current_stale_superseded_and_tombston
 	let as_of = OffsetDateTime::from_unix_timestamp(100).expect("valid timestamp");
 	let expired = OffsetDateTime::from_unix_timestamp(90).expect("valid timestamp");
 
-	assert_eq!(build::note_lifecycle("active", None, as_of), "current");
-	assert_eq!(build::note_lifecycle("active", Some(expired), as_of), "stale");
-	assert_eq!(build::note_lifecycle("deprecated", None, as_of), "superseded");
-	assert_eq!(build::note_lifecycle("deleted", None, as_of), "tombstoned");
+	assert_eq!(lifecycle::note_lifecycle("active", None, as_of), "current");
+	assert_eq!(lifecycle::note_lifecycle("active", Some(expired), as_of), "stale");
+	assert_eq!(lifecycle::note_lifecycle("deprecated", None, as_of), "superseded");
+	assert_eq!(lifecycle::note_lifecycle("deleted", None, as_of), "tombstoned");
 }
 
 #[test]
 fn entity_memory_read_bucket_keeps_only_current_high_importance_top_of_mind() {
-	assert_eq!(build::note_read_bucket("current", 0.8), "top_of_mind");
-	assert_eq!(build::note_read_bucket("current", 0.79), "background");
-	assert_eq!(build::note_read_bucket("stale", 0.99), "background");
+	assert_eq!(lifecycle::note_read_bucket("current", 0.8), "top_of_mind");
+	assert_eq!(lifecycle::note_read_bucket("current", 0.79), "background");
+	assert_eq!(lifecycle::note_read_bucket("stale", 0.99), "background");
 }
 
 #[test]
@@ -38,8 +41,11 @@ fn entity_memory_core_block_mentions_canonical_or_alias_surface() {
 		updated_at: OffsetDateTime::from_unix_timestamp(100).expect("valid timestamp"),
 	};
 
-	assert!(build::core_block_mentions_entity(&row, &["Alice".to_string(), "Alicia".to_string()]));
-	assert!(!build::core_block_mentions_entity(&row, &["Bob".to_string()]));
+	assert!(core_blocks::core_block_mentions_entity(
+		&row,
+		&["Alice".to_string(), "Alicia".to_string()]
+	));
+	assert!(!core_blocks::core_block_mentions_entity(&row, &["Bob".to_string()]));
 }
 
 #[test]
