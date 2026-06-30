@@ -1,8 +1,52 @@
 use crate::routes::{
 	self, ApiError, AppState, DOC_STATUSES, DocsSearchL0Body, DocsSearchL0Request,
-	DocsSearchL0Response, HeaderMap, Json, JsonRejection, MAX_QUERY_CHARS, RequestContext,
-	StatusCode,
+	DocsSearchL0Response, ErrorBody, HeaderMap, Json, JsonRejection, MAX_QUERY_CHARS,
+	RequestContext, State, StatusCode,
 };
+
+#[utoipa::path(
+	post,
+	path = "/v2/docs/search/l0",
+	tag = "docs",
+	request_body = Value,
+	responses(
+		(status = 200, description = "L0 document search results.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+pub(in crate::routes) async fn docs_search_l0(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<DocsSearchL0Body>, JsonRejection>,
+) -> Result<Json<DocsSearchL0Response>, ApiError> {
+	docs_search_l0_inner(state, headers, payload).await
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/admin/docs/search/l0",
+	tag = "admin",
+	request_body = Value,
+	responses(
+		(status = 200, description = "L0 document search results through the admin mirror.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Admin access required.", body = ErrorBody),
+		(status = 422, description = "Non-English input rejected.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+pub(in crate::routes) async fn admin_docs_search_l0(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	payload: Result<Json<DocsSearchL0Body>, JsonRejection>,
+) -> Result<Json<DocsSearchL0Response>, ApiError> {
+	docs_search_l0_inner(state, headers, payload).await
+}
 
 pub(super) async fn docs_search_l0_inner(
 	state: AppState,
