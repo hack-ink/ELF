@@ -228,6 +228,43 @@ fn merge_retrieval_candidates_prefers_dual_source_signal_on_tie() {
 }
 
 #[test]
+fn merge_retrieval_candidates_uses_configured_source_priority_on_tie() {
+	let fusion_chunk_id = Uuid::from_u128(1);
+	let recursive_chunk_id = Uuid::from_u128(2);
+	let mut fusion_candidate = test_chunk_candidate(Uuid::new_v4(), 1);
+	let mut recursive_candidate = test_chunk_candidate(Uuid::new_v4(), 1);
+
+	fusion_candidate.chunk_id = fusion_chunk_id;
+	recursive_candidate.chunk_id = recursive_chunk_id;
+
+	let policy = ranking::ResolvedRetrievalSourcesPolicy {
+		fusion_weight: 1.0,
+		structured_field_weight: 0.0,
+		recursive_weight: 1.0,
+		fusion_priority: 10,
+		structured_field_priority: 20,
+		recursive_priority: 0,
+	};
+	let merged = ranking::merge_retrieval_candidates(
+		vec![
+			RetrievalSourceCandidates {
+				source: RetrievalSourceKind::Fusion,
+				candidates: vec![fusion_candidate],
+			},
+			RetrievalSourceCandidates {
+				source: RetrievalSourceKind::Recursive,
+				candidates: vec![recursive_candidate],
+			},
+		],
+		&policy,
+		2,
+	);
+
+	assert_eq!(merged[0].chunk_id, recursive_chunk_id);
+	assert_eq!(merged[1].chunk_id, fusion_chunk_id);
+}
+
+#[test]
 fn retrieval_weight_for_rank_uses_first_matching_segment_or_last() {
 	let segments = vec![
 		ranking::BlendSegment { max_retrieval_rank: 3, retrieval_weight: 0.7 },
