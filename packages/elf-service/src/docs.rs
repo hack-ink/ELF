@@ -32,7 +32,7 @@ use qdrant_client::{
 	},
 };
 use serde_json::{Map, Value};
-use sqlx::{FromRow, PgExecutor, PgPool};
+use sqlx::{PgExecutor, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use tokenizers::Tokenizer;
 use uuid::Uuid;
