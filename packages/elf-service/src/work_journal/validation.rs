@@ -32,10 +32,13 @@ use crate::{
 	ElfService, Error, Result,
 	access::{ORG_PROJECT_ID, SharedSpaceGrantKey},
 	work_journal::types::{
-		ELF_WORK_JOURNAL_SCHEMA_V1, MAX_BODY_CHARS, MAX_SIDE_LIST_ITEMS,
-		ValidatedWorkJournalCreate, WORK_JOURNAL_PROMOTION_BOUNDARY_SCHEMA_V1,
 		WorkJournalEntryCreateRequest, WorkJournalEntryFamily, WorkJournalEntryResponse,
 		WorkJournalWhereStopped,
+		constants::{
+			ELF_WORK_JOURNAL_SCHEMA_V1, MAX_BODY_CHARS, MAX_SIDE_LIST_ITEMS,
+			WORK_JOURNAL_PROMOTION_BOUNDARY_SCHEMA_V1,
+		},
+		validated::ValidatedWorkJournalCreate,
 	},
 };
 use elf_config::Config;
