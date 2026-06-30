@@ -5,7 +5,7 @@ use crate::{
 	ExistingBackfillNote, Hasher, Path, PathBuf, fs,
 };
 
-pub(super) fn backfill_checkpoint_path(out: &Path) -> PathBuf {
+pub(crate) fn backfill_checkpoint_path(out: &Path) -> PathBuf {
 	crate::env_string(&["ELF_BASELINE_BACKFILL_CHECKPOINT"])
 		.map(PathBuf::from)
 		.unwrap_or_else(|| out.with_file_name("elf-backfill-checkpoint.json"))

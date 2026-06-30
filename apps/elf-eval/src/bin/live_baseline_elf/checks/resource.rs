@@ -2,7 +2,7 @@ use color_eyre::Result;
 
 use crate::checks::{CheckResult, ElfService, Path, ResourceEnvelopeEvidence, env, fs};
 
-pub(super) async fn resource_envelope_check_impl(
+pub(crate) async fn resource_envelope_check_impl(
 	service: &ElfService,
 	corpus_dir: &Path,
 	report_path: &Path,
