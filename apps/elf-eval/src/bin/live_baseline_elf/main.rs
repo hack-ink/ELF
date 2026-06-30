@@ -2,12 +2,12 @@
 
 //! Docker live-baseline runner for ELF's own same-corpus retrieval path.
 
-#[path = "live_baseline_elf/backfill.rs"] mod backfill;
-#[path = "live_baseline_elf/checks.rs"] mod checks;
-#[path = "live_baseline_elf/corpus.rs"] mod corpus;
-#[path = "live_baseline_elf/providers.rs"] mod providers;
-#[path = "live_baseline_elf/runtime.rs"] mod runtime;
-#[path = "live_baseline_elf/types.rs"] mod types;
+mod backfill;
+mod checks;
+mod corpus;
+mod providers;
+mod runtime;
+mod types;
 
 use std::{
 	collections::{BTreeMap, HashSet},

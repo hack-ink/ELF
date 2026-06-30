@@ -5,7 +5,7 @@ use crate::checks::{
 	PROJECT_ID, QueryCase, TENANT_ID, UpdateRequest, Uuid,
 };
 
-pub(super) async fn run_lifecycle_checks_impl(
+pub(crate) async fn run_lifecycle_checks_impl(
 	runtime: &BaselineRuntime,
 	service: &ElfService,
 	notes: &[CorpusNote],
