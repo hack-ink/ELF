@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::acceptance::{
 	StubRerank,
-	chunk_search::{self, TestContext},
+	chunk_search::tests_helpers::{self, TestContext},
 };
 use elf_service::{SearchRequest, TraceTrajectoryGetRequest};
 
@@ -16,7 +16,7 @@ async fn seed_filter_impact_notes(
 	low_note_text: &str,
 	high_note_text: &str,
 ) {
-	chunk_search::insert_note_with_importance(
+	tests_helpers::insert_note_with_importance(
 		&context.service.db.pool,
 		low_note_id,
 		low_note_text,
@@ -26,7 +26,7 @@ async fn seed_filter_impact_notes(
 		"agent_private",
 	)
 	.await;
-	chunk_search::insert_note_with_importance(
+	tests_helpers::insert_note_with_importance(
 		&context.service.db.pool,
 		high_note_id,
 		high_note_text,
@@ -36,7 +36,7 @@ async fn seed_filter_impact_notes(
 		"agent_private",
 	)
 	.await;
-	chunk_search::insert_chunk(
+	tests_helpers::insert_chunk(
 		&context.service.db.pool,
 		low_chunk_id,
 		low_note_id,
@@ -47,7 +47,7 @@ async fn seed_filter_impact_notes(
 		&context.embedding_version,
 	)
 	.await;
-	chunk_search::insert_chunk(
+	tests_helpers::insert_chunk(
 		&context.service.db.pool,
 		high_chunk_id,
 		high_note_id,
@@ -58,7 +58,7 @@ async fn seed_filter_impact_notes(
 		&context.embedding_version,
 	)
 	.await;
-	chunk_search::upsert_point(
+	tests_helpers::upsert_point(
 		&context.service,
 		low_chunk_id,
 		low_note_id,
@@ -68,7 +68,7 @@ async fn seed_filter_impact_notes(
 		low_note_text,
 	)
 	.await;
-	chunk_search::upsert_point(
+	tests_helpers::upsert_point(
 		&context.service,
 		high_chunk_id,
 		high_note_id,
@@ -106,14 +106,14 @@ async fn load_filter_impact_from_trace(context: &TestContext, trace_id: Uuid) ->
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run this test."]
 async fn search_filter_affects_candidate_set_and_records_filter_impact() {
-	let provider = chunk_search::build_providers(StubRerank);
+	let provider = tests_helpers::build_providers(StubRerank);
 	let low_note_text = "alpha low confidence note";
 	let high_note_text = "alpha high confidence note";
 	let low_note_id = Uuid::new_v4();
 	let high_note_id = Uuid::new_v4();
 	let low_chunk_id = Uuid::new_v4();
 	let high_chunk_id = Uuid::new_v4();
-	let mut context = match chunk_search::setup_context(
+	let mut context = match tests_helpers::setup_context(
 		"search_filter_affects_candidate_set_and_records_filter_impact",
 		provider,
 	)
