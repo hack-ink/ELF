@@ -2,28 +2,28 @@
 
 //! Offline runner and publisher for real-world job benchmark fixtures.
 
-#[path = "real_world_job_benchmark/artifacts.rs"] mod artifacts;
-#[path = "real_world_job_benchmark/cli.rs"] mod cli;
-#[path = "real_world_job_benchmark/commands.rs"] mod commands;
-#[path = "real_world_job_benchmark/diagnostic_reports.rs"] mod diagnostic_reports;
-#[path = "real_world_job_benchmark/enums.rs"] mod enums;
-#[path = "real_world_job_benchmark/external_adapter_reports.rs"] mod external_adapter_reports;
-#[path = "real_world_job_benchmark/external_adapters.rs"] mod external_adapters;
-#[path = "real_world_job_benchmark/feature_metrics.rs"] mod feature_metrics;
-#[path = "real_world_job_benchmark/fixtures.rs"] mod fixtures;
-#[path = "real_world_job_benchmark/formatting.rs"] mod formatting;
-#[path = "real_world_job_benchmark/job_reports.rs"] mod job_reports;
-#[path = "real_world_job_benchmark/markdown.rs"] mod markdown;
-#[path = "real_world_job_benchmark/operational.rs"] mod operational;
-#[path = "real_world_job_benchmark/operational_reports.rs"] mod operational_reports;
-#[path = "real_world_job_benchmark/recovery.rs"] mod recovery;
-#[path = "real_world_job_benchmark/report_root.rs"] mod report_root;
-#[path = "real_world_job_benchmark/scoreboard.rs"] mod scoreboard;
-#[path = "real_world_job_benchmark/scoreboard_reports.rs"] mod scoreboard_reports;
-#[path = "real_world_job_benchmark/scoring.rs"] mod scoring;
-#[path = "real_world_job_benchmark/summary.rs"] mod summary;
-#[path = "real_world_job_benchmark/summary_reports.rs"] mod summary_reports;
-#[path = "real_world_job_benchmark/validation.rs"] mod validation;
+mod artifacts;
+mod cli;
+mod commands;
+mod diagnostic_reports;
+mod enums;
+mod external_adapter_reports;
+mod external_adapters;
+mod feature_metrics;
+mod fixtures;
+mod formatting;
+mod job_reports;
+mod markdown;
+mod operational;
+mod operational_reports;
+mod recovery;
+mod report_root;
+mod scoreboard;
+mod scoreboard_reports;
+mod scoring;
+mod summary;
+mod summary_reports;
+mod validation;
 
 use std::{
 	collections::{BTreeMap, BTreeSet},

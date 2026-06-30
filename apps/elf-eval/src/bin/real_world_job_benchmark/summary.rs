@@ -1,12 +1,12 @@
-#[path = "summary/consolidation.rs"] mod consolidation;
-#[path = "summary/knowledge.rs"] mod knowledge;
-#[path = "summary/memory.rs"] mod memory;
-#[path = "summary/metrics.rs"] mod metrics;
-#[path = "summary/proactive.rs"] mod proactive;
-#[path = "summary/report.rs"] mod report;
-#[path = "summary/scheduled.rs"] mod scheduled;
-#[path = "summary/suites.rs"] mod suites;
-#[path = "summary/work.rs"] mod work;
+mod consolidation;
+mod knowledge;
+mod memory;
+mod metrics;
+mod proactive;
+mod report;
+mod scheduled;
+mod suites;
+mod work;
 
 use crate::{
 	ConsolidationSummaryReport, CostReport, EvolutionSummary, FollowUpReport, JobReport,

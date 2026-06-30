@@ -1,8 +1,8 @@
-use crate::markdown::{
-	self, AdapterScenarioJudgment, AdapterSource, AdapterStatusCounts, AdapterSuiteCoverage,
-	DEFAULT_ADAPTER_BEHAVIOR, ExternalAdapterReport, RealWorldReport, ScenarioOutcomeCounts,
-	ScenarioPositionCounts,
-};
+mod cells;
+mod counts;
+mod details;
+
+use crate::markdown::{self, DEFAULT_ADAPTER_BEHAVIOR, RealWorldReport};
 
 pub(super) fn render_markdown_capture_integration(out: &mut String, report: &RealWorldReport) {
 	out.push_str("## Capture And Integration Coverage\n\n");
@@ -85,29 +85,29 @@ pub(super) fn render_markdown_external_adapters(out: &mut String, report: &RealW
 	));
 	out.push_str(&format!(
 		"- Overall statuses: `{}`\n",
-		adapter_status_counts_display(&summary.overall_status_counts)
+		counts::adapter_status_counts_display(&summary.overall_status_counts)
 	));
 	out.push_str(&format!(
 		"- Capability coverage statuses: `{}`\n",
-		adapter_status_counts_display(&summary.capability_status_counts)
+		counts::adapter_status_counts_display(&summary.capability_status_counts)
 	));
 	out.push_str(&format!(
 		"- Real-world suite statuses: `{}`\n",
-		adapter_status_counts_display(&summary.suite_status_counts)
+		counts::adapter_status_counts_display(&summary.suite_status_counts)
 	));
 
-	if has_adapter_scenarios(report.external_adapters.adapters.as_slice()) {
+	if details::has_adapter_scenarios(report.external_adapters.adapters.as_slice()) {
 		out.push_str(&format!(
 			"- Scenario coverage statuses: `{}`\n",
-			adapter_status_counts_display(&summary.scenario_status_counts)
+			counts::adapter_status_counts_display(&summary.scenario_status_counts)
 		));
 		out.push_str(&format!(
 			"- ELF scenario positions: `{}`\n",
-			scenario_position_counts_display(&summary.scenario_position_counts)
+			counts::scenario_position_counts_display(&summary.scenario_position_counts)
 		));
 		out.push_str(&format!(
 			"- Scenario comparison outcomes: `{}`\n",
-			scenario_outcome_counts_display(&summary.scenario_outcome_counts)
+			counts::scenario_outcome_counts_display(&summary.scenario_outcome_counts)
 		));
 	}
 
@@ -126,8 +126,8 @@ pub(super) fn render_markdown_external_adapters(out: &mut String, report: &RealW
 			markdown::adapter_status_str(adapter.run.status),
 			markdown::adapter_status_str(adapter.result.status),
 			adapter.docker_default,
-			adapter_suite_cell(adapter.suites.as_slice()),
-			adapter_evidence_cell(adapter)
+			cells::adapter_suite_cell(adapter.suites.as_slice()),
+			cells::adapter_evidence_cell(adapter)
 		));
 	}
 
@@ -147,193 +147,11 @@ pub(super) fn render_markdown_external_adapters(out: &mut String, report: &RealW
 		}
 	}
 
-	render_markdown_adapter_scenarios(out, report.external_adapters.adapters.as_slice());
-	render_markdown_adapter_execution_metadata(out, report.external_adapters.adapters.as_slice());
+	details::render_markdown_adapter_scenarios(out, report.external_adapters.adapters.as_slice());
+	details::render_markdown_adapter_execution_metadata(
+		out,
+		report.external_adapters.adapters.as_slice(),
+	);
 
 	out.push('\n');
-}
-
-fn render_markdown_adapter_scenarios(out: &mut String, adapters: &[ExternalAdapterReport]) {
-	if !has_adapter_scenarios(adapters) {
-		return;
-	}
-
-	out.push_str("\n### Adapter Scenario Judgments\n\n");
-	out.push_str("| Adapter | Scenario | Suite | Status | Outcome | Evidence |\n");
-	out.push_str("| --- | --- | --- | --- | --- | --- |\n");
-
-	for adapter in adapters {
-		for scenario in &adapter.scenarios {
-			out.push_str(&format!(
-				"| `{}` | `{}` | {} | `{}` | `{}` | {} |\n",
-				markdown::md_inline(adapter.adapter_id.as_str()),
-				markdown::md_inline(scenario.scenario_id.as_str()),
-				scenario
-					.suite_id
-					.as_deref()
-					.map(|suite| format!("`{}`", markdown::md_inline(suite)))
-					.unwrap_or_else(|| "`none`".to_string()),
-				markdown::adapter_status_str(scenario.status),
-				markdown::scenario_comparison_outcome_str(markdown::scenario_comparison_outcome(
-					scenario
-				)),
-				adapter_scenario_evidence_cell(scenario)
-			));
-		}
-	}
-}
-
-fn render_markdown_adapter_execution_metadata(
-	out: &mut String,
-	adapters: &[ExternalAdapterReport],
-) {
-	let mut wrote_header = false;
-
-	for adapter in adapters {
-		let Some(metadata) = &adapter.execution_metadata else {
-			continue;
-		};
-
-		if !wrote_header {
-			out.push_str("\n### Adapter Execution Metadata\n\n");
-			out.push_str("| Adapter | Sources | Setup Path | Runtime Boundary | Resource Expectation | Retry Guidance | Research Depth |\n");
-			out.push_str("| --- | --- | --- | --- | --- | --- | --- |\n");
-
-			wrote_header = true;
-		}
-
-		out.push_str(&format!(
-			"| `{}` | {} | {} | {} | {} | {} | {} |\n",
-			markdown::md_inline(adapter.adapter_id.as_str()),
-			adapter_sources_cell(metadata.sources.as_slice()),
-			markdown::md_cell(metadata.setup_path.as_str()),
-			markdown::md_cell(metadata.runtime_boundary.as_str()),
-			markdown::md_cell(metadata.resource_expectation.as_str()),
-			markdown::md_list(metadata.retry_guidance.as_slice()),
-			markdown::md_cell(metadata.research_depth.as_deref().unwrap_or("not recorded"))
-		));
-	}
-}
-
-fn has_adapter_scenarios(adapters: &[ExternalAdapterReport]) -> bool {
-	adapters.iter().any(|adapter| !adapter.scenarios.is_empty())
-}
-
-fn adapter_status_counts_display(counts: &AdapterStatusCounts) -> String {
-	[
-		("real", counts.real),
-		("mocked", counts.mocked),
-		("unsupported", counts.unsupported),
-		("blocked", counts.blocked),
-		("incomplete", counts.incomplete),
-		("wrong_result", counts.wrong_result),
-		("lifecycle_fail", counts.lifecycle_fail),
-		("pass", counts.pass),
-		("not_encoded", counts.not_encoded),
-	]
-	.into_iter()
-	.filter(|(_, count)| *count > 0)
-	.map(|(status, count)| format!("{status}={count}"))
-	.collect::<Vec<_>>()
-	.join(", ")
-}
-
-fn scenario_position_counts_display(counts: &ScenarioPositionCounts) -> String {
-	[
-		("wins", counts.wins),
-		("ties", counts.ties),
-		("loses", counts.loses),
-		("untested", counts.untested),
-	]
-	.into_iter()
-	.filter(|(_, count)| *count > 0)
-	.map(|(position, count)| format!("{position}={count}"))
-	.collect::<Vec<_>>()
-	.join(", ")
-}
-
-fn scenario_outcome_counts_display(counts: &ScenarioOutcomeCounts) -> String {
-	[
-		("win", counts.win),
-		("tie", counts.tie),
-		("loss", counts.loss),
-		("not_tested", counts.not_tested),
-		("blocked", counts.blocked),
-		("non_goal", counts.non_goal),
-	]
-	.into_iter()
-	.filter(|(_, count)| *count > 0)
-	.map(|(outcome, count)| format!("{outcome}={count}"))
-	.collect::<Vec<_>>()
-	.join(", ")
-}
-
-fn adapter_suite_cell(suites: &[AdapterSuiteCoverage]) -> String {
-	if suites.is_empty() {
-		return "`none`".to_string();
-	}
-
-	suites
-		.iter()
-		.map(|suite| {
-			format!(
-				"`{}`: `{}`",
-				markdown::md_inline(suite.suite_id.as_str()),
-				markdown::adapter_status_str(suite.status)
-			)
-		})
-		.collect::<Vec<_>>()
-		.join("<br>")
-}
-
-fn adapter_evidence_cell(adapter: &ExternalAdapterReport) -> String {
-	let setup = adapter
-		.setup
-		.command
-		.as_deref()
-		.or(adapter.setup.artifact.as_deref())
-		.unwrap_or(adapter.setup.evidence.as_str());
-	let result = adapter
-		.result
-		.artifact
-		.as_deref()
-		.or(adapter.result.command.as_deref())
-		.unwrap_or(adapter.result.evidence.as_str());
-
-	format!("setup: `{}`<br>result: `{}`", markdown::md_inline(setup), markdown::md_inline(result))
-}
-
-fn adapter_scenario_evidence_cell(scenario: &AdapterScenarioJudgment) -> String {
-	let evidence = markdown::md_cell(scenario.evidence.as_str());
-	let command = scenario
-		.command
-		.as_deref()
-		.map(|command| format!("<br>command: `{}`", markdown::md_inline(command)))
-		.unwrap_or_default();
-	let artifact = scenario
-		.artifact
-		.as_deref()
-		.map(|artifact| format!("<br>artifact: `{}`", markdown::md_inline(artifact)))
-		.unwrap_or_default();
-
-	format!("{evidence}{command}{artifact}")
-}
-
-fn adapter_sources_cell(sources: &[AdapterSource]) -> String {
-	if sources.is_empty() {
-		return "`none`".to_string();
-	}
-
-	sources
-		.iter()
-		.map(|source| {
-			format!(
-				"[{}]({}): {}",
-				markdown::md_cell(source.label.as_str()),
-				markdown::md_url(source.url.as_str()),
-				markdown::md_cell(source.evidence.as_str())
-			)
-		})
-		.collect::<Vec<_>>()
-		.join("<br>")
 }

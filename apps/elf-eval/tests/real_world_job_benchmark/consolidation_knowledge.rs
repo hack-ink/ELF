@@ -18,8 +18,9 @@ fn real_world_live_adapter_sources(workspace: &Path) -> Result<String> {
 }
 
 fn real_world_job_benchmark_sources(workspace: &Path) -> Result<String> {
-	let mut source =
-		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_job_benchmark.rs"))?;
+	let mut source = fs::read_to_string(
+		workspace.join("apps/elf-eval/src/bin/real_world_job_benchmark/main.rs"),
+	)?;
 
 	append_rust_sources(
 		workspace.join("apps/elf-eval/src/bin/real_world_job_benchmark").as_path(),

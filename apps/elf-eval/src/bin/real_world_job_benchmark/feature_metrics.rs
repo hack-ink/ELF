@@ -1,9 +1,9 @@
-#[path = "feature_metrics/common.rs"] mod common;
-#[path = "feature_metrics/knowledge.rs"] mod knowledge;
-#[path = "feature_metrics/memory_summary.rs"] mod memory_summary;
-#[path = "feature_metrics/proactive.rs"] mod proactive;
-#[path = "feature_metrics/scheduled.rs"] mod scheduled;
-#[path = "feature_metrics/work_continuity.rs"] mod work_continuity;
+mod common;
+mod knowledge;
+mod memory_summary;
+mod proactive;
+mod scheduled;
+mod work_continuity;
 
 use crate::{
 	BTreeSet, DerivedPageArtifact, DerivedPageRebuild, DerivedPageSection,
