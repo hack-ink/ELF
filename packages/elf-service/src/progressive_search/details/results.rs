@@ -10,8 +10,8 @@ use crate::{
 	progressive_search::{
 		details::{access, text},
 		types::{
-			HitItem, SearchDetailsError, SearchDetailsResult, SearchSession,
-			SearchSessionItemRecord,
+			SearchDetailsError, SearchDetailsResult,
+			session::{HitItem, SearchSession, SearchSessionItemRecord},
 		},
 	},
 	structured_fields::StructuredFields,

@@ -6,7 +6,8 @@ use uuid::Uuid;
 use crate::{
 	Result,
 	progressive_search::types::{
-		SearchIndexItem, SearchSessionItemRecord, SearchTimelineGroup, SearchTimelineResponse,
+		SearchIndexItem, SearchTimelineGroup, SearchTimelineResponse,
+		session::SearchSessionItemRecord,
 	},
 };
 
