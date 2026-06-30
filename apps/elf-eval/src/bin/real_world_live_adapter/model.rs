@@ -32,9 +32,8 @@ pub(super) use self::{
 
 use crate::{
 	BoxFuture, ConsolidationInputRef, ConsolidationProposalInput, Deserialize, EmbeddingProvider,
-	EmbeddingProviderConfig, ExtractorProvider, HashMap, LlmProviderConfig, Map, Parser, Path,
-	PathBuf, ProviderConfig, RerankProvider, Serialize, Subcommand, Uuid, ValueEnum, embed_text,
-	serde_json, terms,
+	EmbeddingProviderConfig, ExtractorProvider, LlmProviderConfig, Map, Parser, PathBuf,
+	ProviderConfig, RerankProvider, Serialize, Subcommand, embed_text, serde_json, terms,
 };
 
 pub(super) const JOB_SCHEMA: &str = "elf.real_world_job/v1";
