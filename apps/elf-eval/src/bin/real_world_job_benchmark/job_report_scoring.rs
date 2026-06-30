@@ -1,9 +1,10 @@
-use crate::TypedStatus;
-
-use super::{
-	ConsolidationJobReport, DimensionScoreReport, EvolutionJobReport, KnowledgeJobMetrics,
-	MemorySummaryJobMetrics, ProactiveBriefJobMetrics, ScheduledMemoryJobMetrics,
-	UnsupportedClaimReport, WorkContinuityJobMetrics,
+use crate::{
+	TypedStatus,
+	job_reports::{
+		ConsolidationJobReport, DimensionScoreReport, EvolutionJobReport, KnowledgeJobMetrics,
+		MemorySummaryJobMetrics, ProactiveBriefJobMetrics, ScheduledMemoryJobMetrics,
+		UnsupportedClaimReport, WorkContinuityJobMetrics,
+	},
 };
 
 #[derive(Debug)]
