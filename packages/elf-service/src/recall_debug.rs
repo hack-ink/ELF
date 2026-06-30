@@ -15,16 +15,15 @@ pub use types::{
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 use crate::{
-	DocsSearchL0Request, DreamingReviewQueueRequest, ElfService, Error, GraphQueryEntityRef,
-	GraphQueryPredicateRef, GraphReportRequest, KnowledgePageSearchItem,
-	KnowledgePageSearchRequest, Result, SearchExplainItem, SearchTrace, SearchTrajectoryStage,
-	TraceBundleGetRequest,
+	DocsSearchL0Request, DreamingReviewQueueRequest, ElfService, Error, GraphQueryPredicateRef,
+	GraphReportRequest, KnowledgePageSearchItem, KnowledgePageSearchRequest, Result,
+	SearchExplainItem, SearchTrace, SearchTrajectoryStage, TraceBundleGetRequest,
 	access::{ORG_PROJECT_ID, SharedSpaceGrantKey},
 	search::{TraceBundleMode, TraceReplayCandidate},
 };
@@ -41,8 +40,8 @@ use trace::{
 	not_requested_layer, summarize_layers,
 };
 use types::{
-	DEFAULT_RECALL_DEBUG_LIMIT, MAX_RECALL_DEBUG_DOCS_LIMIT, MAX_RECALL_DEBUG_LIMIT,
-	NoteDebugSourceRow,
+	constants::{DEFAULT_RECALL_DEBUG_LIMIT, MAX_RECALL_DEBUG_DOCS_LIMIT, MAX_RECALL_DEBUG_LIMIT},
+	source_record::NoteDebugSourceRow,
 };
 #[cfg(test)]
 #[path = "recall_debug/tests.rs"]
