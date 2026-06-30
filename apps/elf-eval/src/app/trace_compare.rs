@@ -1,4 +1,5 @@
 mod analysis;
+mod types;
 
 use std::path::Path;
 
@@ -9,15 +10,15 @@ use uuid::Uuid;
 use crate::app::{
 	Args,
 	metrics::{self},
-	types::{
-		TraceCompareCandidateRow, TraceCompareChurn, TraceCompareGuardrails, TraceCompareOutput,
-		TraceComparePolicies, TraceComparePolicy, TraceCompareStageRow, TraceCompareSummary,
-		TraceCompareTrace, TraceCompareTraceRow, TraceCompareVariant,
-	},
 };
 use elf_config::Config;
 use elf_service::search::{self, TraceReplayContext};
 use elf_storage::db::Db;
+use types::{
+	TraceCompareCandidateRow, TraceCompareChurn, TraceCompareGuardrails, TraceCompareOutput,
+	TraceComparePolicies, TraceComparePolicy, TraceCompareStageRow, TraceCompareSummary,
+	TraceCompareTrace, TraceCompareTraceRow, TraceCompareVariant,
+};
 
 pub(super) async fn trace_compare(
 	config_a_path: &Path,
