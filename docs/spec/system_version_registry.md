@@ -44,7 +44,7 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Identifier: `elf.quality_scoreboard/v1`.
 - Type: Public quantitative competitor scoreboard report and row schema.
 - Defined in: `docs/spec/agent_memory_quantitative_benchmark_v1.md`.
-- Consumers: `apps/elf-eval/src/bin/real_world_job_benchmark.rs`, checked-in
+- Consumers: `apps/elf-eval/src/bin/real_world_job_benchmark/main.rs`, checked-in
   benchmark report snapshots, public benchmarking evidence reports, and agents
   deciding whether a product row is comparable or only a typed blocker.
 - Bump rule: Introduce a new identifier only when row states, comparability gates,

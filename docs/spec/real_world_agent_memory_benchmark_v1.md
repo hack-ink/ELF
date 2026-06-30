@@ -13,13 +13,13 @@ tags:
 source_refs: []
 code_refs:
   - Makefile.toml
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
   - apps/elf-eval/fixtures/real_world_memory/production_ops/authority_plane_recovery_drill.json
 related:
   - docs/spec/agent_memory_quantitative_benchmark_v1.md
 drift_watch:
   - docs/spec/real_world_agent_memory_benchmark_v1.md
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
   - apps/elf-eval/fixtures/real_world_memory/
 ---
 # Real-World Agent Memory Benchmark v1
