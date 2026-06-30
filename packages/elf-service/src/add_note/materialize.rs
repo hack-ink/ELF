@@ -1,3 +1,5 @@
+mod structured_materialization;
+
 use sqlx::{Postgres, Transaction};
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -8,8 +10,7 @@ use crate::{
 		persistence::{self},
 		types::{AddNoteContext, AddNoteInput, AddNoteResult},
 	},
-	graph_ingestion,
-	structured_fields::{self, StructuredFields},
+	structured_fields,
 };
 use elf_domain::{memory_policy::MemoryPolicyDecision, ttl};
 use elf_storage::models::MemoryNote;
@@ -69,9 +70,15 @@ pub(super) async fn handle_add_note_add(
 	)
 	.await?;
 
-	upsert_structured_and_enqueue_outbox(tx, note, memory_note.note_id, ctx.embed_version, ctx.now)
-		.await?;
-	persist_graph_fields_if_present(
+	structured_materialization::upsert_structured_and_enqueue_outbox(
+		tx,
+		note,
+		memory_note.note_id,
+		ctx.embed_version,
+		ctx.now,
+	)
+	.await?;
+	structured_materialization::persist_graph_fields_if_present(
 		tx,
 		ctx.tenant_id,
 		ctx.project_id,
@@ -169,7 +176,7 @@ pub(super) async fn handle_add_note_update(
 	)
 	.await?;
 
-	persist_graph_fields_if_present(
+	structured_materialization::persist_graph_fields_if_present(
 		tx,
 		existing.tenant_id.as_str(),
 		existing.project_id.as_str(),
@@ -180,7 +187,7 @@ pub(super) async fn handle_add_note_update(
 		note.structured.as_ref(),
 	)
 	.await?;
-	upsert_structured_and_enqueue_outbox(
+	structured_materialization::upsert_structured_and_enqueue_outbox(
 		tx,
 		note,
 		existing.note_id,
@@ -222,7 +229,7 @@ pub(super) async fn handle_add_note_none(
 			should_update = true;
 		}
 		if structured.has_graph_fields() {
-			persist_graph_fields_if_present(
+			structured_materialization::persist_graph_fields_if_present(
 				tx,
 				ctx.tenant_id,
 				ctx.project_id,
@@ -293,49 +300,4 @@ pub(super) async fn handle_add_note_none(
 		},
 		None,
 	))
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn persist_graph_fields_if_present(
-	tx: &mut Transaction<'_, Postgres>,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-	scope: &str,
-	note_id: Uuid,
-	now: OffsetDateTime,
-	structured: Option<&StructuredFields>,
-) -> Result<()> {
-	let Some(structured) = structured else {
-		return Ok(());
-	};
-
-	if !structured.has_graph_fields() {
-		return Ok(());
-	}
-
-	graph_ingestion::persist_graph_fields_tx(
-		tx, tenant_id, project_id, agent_id, scope, note_id, structured, now,
-	)
-	.await?;
-
-	Ok(())
-}
-
-async fn upsert_structured_and_enqueue_outbox(
-	tx: &mut Transaction<'_, Postgres>,
-	note: &AddNoteInput,
-	note_id: Uuid,
-	embed_version: &str,
-	now: OffsetDateTime,
-) -> Result<()> {
-	if let Some(structured) = note.structured.as_ref()
-		&& !structured.is_effectively_empty()
-	{
-		structured_fields::upsert_structured_fields_tx(tx, note_id, structured, now).await?;
-	}
-
-	crate::enqueue_outbox_tx(&mut **tx, note_id, "UPSERT", embed_version, now).await?;
-
-	Ok(())
 }
