@@ -1,7 +1,7 @@
-#[path = "evidence_selection/claims.rs"] mod claims;
-#[path = "evidence_selection/common.rs"] mod common;
-#[path = "evidence_selection/required.rs"] mod required;
-#[path = "evidence_selection/temporal.rs"] mod temporal;
+mod claims;
+mod common;
+mod required;
+mod temporal;
 
 use crate::{
 	BTreeSet, CorpusText, IngestedCorpus, LiveExpectedClaim, LiveMemoryEvolution, LoadedJob,

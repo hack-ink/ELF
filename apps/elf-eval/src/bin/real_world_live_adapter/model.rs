@@ -1,9 +1,9 @@
-#[path = "model/cli.rs"] mod cli;
-#[path = "model/consolidation.rs"] mod consolidation;
-#[path = "model/live.rs"] mod live;
-#[path = "model/materialization.rs"] mod materialization;
-#[path = "model/providers.rs"] mod providers;
-#[path = "model/runtime.rs"] mod runtime;
+mod cli;
+mod consolidation;
+mod live;
+mod materialization;
+mod providers;
+mod runtime;
 
 pub(super) use self::{
 	cli::{Args, CommandArgs, ElfArgs, LightragArgs, QmdArgs},

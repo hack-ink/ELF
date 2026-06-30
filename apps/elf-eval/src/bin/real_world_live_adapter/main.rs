@@ -2,23 +2,23 @@
 
 //! Live adapter materializer for the real-world job benchmark.
 
-#[path = "real_world_live_adapter/capture.rs"] mod capture;
-#[path = "real_world_live_adapter/consolidation_adapter.rs"] mod consolidation_adapter;
-#[path = "real_world_live_adapter/dreaming_readback.rs"] mod dreaming_readback;
-#[path = "real_world_live_adapter/elf_domain_materializers.rs"] mod elf_domain_materializers;
-#[path = "real_world_live_adapter/elf_runtime.rs"] mod elf_runtime;
-#[path = "real_world_live_adapter/evidence_selection.rs"] mod evidence_selection;
-#[path = "real_world_live_adapter/fixtures.rs"] mod fixtures;
-#[path = "real_world_live_adapter/ingestion.rs"] mod ingestion;
-#[path = "real_world_live_adapter/knowledge_adapter.rs"] mod knowledge_adapter;
-#[path = "real_world_live_adapter/lightrag.rs"] mod lightrag;
-#[path = "real_world_live_adapter/materialization.rs"] mod materialization;
-#[path = "real_world_live_adapter/model.rs"] mod model;
-#[path = "real_world_live_adapter/operator_debug.rs"] mod operator_debug;
-#[path = "real_world_live_adapter/output.rs"] mod output;
-#[path = "real_world_live_adapter/qmd.rs"] mod qmd;
-#[path = "real_world_live_adapter/runtime_support.rs"] mod runtime_support;
-#[path = "real_world_live_adapter/service_runtime.rs"] mod service_runtime;
+mod capture;
+mod consolidation_adapter;
+mod dreaming_readback;
+mod elf_domain_materializers;
+mod elf_runtime;
+mod evidence_selection;
+mod fixtures;
+mod ingestion;
+mod knowledge_adapter;
+mod lightrag;
+mod materialization;
+mod model;
+mod operator_debug;
+mod output;
+mod qmd;
+mod runtime_support;
+mod service_runtime;
 
 use std::{
 	collections::{BTreeSet, HashMap},
@@ -125,6 +125,4 @@ async fn main() -> Result<()> {
 	}
 }
 
-#[cfg(test)]
-#[path = "real_world_live_adapter/tests.rs"]
-mod tests;
+#[cfg(test)] mod tests;
