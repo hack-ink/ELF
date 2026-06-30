@@ -6,8 +6,9 @@ use serde_json::Value;
 use crate::support;
 
 fn real_world_live_adapter_sources(workspace: &Path) -> Result<String> {
-	let mut source =
-		fs::read_to_string(workspace.join("apps/elf-eval/src/bin/real_world_live_adapter.rs"))?;
+	let mut source = fs::read_to_string(
+		workspace.join("apps/elf-eval/src/bin/real_world_live_adapter/main.rs"),
+	)?;
 
 	append_rust_sources(
 		workspace.join("apps/elf-eval/src/bin/real_world_live_adapter").as_path(),
