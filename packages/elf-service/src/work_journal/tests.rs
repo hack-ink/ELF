@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
 	access::SharedSpaceGrantKey,
-	work_journal::{types::WORK_JOURNAL_PROMOTION_BOUNDARY_SCHEMA_V1, validation},
+	work_journal::{types::constants::WORK_JOURNAL_PROMOTION_BOUNDARY_SCHEMA_V1, validation},
 };
 use elf_storage::models::WorkJournalEntry;
 
