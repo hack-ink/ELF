@@ -41,7 +41,7 @@ use elf_service::{
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
 use elf_testkit::TestDatabase;
-use elf_worker::worker::{self, WorkerState};
+use elf_worker::worker::WorkerState;
 use providers::{
 	EmbeddingMode, deterministic_providers, embedding_mode, env_string, runtime_config,
 };
