@@ -2,7 +2,7 @@ use sqlx::{FromRow, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::acceptance::graph_ingestion::{
+use crate::acceptance::graph_ingestion::tests_helpers::{
 	self, GRAPH_REL_SUBJECT, TEST_PROJECT, TEST_SCOPE, TEST_TENANT,
 };
 use elf_service::{
@@ -156,16 +156,15 @@ WHERE from_fact_id = $1
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn add_note_single_predicate_supersedes_conflicting_fact() {
 	let Some(test_db) =
-		graph_ingestion::build_test_db("add_note_single_predicate_supersedes_conflicting_fact")
-			.await
+		tests_helpers::build_test_db("add_note_single_predicate_supersedes_conflicting_fact").await
 	else {
 		return;
 	};
-	let service = graph_ingestion::build_stub_service(&test_db).await;
+	let service = tests_helpers::build_stub_service(&test_db).await;
 
-	graph_ingestion::reset_service_db(&service).await;
+	tests_helpers::reset_service_db(&service).await;
 
-	let old_note_id = graph_ingestion::add_fact_note(
+	let old_note_id = tests_helpers::add_fact_note(
 		&service,
 		"employment-a",
 		"Alice works at Initech.",
@@ -180,7 +179,7 @@ async fn add_note_single_predicate_supersedes_conflicting_fact() {
 
 	tokio::time::sleep(std::time::Duration::from_millis(1)).await;
 
-	let note_id = graph_ingestion::add_fact_note(
+	let note_id = tests_helpers::add_fact_note(
 		&service,
 		"employment-b",
 		"Alice works at Globex.",
