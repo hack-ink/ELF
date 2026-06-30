@@ -1,8 +1,62 @@
 use crate::routes::{
-	self, ApiError, AppState, HeaderMap, Json, JsonRejection, PublishNoteRequest,
-	PublishResponseV2, RequestContext, SecurityAuthRole, ShareScope, ShareScopeBody, StatusCode,
-	UnpublishNoteRequest, Uuid,
+	self, ApiError, AppState, ErrorBody, Extension, HeaderMap, Json, JsonRejection, Path,
+	PublishNoteRequest, PublishResponseV2, RequestContext, SecurityAuthRole, ShareScope,
+	ShareScopeBody, State, StatusCode, UnpublishNoteRequest, Uuid,
 };
+
+#[utoipa::path(
+	post,
+	path = "/v2/notes/{note_id}/publish",
+	tag = "notes",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Note was published to a shared space.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+pub(in crate::routes) async fn notes_publish(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
+	Path(note_id): Path<Uuid>,
+	payload: Result<Json<ShareScopeBody>, JsonRejection>,
+) -> Result<Json<PublishResponseV2>, ApiError> {
+	let role = role.map(|Extension(role)| role);
+
+	notes_publish_inner(state, headers, role, note_id, payload).await
+}
+
+#[utoipa::path(
+	post,
+	path = "/v2/notes/{note_id}/unpublish",
+	tag = "notes",
+	params(("note_id" = Uuid, Path, description = "Note ID.")),
+	request_body = Value,
+	responses(
+		(status = 200, description = "Note was returned to private scope.", body = Value),
+		(status = 400, description = "Invalid request.", body = ErrorBody),
+		(status = 401, description = "Authentication required.", body = ErrorBody),
+		(status = 403, description = "Scope denied.", body = ErrorBody),
+		(status = 404, description = "Note was not found.", body = ErrorBody),
+		(status = 500, description = "Internal error.", body = ErrorBody),
+	)
+)]
+pub(in crate::routes) async fn notes_unpublish(
+	State(state): State<AppState>,
+	headers: HeaderMap,
+	role: Option<Extension<SecurityAuthRole>>,
+	Path(note_id): Path<Uuid>,
+	payload: Result<Json<ShareScopeBody>, JsonRejection>,
+) -> Result<Json<PublishResponseV2>, ApiError> {
+	let role = role.map(|Extension(role)| role);
+
+	notes_unpublish_inner(state, headers, role, note_id, payload).await
+}
 
 pub(super) async fn notes_publish_inner(
 	state: AppState,
