@@ -46,24 +46,29 @@ pub(super) fn review_steps(
 	action: ConsolidationReviewAction,
 ) -> Result<Vec<(ConsolidationReviewAction, ConsolidationReviewState)>> {
 	let steps = match action {
-		ConsolidationReviewAction::Approve =>
-			vec![(ConsolidationReviewAction::Approve, ConsolidationReviewState::Approved)],
+		ConsolidationReviewAction::Approve => {
+			vec![(ConsolidationReviewAction::Approve, ConsolidationReviewState::Approved)]
+		},
 		ConsolidationReviewAction::Apply => match current {
 			ConsolidationReviewState::Proposed => vec![
 				(ConsolidationReviewAction::Approve, ConsolidationReviewState::Approved),
 				(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied),
 			],
-			ConsolidationReviewState::Approved =>
-				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)],
+			ConsolidationReviewState::Approved => {
+				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)]
+			},
 			ConsolidationReviewState::Rejected
 			| ConsolidationReviewState::Applied
-			| ConsolidationReviewState::Archived =>
-				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)],
+			| ConsolidationReviewState::Archived => {
+				vec![(ConsolidationReviewAction::Apply, ConsolidationReviewState::Applied)]
+			},
 		},
-		ConsolidationReviewAction::Discard =>
-			vec![(ConsolidationReviewAction::Discard, ConsolidationReviewState::Rejected)],
-		ConsolidationReviewAction::Defer =>
-			vec![(ConsolidationReviewAction::Defer, ConsolidationReviewState::Archived)],
+		ConsolidationReviewAction::Discard => {
+			vec![(ConsolidationReviewAction::Discard, ConsolidationReviewState::Rejected)]
+		},
+		ConsolidationReviewAction::Defer => {
+			vec![(ConsolidationReviewAction::Defer, ConsolidationReviewState::Archived)]
+		},
 	};
 	let mut state = current;
 
