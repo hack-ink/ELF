@@ -132,8 +132,9 @@ pub(in super::super) async fn api_auth_middleware(
 		"static_keys" => {
 			let key = match resolve_auth_key(req.headers(), &security.auth_keys) {
 				Ok(key) => key,
-				Err(err) =>
-					return request_id::with_request_id(err.into_response(), request_id).await,
+				Err(err) => {
+					return request_id::with_request_id(err.into_response(), request_id).await;
+				},
 			};
 
 			req.extensions_mut().insert(key.role);
@@ -175,8 +176,9 @@ pub(in super::super) async fn admin_auth_middleware(
 		"static_keys" => {
 			let key = match resolve_auth_key(req.headers(), &security.auth_keys) {
 				Ok(key) => key,
-				Err(err) =>
-					return request_id::with_request_id(err.into_response(), request_id).await,
+				Err(err) => {
+					return request_id::with_request_id(err.into_response(), request_id).await;
+				},
 			};
 
 			req.extensions_mut().insert(key.role);
