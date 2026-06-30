@@ -3,7 +3,7 @@ use crate::checks::{
 	OperationalCase, QueryResult, env,
 };
 
-pub(super) fn cost_proxy_report_impl(
+pub(crate) fn cost_proxy_report_impl(
 	notes: &[CorpusNote],
 	queries: &[QueryResult],
 	embedding: &EmbeddingRuntimeReport,
@@ -32,7 +32,7 @@ pub(super) fn cost_proxy_report_impl(
 	}
 }
 
-pub(super) fn latency_percentile_impl(latencies: &[f64], percentile: f64) -> f64 {
+pub(crate) fn latency_percentile_impl(latencies: &[f64], percentile: f64) -> f64 {
 	if latencies.is_empty() {
 		return 0.0;
 	}
@@ -46,7 +46,7 @@ pub(super) fn latency_percentile_impl(latencies: &[f64], percentile: f64) -> f64
 	sorted[rank.min(sorted.len().saturating_sub(1))]
 }
 
-pub(super) fn operational_cases_impl() -> Vec<OperationalCase> {
+pub(crate) fn operational_cases_impl() -> Vec<OperationalCase> {
 	vec![
 		operational_case(
 			"private_corpus_addendum",
@@ -115,7 +115,7 @@ pub(super) fn operational_cases_impl() -> Vec<OperationalCase> {
 	]
 }
 
-pub(super) fn incomplete_check_impl(name: &'static str, reason: &str) -> CheckResult {
+pub(crate) fn incomplete_check_impl(name: &'static str, reason: &str) -> CheckResult {
 	CheckResult {
 		name,
 		status: "incomplete",
@@ -124,7 +124,7 @@ pub(super) fn incomplete_check_impl(name: &'static str, reason: &str) -> CheckRe
 	}
 }
 
-pub(super) fn summarize_checks_impl(checks: &[CheckResult]) -> CheckSummary {
+pub(crate) fn summarize_checks_impl(checks: &[CheckResult]) -> CheckSummary {
 	let wrong_result = checks.iter().filter(|check| check.status == "wrong_result").count();
 	let lifecycle_fail = checks.iter().filter(|check| check.status == "lifecycle_fail").count();
 
@@ -140,7 +140,7 @@ pub(super) fn summarize_checks_impl(checks: &[CheckResult]) -> CheckSummary {
 	}
 }
 
-pub(super) fn project_status_from_summary_impl(summary: &CheckSummary) -> &'static str {
+pub(crate) fn project_status_from_summary_impl(summary: &CheckSummary) -> &'static str {
 	if summary.wrong_result > 0 {
 		"wrong_result"
 	} else if summary.lifecycle_fail > 0 {
