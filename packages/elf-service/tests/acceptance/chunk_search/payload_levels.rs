@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::acceptance::{
 	StubRerank,
-	chunk_search::{self, TestContext},
+	chunk_search::tests_helpers::{self, TestContext},
 };
 use elf_service::{NoteFetchResponse, PayloadLevel, SearchDetailsRequest, SearchRequest};
 
@@ -96,9 +96,9 @@ async fn fetch_search_detail_note_for_level(
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn search_raw_payload_level_shapes_source_ref() {
-	let providers = chunk_search::build_providers(StubRerank);
+	let providers = tests_helpers::build_providers(StubRerank);
 	let Some(context) =
-		chunk_search::setup_context("search_raw_payload_level_shapes_source_ref", providers).await
+		tests_helpers::setup_context("search_raw_payload_level_shapes_source_ref", providers).await
 	else {
 		return;
 	};
@@ -116,7 +116,7 @@ async fn search_raw_payload_level_shapes_source_ref() {
 		}
 	});
 
-	chunk_search::insert_note_with_importance_and_source_ref(
+	tests_helpers::insert_note_with_importance_and_source_ref(
 		&context.service.db.pool,
 		note_id,
 		note_text,
@@ -127,7 +127,7 @@ async fn search_raw_payload_level_shapes_source_ref() {
 		source_ref.clone(),
 	)
 	.await;
-	chunk_search::insert_chunk(
+	tests_helpers::insert_chunk(
 		&context.service.db.pool,
 		chunk_id,
 		note_id,
@@ -138,7 +138,7 @@ async fn search_raw_payload_level_shapes_source_ref() {
 		&context.embedding_version,
 	)
 	.await;
-	chunk_search::upsert_point(
+	tests_helpers::upsert_point(
 		&context.service,
 		chunk_id,
 		note_id,
@@ -163,8 +163,8 @@ async fn search_raw_payload_level_shapes_source_ref() {
 #[tokio::test]
 #[ignore = "Requires external Postgres and Qdrant. Set ELF_PG_DSN and ELF_QDRANT_URL to run."]
 async fn search_details_payload_level_shapes_text_and_fields() {
-	let providers = chunk_search::build_providers(StubRerank);
-	let Some(context) = chunk_search::setup_context(
+	let providers = tests_helpers::build_providers(StubRerank);
+	let Some(context) = tests_helpers::setup_context(
 		"search_details_payload_level_shapes_text_and_fields",
 		providers,
 	)
@@ -191,7 +191,7 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 
 	assert!(note_text.len() > max_note_chars);
 
-	chunk_search::insert_note_with_importance_and_source_ref(
+	tests_helpers::insert_note_with_importance_and_source_ref(
 		&context.service.db.pool,
 		note_id,
 		note_text.as_str(),
@@ -202,14 +202,14 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 		source_ref.clone(),
 	)
 	.await;
-	chunk_search::insert_summary_field_row(
+	tests_helpers::insert_summary_field_row(
 		&context.service.db.pool,
 		field_id,
 		note_id,
 		structured_summary,
 	)
 	.await;
-	chunk_search::insert_chunk(
+	tests_helpers::insert_chunk(
 		&context.service.db.pool,
 		chunk_id,
 		note_id,
@@ -220,7 +220,7 @@ async fn search_details_payload_level_shapes_text_and_fields() {
 		&context.embedding_version,
 	)
 	.await;
-	chunk_search::upsert_point(
+	tests_helpers::upsert_point(
 		&context.service,
 		chunk_id,
 		note_id,
