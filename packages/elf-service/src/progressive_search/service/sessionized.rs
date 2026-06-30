@@ -6,9 +6,11 @@ use crate::{
 	progressive_search::{
 		details, storage,
 		types::{
-			NewSearchSession, SESSION_SLIDING_TTL_HOURS, SearchIndexItem, SearchIndexResponse,
-			SearchSessionItemRecord, SearchSessionMode, SearchSessionizePath,
-			SearchSessionizedOutput,
+			SearchIndexItem, SearchIndexResponse, SearchSessionMode,
+			session::{
+				NewSearchSession, SESSION_SLIDING_TTL_HOURS, SearchSessionItemRecord,
+				SearchSessionizePath, SearchSessionizedOutput,
+			},
 		},
 	},
 	structured_fields,

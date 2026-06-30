@@ -5,7 +5,7 @@ use time::OffsetDateTime;
 use crate::{
 	Error, Result,
 	access::{self, SharedSpaceGrantKey},
-	progressive_search::types::{SearchDetailsError, SearchSession},
+	progressive_search::types::{SearchDetailsError, session::SearchSession},
 };
 use elf_config::Config;
 use elf_storage::models::MemoryNote;
