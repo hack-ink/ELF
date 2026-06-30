@@ -221,10 +221,12 @@ pub(in crate::knowledge) fn candidate_reasons_by_section(
 
 pub(in crate::knowledge) fn lint_output_message(output_type: &str, heading: &str) -> String {
 	match output_type {
-		"stale_section" =>
-			format!("Knowledge page section '{heading}' cites a stale or missing source."),
-		"missing_citation" =>
-			format!("Knowledge page section '{heading}' is missing citation coverage."),
+		"stale_section" => {
+			format!("Knowledge page section '{heading}' cites a stale or missing source.")
+		},
+		"missing_citation" => {
+			format!("Knowledge page section '{heading}' is missing citation coverage.")
+		},
 		_ => format!("Knowledge page section '{heading}' needs operator review."),
 	}
 }
