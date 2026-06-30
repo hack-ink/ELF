@@ -2,12 +2,12 @@
 
 //! Offline adapter for agentmemory-style fixture exports.
 
-#[path = "agentmemory_fixture_adapter/adapt.rs"] mod adapt;
-#[path = "agentmemory_fixture_adapter/cli.rs"] mod cli;
-#[path = "agentmemory_fixture_adapter/io.rs"] mod io;
-#[path = "agentmemory_fixture_adapter/mapping.rs"] mod mapping;
-#[path = "agentmemory_fixture_adapter/types.rs"] mod types;
-#[path = "agentmemory_fixture_adapter/util.rs"] mod util;
+mod adapt;
+mod cli;
+mod io;
+mod mapping;
+mod types;
+mod util;
 
 use clap::Parser;
 use color_eyre::Result;

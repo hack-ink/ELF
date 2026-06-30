@@ -2,13 +2,13 @@
 
 //! CLI for evaluating trace-regression gates against stored traces.
 
-#[path = "trace_regression_gate/cli.rs"] mod cli;
-#[path = "trace_regression_gate/eval.rs"] mod eval;
-#[path = "trace_regression_gate/gate.rs"] mod gate;
-#[path = "trace_regression_gate/replay.rs"] mod replay;
-#[path = "trace_regression_gate/reports.rs"] mod reports;
-#[path = "trace_regression_gate/rows.rs"] mod rows;
-#[path = "trace_regression_gate/storage.rs"] mod storage;
+mod cli;
+mod eval;
+mod gate;
+mod replay;
+mod reports;
+mod rows;
+mod storage;
 
 use std::fs;
 
