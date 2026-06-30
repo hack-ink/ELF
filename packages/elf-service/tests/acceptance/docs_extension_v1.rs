@@ -606,8 +606,9 @@ async fn docs_search_l0_requires_chat_doc_type_for_thread_id() {
 		Err(Error::InvalidRequest { message }) => {
 			assert!(message.contains("thread_id requires"));
 		},
-		other =>
-			panic!("Expected InvalidRequest for thread_id without chat doc_type, got {other:?}"),
+		other => {
+			panic!("Expected InvalidRequest for thread_id without chat doc_type, got {other:?}")
+		},
 	}
 
 	cleanup_docs_filter_fixture(test_db, handle, shutdown).await;
