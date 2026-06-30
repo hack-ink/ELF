@@ -1,6 +1,6 @@
-#[path = "scoreboard/common.rs"] mod common;
-#[path = "scoreboard/elf.rs"] mod elf;
-#[path = "scoreboard/external.rs"] mod external;
+mod common;
+mod elf;
+mod external;
 
 use crate::{
 	AdapterCoverageStatus, AdapterStatusCounts, BTreeMap, BTreeSet, ExternalAdapterReport,

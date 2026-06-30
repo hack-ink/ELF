@@ -18,7 +18,7 @@ Goal: Run and interpret the checked-in memory evolution real-world job fixtures.
 Read this when: You need to test current facts, historical facts, stale facts,
 conflicts, corrected memories, and temporal relation validity.
 Inputs: `apps/elf-eval/fixtures/real_world_memory/evolution/`,
-`apps/elf-eval/src/bin/real_world_job_benchmark.rs`, and `Makefile.toml`.
+`apps/elf-eval/src/bin/real_world_job_benchmark/main.rs`, and `Makefile.toml`.
 Depends on: `docs/spec/real_world_agent_memory_benchmark_v1.md`,
 `docs/runbook/benchmarking/real_world_agent_memory_benchmark.md`, and
 `docs/evidence/external_memory/comparison_external_projects.md`.

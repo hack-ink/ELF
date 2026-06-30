@@ -1,13 +1,13 @@
-#[path = "markdown/adapters.rs"] mod adapters;
-#[path = "markdown/common.rs"] mod common;
-#[path = "markdown/domain_metrics.rs"] mod domain_metrics;
-#[path = "markdown/evolution.rs"] mod evolution;
-#[path = "markdown/followups.rs"] mod followups;
-#[path = "markdown/header.rs"] mod header;
-#[path = "markdown/jobs.rs"] mod jobs;
-#[path = "markdown/operational.rs"] mod operational;
-#[path = "markdown/scoreboard.rs"] mod scoreboard;
-#[path = "markdown/trace.rs"] mod trace;
+mod adapters;
+mod common;
+mod domain_metrics;
+mod evolution;
+mod followups;
+mod header;
+mod jobs;
+mod operational;
+mod scoreboard;
+mod trace;
 
 use std::path::Path;
 
