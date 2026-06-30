@@ -7,7 +7,7 @@ use crate::{
 	Result,
 	core_blocks::{
 		rows::CoreBlockEventRow,
-		types::{CoreBlockAuditEvent, CoreBlockEventInput},
+		types::{CoreBlockAuditEvent, events::CoreBlockEventInput},
 	},
 };
 

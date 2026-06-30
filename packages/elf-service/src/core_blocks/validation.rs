@@ -9,8 +9,12 @@ use crate::{
 		rows::{CoreBlockAttachmentRow, CoreBlockJoinedRow, CoreBlockRow},
 		types::{
 			CoreBlockAttachRequest, CoreBlockDetachRequest, CoreBlockUpsertRequest,
-			CoreBlocksGetRequest, MAX_CORE_BLOCK_CONTENT_CHARS, PreparedAttachRequest,
-			PreparedDetachRequest, PreparedGetRequest, PreparedUpsertRequest,
+			CoreBlocksGetRequest,
+			constants::MAX_CORE_BLOCK_CONTENT_CHARS,
+			prepared::{
+				PreparedAttachRequest, PreparedDetachRequest, PreparedGetRequest,
+				PreparedUpsertRequest,
+			},
 		},
 	},
 	search,
