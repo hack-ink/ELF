@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
 	Error, Result,
-	core_blocks::{rows::CoreBlockRow, types::PreparedUpsertRequest, validation},
+	core_blocks::{rows::CoreBlockRow, types::prepared::PreparedUpsertRequest, validation},
 };
 
 pub(in crate::core_blocks) async fn insert_core_block(

@@ -6,9 +6,9 @@ use crate::{
 		persistence::{self},
 		types::{
 			CoreBlockAttachRequest, CoreBlockAttachResponse, CoreBlockDetachRequest,
-			CoreBlockDetachResponse, CoreBlockEventInput, CoreBlockUpsertRequest,
-			CoreBlockUpsertResponse, CoreBlocksGetRequest, CoreBlocksResponse,
-			ELF_CORE_MEMORY_BLOCKS_SCHEMA_V1,
+			CoreBlockDetachResponse, CoreBlockUpsertRequest, CoreBlockUpsertResponse,
+			CoreBlocksGetRequest, CoreBlocksResponse, ELF_CORE_MEMORY_BLOCKS_SCHEMA_V1,
+			events::CoreBlockEventInput,
 		},
 		validation::{self},
 	},

@@ -21,14 +21,10 @@ pub(super) use self::{
 };
 
 use crate::knowledge::{
-	BTreeMap, BTreeSet, ConsolidationApplyIntent, ConsolidationInputRef, ConsolidationLineage,
-	ConsolidationMarker, ConsolidationMarkerSeverity, ConsolidationMarkers,
-	ConsolidationProposalDiff, ConsolidationProposalInput, ConsolidationRunCreateResponse,
-	ConsolidationSourceKind, ConsolidationSourceSnapshot, Error, KnowledgeDeltaMemoryCandidate,
-	KnowledgePage, KnowledgePageChangedSource, KnowledgePageKind, KnowledgePageProposalRunSummary,
-	KnowledgePageRebuildOutput, KnowledgePageRebuildRequest, KnowledgePageResponse,
-	KnowledgePageSection, KnowledgePageSectionRebuildState, KnowledgePageSectionResponse,
-	KnowledgePageSourceRef, KnowledgePageSourceRefResponse, KnowledgePageWatchRebuildItem,
+	BTreeMap, BTreeSet, Error, KnowledgePage, KnowledgePageChangedSource, KnowledgePageKind,
+	KnowledgePageProposalRunSummary, KnowledgePageRebuildOutput, KnowledgePageRebuildRequest,
+	KnowledgePageResponse, KnowledgePageSection, KnowledgePageSectionRebuildState,
+	KnowledgePageSectionResponse, KnowledgePageSourceRef, KnowledgePageWatchRebuildItem,
 	KnowledgePageWatchRebuildSummary, KnowledgeSourceKind, LintDraft, Result, SourceIds, Uuid,
 	Value, WatchRebuildOutcome, empty_object, previous_version_diff_from_metadata, serde_json,
 	truncate_chars,
