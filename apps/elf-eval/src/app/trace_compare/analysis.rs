@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use uuid::Uuid;
 
-use crate::app::types::{
+use crate::app::trace_compare::types::{
 	TraceCompareCandidateRow, TraceCompareChurn, TraceCompareGuardrails,
 	TraceCompareRegressionAttribution, TraceCompareStageDelta, TraceCompareStageRow,
 };
@@ -132,8 +132,8 @@ mod tests {
 	use time::OffsetDateTime;
 	use uuid::Uuid;
 
-	use crate::app::{
-		trace_compare::analysis,
+	use crate::app::trace_compare::{
+		analysis,
 		types::{
 			TraceCompareCandidateRow, TraceCompareChurn, TraceCompareGuardrails,
 			TraceCompareStageDelta, TraceCompareStageRow,
