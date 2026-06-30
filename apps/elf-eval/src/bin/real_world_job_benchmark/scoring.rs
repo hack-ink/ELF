@@ -1,10 +1,10 @@
-#[path = "scoring/answers.rs"] mod answers;
-#[path = "scoring/claims.rs"] mod claims;
-#[path = "scoring/consolidation.rs"] mod consolidation;
-#[path = "scoring/counts.rs"] mod counts;
-#[path = "scoring/dimensions.rs"] mod dimensions;
-#[path = "scoring/evolution.rs"] mod evolution;
-#[path = "scoring/reports.rs"] mod reports;
+mod answers;
+mod claims;
+mod consolidation;
+mod counts;
+mod dimensions;
+mod evolution;
+mod reports;
 
 use self::{counts::wrong_result_signal_count, evolution::update_rationale_missing_count};
 use crate::{

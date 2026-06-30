@@ -1,12 +1,12 @@
-#[path = "artifacts/answer.rs"] mod answer;
-#[path = "artifacts/consolidation.rs"] mod consolidation;
-#[path = "artifacts/cost.rs"] mod cost;
-#[path = "artifacts/knowledge.rs"] mod knowledge;
-#[path = "artifacts/memory.rs"] mod memory;
-#[path = "artifacts/proactive.rs"] mod proactive;
-#[path = "artifacts/recovery.rs"] mod recovery;
-#[path = "artifacts/scheduled.rs"] mod scheduled;
-#[path = "artifacts/work.rs"] mod work;
+mod answer;
+mod consolidation;
+mod cost;
+mod knowledge;
+mod memory;
+mod proactive;
+mod recovery;
+mod scheduled;
+mod work;
 
 pub(super) use self::{
 	answer::{ProducedAnswer, ProducedClaim},

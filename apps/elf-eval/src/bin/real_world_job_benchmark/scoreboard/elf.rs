@@ -35,7 +35,7 @@ pub(super) fn elf_scoreboard_row(
 		next_evidence: Vec::new(),
 		source_provenance: vec![
 			"apps/elf-eval/fixtures/real_world_memory/".to_string(),
-			"apps/elf-eval/src/bin/real_world_job_benchmark.rs".to_string(),
+			"apps/elf-eval/src/bin/real_world_job_benchmark/main.rs".to_string(),
 		],
 	};
 

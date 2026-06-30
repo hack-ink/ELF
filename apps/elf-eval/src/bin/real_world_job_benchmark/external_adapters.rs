@@ -1,7 +1,7 @@
-#[path = "external_adapters/manifest.rs"] mod manifest;
-#[path = "external_adapters/outcome.rs"] mod outcome;
-#[path = "external_adapters/summary.rs"] mod summary;
-#[path = "external_adapters/validation.rs"] mod validation;
+mod manifest;
+mod outcome;
+mod summary;
+mod validation;
 
 pub(super) use outcome::scenario_comparison_outcome;
 
