@@ -30,7 +30,13 @@ const HEADER_AUTHORIZATION: &str = "Authorization";
 
 impl ElfMcp {
 	pub(in crate::app::server) fn tool_router() -> ToolRouter<Self> {
-		Self::core_tool_router() + Self::docs_tool_router() + Self::admin_tool_router()
+		Self::core_ingest_tool_router()
+			+ Self::core_memory_tool_router()
+			+ Self::core_notes_tool_router()
+			+ Self::core_search_tool_router()
+			+ Self::core_sharing_tool_router()
+			+ Self::docs_tool_router()
+			+ Self::admin_tool_router()
 	}
 }
 
