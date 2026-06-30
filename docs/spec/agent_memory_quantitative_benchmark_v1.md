@@ -16,7 +16,7 @@ source_refs:
   - XY-1098
   - XY-1120
 code_refs:
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
   - apps/elf-eval/tests/real_world_job_benchmark.rs
 related:
   - docs/spec/real_world_agent_memory_benchmark_v1.md
@@ -24,7 +24,7 @@ related:
 drift_watch:
   - docs/spec/agent_memory_quantitative_benchmark_v1.md
   - docs/spec/real_world_agent_memory_benchmark_v1.md
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
   - apps/elf-eval/fixtures/report_snapshots/2026-06-27-public-quantitative-competitor-scoreboard-report.json
 ---
 # Agent Memory Quantitative Benchmark v1
