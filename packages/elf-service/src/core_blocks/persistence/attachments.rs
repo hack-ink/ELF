@@ -7,7 +7,7 @@ use crate::{
 	access::ORG_PROJECT_ID,
 	core_blocks::{
 		rows::{CoreBlockAttachmentRow, CoreBlockRow},
-		types::{PreparedAttachRequest, PreparedDetachRequest},
+		types::prepared::{PreparedAttachRequest, PreparedDetachRequest},
 	},
 };
 
