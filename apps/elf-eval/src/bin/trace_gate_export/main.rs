@@ -2,11 +2,11 @@
 
 //! CLI for exporting trace fixtures used by regression gates.
 
-#[path = "trace_gate_export/cli.rs"] mod cli;
-#[path = "trace_gate_export/fetch.rs"] mod fetch;
-#[path = "trace_gate_export/render.rs"] mod render;
-#[path = "trace_gate_export/rows.rs"] mod rows;
-#[path = "trace_gate_export/sql.rs"] mod sql;
+mod cli;
+mod fetch;
+mod render;
+mod rows;
+mod sql;
 
 use std::fs;
 

@@ -1,71 +1,15 @@
 //! Note listing APIs.
 
-use std::collections::HashSet;
+mod access_filter;
+mod query;
+mod request;
+mod types;
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use sqlx::{PgPool, QueryBuilder};
+pub use self::types::{ListItem, ListRequest, ListResponse};
+
 use time::OffsetDateTime;
-use uuid::Uuid;
 
-use crate::{
-	ElfService, Error, Result,
-	access::{self, ORG_PROJECT_ID},
-};
-use elf_storage::models::MemoryNote;
-
-/// Request payload for note listing.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ListRequest {
-	/// Tenant to list notes from.
-	pub tenant_id: String,
-	/// Project to list notes from.
-	pub project_id: String,
-	/// Optional agent filter and required owner for `agent_private`.
-	pub agent_id: Option<String>,
-	/// Optional scope filter.
-	pub scope: Option<String>,
-	/// Optional lifecycle status filter.
-	pub status: Option<String>,
-	/// Optional note-type filter.
-	pub r#type: Option<String>,
-}
-
-/// One note returned by `list`.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ListItem {
-	/// Note identifier.
-	pub note_id: Uuid,
-	/// Note type discriminator.
-	pub r#type: String,
-	/// Optional application-defined key.
-	pub key: Option<String>,
-	/// Scope key for the note.
-	pub scope: String,
-	/// Lifecycle status for the note.
-	pub status: String,
-	/// Note body text.
-	pub text: String,
-	/// Importance score.
-	pub importance: f32,
-	/// Confidence score.
-	pub confidence: f32,
-	#[serde(with = "crate::time_serde")]
-	/// Last update timestamp.
-	pub updated_at: OffsetDateTime,
-	#[serde(with = "crate::time_serde::option")]
-	/// Optional expiry timestamp.
-	pub expires_at: Option<OffsetDateTime>,
-	/// Structured source reference metadata.
-	pub source_ref: Value,
-}
-
-/// Response payload for note listing.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ListResponse {
-	/// Notes visible to the caller after access filtering.
-	pub items: Vec<ListItem>,
-}
+use crate::{ElfService, Result};
 
 impl ElfService {
 	/// Lists notes visible to the caller under the requested filters.
@@ -74,7 +18,7 @@ impl ElfService {
 		let tenant_id = req.tenant_id.trim();
 		let project_id = req.project_id.trim();
 		let agent_id = req.agent_id.as_ref().map(|value| value.trim()).unwrap_or("");
-		let requested_status = requested_list_status(req.status.as_ref());
+		let requested_status = request::requested_list_status(req.status.as_ref());
 		let status_for_note_read =
 			requested_status.unwrap_or("active").eq_ignore_ascii_case("active");
 		let non_private_scopes = match req.scope.as_deref().map(str::trim) {
@@ -85,15 +29,33 @@ impl ElfService {
 			),
 		};
 
-		validate_list_request(&req, tenant_id, project_id, agent_id, &self.cfg.scopes.allowed)?;
+		request::validate_list_request(
+			&req,
+			tenant_id,
+			project_id,
+			agent_id,
+			&self.cfg.scopes.allowed,
+		)?;
 
-		let shared_grants =
-			list_shared_grants(&self.db.pool, tenant_id, project_id, agent_id, &non_private_scopes)
-				.await?;
-		let notes =
-			list_notes(&self.db.pool, &req, tenant_id, project_id, requested_status, agent_id, now)
-				.await?;
-		let items = map_list_items(
+		let shared_grants = access_filter::list_shared_grants(
+			&self.db.pool,
+			tenant_id,
+			project_id,
+			agent_id,
+			&non_private_scopes,
+		)
+		.await?;
+		let notes = query::list_notes(
+			&self.db.pool,
+			&req,
+			tenant_id,
+			project_id,
+			requested_status,
+			agent_id,
+			now,
+		)
+		.await?;
+		let items = access_filter::map_list_items(
 			notes,
 			agent_id,
 			non_private_scopes.as_deref(),
@@ -104,177 +66,4 @@ impl ElfService {
 
 		Ok(ListResponse { items })
 	}
-}
-
-fn requested_list_status(requested_status: Option<&String>) -> Option<&str> {
-	requested_status.map(|value| value.trim()).filter(|value| !value.is_empty())
-}
-
-fn validate_list_request(
-	req: &ListRequest,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-	allowed_scopes: &[String],
-) -> Result<()> {
-	if tenant_id.is_empty() || project_id.is_empty() {
-		return Err(Error::InvalidRequest {
-			message: "tenant_id and project_id are required.".to_string(),
-		});
-	}
-
-	if let Some(scope) = req.scope.as_ref()
-		&& !allowed_scopes.iter().any(|value| value == scope)
-	{
-		return Err(Error::ScopeDenied { message: "Scope is not allowed.".to_string() });
-	}
-	if let Some(agent_id) = req.agent_id.as_ref()
-		&& agent_id.trim().is_empty()
-	{
-		return Err(Error::InvalidRequest {
-			message: "agent_id must not be empty when provided.".to_string(),
-		});
-	}
-
-	if req.scope.as_deref() == Some("agent_private") && agent_id.is_empty() {
-		return Err(Error::ScopeDenied {
-			message: "agent_id is required for agent_private scope.".to_string(),
-		});
-	}
-
-	Ok(())
-}
-
-fn map_list_items(
-	notes: Vec<MemoryNote>,
-	agent_id: &str,
-	non_private_scopes: Option<&[String]>,
-	shared_grants: &HashSet<access::SharedSpaceGrantKey>,
-	status_for_note_read: bool,
-	now: OffsetDateTime,
-) -> Vec<ListItem> {
-	notes
-		.into_iter()
-		.filter(|note| {
-			let Some(scopes) = non_private_scopes else {
-				return true;
-			};
-
-			if status_for_note_read {
-				return access::note_read_allowed(note, agent_id, scopes, shared_grants, now);
-			}
-
-			note.agent_id == agent_id
-				|| shared_grants.contains(&crate::access::SharedSpaceGrantKey {
-					scope: note.scope.clone(),
-					space_owner_agent_id: note.agent_id.clone(),
-				})
-		})
-		.map(|note| ListItem {
-			note_id: note.note_id,
-			r#type: note.r#type,
-			key: note.key,
-			scope: note.scope,
-			status: note.status,
-			text: note.text,
-			importance: note.importance,
-			confidence: note.confidence,
-			updated_at: note.updated_at,
-			expires_at: note.expires_at,
-			source_ref: note.source_ref,
-		})
-		.collect()
-}
-
-async fn list_shared_grants(
-	pool: &PgPool,
-	tenant_id: &str,
-	project_id: &str,
-	agent_id: &str,
-	non_private_scopes: &Option<Vec<String>>,
-) -> Result<HashSet<access::SharedSpaceGrantKey>> {
-	if non_private_scopes.is_none() || agent_id.is_empty() {
-		return Ok(HashSet::new());
-	}
-
-	let org_shared_allowed =
-		non_private_scopes.as_ref().is_some_and(|scopes| scopes.iter().any(|s| s == "org_shared"));
-
-	access::load_shared_read_grants_with_org_shared(
-		pool,
-		tenant_id,
-		project_id,
-		agent_id,
-		org_shared_allowed,
-	)
-	.await
-}
-
-async fn list_notes(
-	pool: &PgPool,
-	req: &ListRequest,
-	tenant_id: &str,
-	project_id: &str,
-	requested_status: Option<&str>,
-	agent_id: &str,
-	now: OffsetDateTime,
-) -> Result<Vec<MemoryNote>> {
-	let mut builder = QueryBuilder::new(
-		"SELECT note_id, tenant_id, project_id, agent_id, scope, type, key, text, importance, confidence, status, created_at, updated_at, expires_at, embedding_version, source_ref, hit_count, last_hit_at \
-					FROM memory_notes WHERE tenant_id = ",
-	);
-
-	builder.push_bind(tenant_id);
-
-	let include_org_shared = match req.scope.as_deref().map(str::trim) {
-		None => true,
-		Some("org_shared") => true,
-		Some(_) => false,
-	};
-
-	if include_org_shared {
-		builder.push(" AND (project_id = ");
-		builder.push_bind(project_id);
-		builder.push(" OR (project_id = ");
-		builder.push_bind(ORG_PROJECT_ID);
-		builder.push(" AND scope = ");
-		builder.push_bind("org_shared");
-		builder.push("))");
-	} else {
-		builder.push(" AND project_id = ");
-		builder.push_bind(project_id);
-	}
-
-	if let Some(scope) = &req.scope {
-		builder.push(" AND scope = ");
-		builder.push_bind(scope);
-
-		if scope == "agent_private" {
-			builder.push(" AND agent_id = ");
-			builder.push_bind(agent_id);
-		}
-	} else {
-		builder.push(" AND scope != ");
-		builder.push_bind("agent_private");
-	}
-	if let Some(status) = requested_status {
-		builder.push(" AND status = ");
-		builder.push_bind(status);
-	} else {
-		builder.push(" AND status = ");
-		builder.push_bind("active");
-	}
-
-	if requested_status.unwrap_or("active").eq_ignore_ascii_case("active") {
-		builder.push(" AND (expires_at IS NULL OR expires_at > ");
-		builder.push_bind(now);
-		builder.push(")");
-	}
-
-	if let Some(note_type) = &req.r#type {
-		builder.push(" AND type = ");
-		builder.push_bind(note_type);
-	}
-
-	builder.build_query_as().fetch_all(pool).await.map_err(Into::into)
 }

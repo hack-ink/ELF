@@ -2,14 +2,14 @@
 
 //! Weekly external memory pattern radar runner.
 
-#[path = "external_memory_pattern_radar/cli.rs"] mod cli;
-#[path = "external_memory_pattern_radar/decision.rs"] mod decision;
-#[path = "external_memory_pattern_radar/github.rs"] mod github;
-#[path = "external_memory_pattern_radar/io.rs"] mod io;
-#[path = "external_memory_pattern_radar/render.rs"] mod render;
-#[path = "external_memory_pattern_radar/runtime.rs"] mod runtime;
-#[path = "external_memory_pattern_radar/types.rs"] mod types;
-#[path = "external_memory_pattern_radar/validation.rs"] mod validation;
+mod cli;
+mod decision;
+mod github;
+mod io;
+mod render;
+mod runtime;
+mod types;
+mod validation;
 
 use clap::Parser;
 use color_eyre::Result;
