@@ -2,7 +2,7 @@ mod queries;
 
 use crate::{BTreeSet, RealWorldJob, ReportSummary};
 
-pub(super) fn ranking_query_ids(source_jobs: &[RealWorldJob]) -> BTreeSet<&str> {
+pub(in crate::quantitative) fn ranking_query_ids(source_jobs: &[RealWorldJob]) -> BTreeSet<&str> {
 	source_jobs
 		.iter()
 		.filter(|job| queries::is_ranking_query(job))
@@ -10,15 +10,15 @@ pub(super) fn ranking_query_ids(source_jobs: &[RealWorldJob]) -> BTreeSet<&str> 
 		.collect()
 }
 
-pub(super) fn ranking_query_count(source_jobs: &[RealWorldJob]) -> usize {
+pub(in crate::quantitative) fn ranking_query_count(source_jobs: &[RealWorldJob]) -> usize {
 	ranking_query_ids(source_jobs).len()
 }
 
-pub(super) fn explicit_qrel_query_count(source_jobs: &[RealWorldJob]) -> usize {
+pub(in crate::quantitative) fn explicit_qrel_query_count(source_jobs: &[RealWorldJob]) -> usize {
 	source_jobs.iter().filter(|job| !job.expected_answer.relevance_judgments.is_empty()).count()
 }
 
-pub(super) fn aggregate_qrel_source(
+pub(in crate::quantitative) fn aggregate_qrel_source(
 	ranking_query_count: usize,
 	explicit_qrel_query_count: usize,
 ) -> &'static str {
@@ -33,7 +33,7 @@ pub(super) fn aggregate_qrel_source(
 	}
 }
 
-pub(super) fn ranking_coverage_state(
+pub(in crate::quantitative) fn ranking_coverage_state(
 	summary: &ReportSummary,
 	source_job_count: usize,
 	ranking_query_count: usize,
@@ -47,6 +47,6 @@ pub(super) fn ranking_coverage_state(
 	}
 }
 
-pub(super) fn ranked_candidate_source(ranking_query_count: usize) -> &'static str {
+pub(in crate::quantitative) fn ranked_candidate_source(ranking_query_count: usize) -> &'static str {
 	if ranking_query_count == 0 { "not_encoded" } else { "produced_evidence_order" }
 }
