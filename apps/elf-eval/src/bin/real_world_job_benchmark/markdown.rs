@@ -6,6 +6,7 @@ mod followups;
 mod header;
 mod jobs;
 mod operational;
+mod quantitative;
 mod scoreboard;
 mod trace;
 
@@ -16,9 +17,9 @@ use crate::{
 	AdapterScenarioJudgment, AdapterSource, AdapterStatusCounts, AdapterSuiteCoverage, CostReport,
 	DEFAULT_ADAPTER_BEHAVIOR, EvolutionJobReport, ExternalAdapterReport, KnowledgeSummary,
 	MemorySummaryReport, OperatorDebugEvidence, OperatorUxGap, ProactiveBriefSummaryReport,
-	RealWorldReport, ReportSummary, SCOREBOARD_EVIDENCE_CLASSES, ScenarioOutcomeCounts,
-	ScenarioPositionCounts, ScheduledMemorySummaryReport, ScoreboardReport, ScoreboardRow,
-	TraceExplainability, WorkContinuitySummaryReport,
+	QuantitativeBenchmarkRow, RealWorldReport, ReportSummary, SCOREBOARD_EVIDENCE_CLASSES,
+	ScenarioOutcomeCounts, ScenarioPositionCounts, ScheduledMemorySummaryReport, ScoreboardReport,
+	ScoreboardRow, TraceExplainability, WorkContinuitySummaryReport,
 	formatting::{
 		adapter_status_str, round3, scenario_comparison_outcome_str, status_str,
 		trace_failure_stage,
@@ -32,6 +33,7 @@ pub(super) fn render_markdown(report: &RealWorldReport, report_path: &Path) -> S
 
 	self::header::render_markdown_header(&mut out, report, report_path.as_str());
 	self::scoreboard::render_markdown_scoreboard(&mut out, report);
+	self::quantitative::render_markdown_quantitative_scoreboard(&mut out, report);
 	self::operational::render_markdown_operational_evidence(&mut out, report);
 	self::adapters::render_markdown_external_adapters(&mut out, report);
 	self::adapters::render_markdown_capture_integration(&mut out, report);

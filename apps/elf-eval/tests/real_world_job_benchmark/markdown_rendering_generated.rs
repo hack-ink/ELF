@@ -38,6 +38,9 @@ fn generated_json_report_renders_markdown() -> Result<()> {
 	assert!(markdown.contains("# Real-World Job Benchmark Report"));
 	assert!(markdown.contains("work_resume"));
 	assert!(markdown.contains("Capture And Integration Coverage"));
+	assert!(markdown.contains("Quantitative Benchmark Report"));
+	assert!(markdown.contains("leaderboard claims require explicit qrels"));
+	assert!(markdown.contains("| ELF | `pass` | `fixture_backed`"));
 	assert!(markdown.contains("External Adapter Coverage"));
 	assert!(markdown.contains("live-baseline-only"));
 	assert!(markdown.contains("live real-world"));

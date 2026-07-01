@@ -61,28 +61,7 @@ pub(super) fn trap_ids_used(
 		.collect()
 }
 
-fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
-	let _ = job;
-
-	static EMPTY_ANSWER: std::sync::OnceLock<ProducedAnswer> = std::sync::OnceLock::new();
-
-	EMPTY_ANSWER.get_or_init(|| ProducedAnswer {
-		content: String::new(),
-		claims: Vec::new(),
-		evidence_ids: Vec::new(),
-		pages: Vec::new(),
-		memory_summaries: Vec::new(),
-		proactive_briefs: Vec::new(),
-		scheduled_tasks: Vec::new(),
-		work_journal_readbacks: Vec::new(),
-		recovery_drills: Vec::new(),
-		latency_ms: None,
-		cost: None,
-		trace_explainability: None,
-	})
-}
-
-fn ordered_produced_evidence_ids(answer: &ProducedAnswer) -> Vec<String> {
+pub(super) fn ordered_produced_evidence_ids(answer: &ProducedAnswer) -> Vec<String> {
 	let mut seen = BTreeSet::new();
 	let mut evidence = Vec::new();
 
@@ -178,6 +157,27 @@ fn ordered_produced_evidence_ids(answer: &ProducedAnswer) -> Vec<String> {
 	}
 
 	evidence
+}
+
+fn synthetic_answer(job: &RealWorldJob) -> &ProducedAnswer {
+	let _ = job;
+
+	static EMPTY_ANSWER: std::sync::OnceLock<ProducedAnswer> = std::sync::OnceLock::new();
+
+	EMPTY_ANSWER.get_or_init(|| ProducedAnswer {
+		content: String::new(),
+		claims: Vec::new(),
+		evidence_ids: Vec::new(),
+		pages: Vec::new(),
+		memory_summaries: Vec::new(),
+		proactive_briefs: Vec::new(),
+		scheduled_tasks: Vec::new(),
+		work_journal_readbacks: Vec::new(),
+		recovery_drills: Vec::new(),
+		latency_ms: None,
+		cost: None,
+		trace_explainability: None,
+	})
 }
 
 fn push_ordered_evidence(

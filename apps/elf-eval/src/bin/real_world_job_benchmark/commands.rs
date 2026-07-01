@@ -1,7 +1,7 @@
 use crate::{
 	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile, OffsetDateTime, Path,
-	PathBuf, PrivateCorpusRedaction, PublishArgs, REPORT_SCHEMA, RealWorldJob, RealWorldReport,
-	Result, Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
+	PathBuf, PrivateCorpusRedaction, PublishArgs, QuantitativeReportInput, REPORT_SCHEMA,
+	RealWorldJob, RealWorldReport, Result, Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
 };
 
 pub(super) fn run_command(args: RunArgs) -> Result<()> {
@@ -103,16 +103,26 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 	)?;
 	let scoreboard = crate::scoreboard_report(jobs, &job_reports, &summary, &external_adapters);
 	let operational_evidence = crate::operational_evidence_report(jobs, &job_reports);
+	let adapter = adapter_report(args)?;
+	let generated_at = OffsetDateTime::now_utc().format(&Rfc3339)?;
+	let quantitative_scoreboard = crate::quantitative_scoreboard_report(QuantitativeReportInput {
+		generated_at: generated_at.as_str(),
+		adapter: &adapter,
+		source_jobs: jobs,
+		jobs: &job_reports,
+		summary: &summary,
+	});
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),
 		run_id: args.run_id.clone(),
-		generated_at: OffsetDateTime::now_utc().format(&Rfc3339)?,
+		generated_at,
 		runner_version: VERSION.to_string(),
 		corpus_profile: corpus_profile(jobs),
-		adapter: adapter_report(args)?,
+		adapter,
 		scoreboard,
 		operational_evidence,
+		quantitative_scoreboard,
 		external_adapters,
 		capture_integration: capture_integration_report(jobs),
 		summary,
