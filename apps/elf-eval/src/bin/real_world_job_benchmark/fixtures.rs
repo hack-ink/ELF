@@ -87,6 +87,8 @@ pub(super) struct ExpectedAnswer {
 	pub(super) must_not_include: Vec<String>,
 	#[serde(default)]
 	pub(super) evidence_links: BTreeMap<String, EvidenceLink>,
+	#[serde(default)]
+	pub(super) relevance_judgments: Vec<RelevanceJudgment>,
 	pub(super) answer_type: String,
 	#[serde(default)]
 	pub(super) accepted_alternates: Vec<Value>,
@@ -94,6 +96,13 @@ pub(super) struct ExpectedAnswer {
 	pub(super) requires_caveat: bool,
 	#[serde(default)]
 	pub(super) requires_refusal: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct RelevanceJudgment {
+	pub(super) evidence_id: String,
+	#[serde(default = "default_relevance_grade")]
+	pub(super) grade: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -249,4 +258,8 @@ pub(super) struct AdapterResponse {
 	pub(super) adapter_id: Option<String>,
 	pub(super) answer: ProducedAnswer,
 	pub(super) consolidation: Option<ConsolidationFixture>,
+}
+
+fn default_relevance_grade() -> f64 {
+	1.0
 }

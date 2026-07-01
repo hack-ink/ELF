@@ -27,6 +27,10 @@ pub(super) fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 	reports::job_report(job, scoring)
 }
 
+pub(super) fn produced_evidence_order(job: &RealWorldJob) -> Vec<String> {
+	self::answers::ordered_produced_evidence_ids(self::answers::produced_answer(job))
+}
+
 pub(super) fn score_job(job: &RealWorldJob) -> JobScoring {
 	let answer = self::answers::produced_answer(job);
 	let produced_evidence = self::answers::produced_evidence_ids(answer);

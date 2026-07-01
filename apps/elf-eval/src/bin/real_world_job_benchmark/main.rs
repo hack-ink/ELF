@@ -16,6 +16,8 @@ mod job_reports;
 mod markdown;
 mod operational;
 mod operational_reports;
+mod quantitative;
+mod quantitative_reports;
 mod recovery;
 mod report_root;
 mod scoreboard;
@@ -83,6 +85,11 @@ use operational_reports::{
 	OperationalAuthorityRecoveryReport, OperationalColdStartRestoreRebuild, OperationalCostSummary,
 	OperationalEvidenceReport, OperationalEvidenceTierReport, OperationalLatencyReport,
 	OperationalResourceSummary,
+};
+use quantitative::{QuantitativeReportInput, quantitative_scoreboard_report};
+use quantitative_reports::{
+	QuantitativeBenchmarkControls, QuantitativeBenchmarkReport, QuantitativeBenchmarkRow,
+	QuantitativePerQueryRow,
 };
 use report_root::RealWorldReport;
 use scoreboard::scoreboard_report;
