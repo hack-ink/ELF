@@ -4,7 +4,7 @@ mod row;
 
 use crate::{JobReport, QuantitativePerQueryRow, RealWorldJob};
 
-pub(super) fn quantitative_per_query_rows(
+pub(in crate::quantitative) fn quantitative_per_query_rows(
 	source_jobs: &[RealWorldJob],
 	jobs: &[JobReport],
 	corpus_id: &str,
