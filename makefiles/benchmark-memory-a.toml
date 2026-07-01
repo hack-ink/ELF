@@ -364,6 +364,13 @@ args = [
 	"tmp/real-world-memory/evolution-report.md",
 ]
 
+[tasks.real-world-memory-explicit-qrels]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-explicit-qrels.sh",
+]
+
 [tasks.real-world-memory-graph-rag]
 workspace = false
 dependencies = [
