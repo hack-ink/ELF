@@ -1,4 +1,6 @@
 mod confidence;
+mod denominators;
+mod names;
 
 use crate::{
 	BTreeMap, QuantitativeConfidenceInterval, QuantitativePerQueryRow, formatting,
@@ -7,7 +9,7 @@ use crate::{
 
 pub(super) fn aggregate_metrics(rows: &[QuantitativePerQueryRow]) -> BTreeMap<String, Option<f64>> {
 	let mut sums = BTreeMap::<String, (f64, usize)>::new();
-	let mut metrics = quantitative_metric_names()
+	let mut metrics = names::quantitative_metric_names()
 		.into_iter()
 		.map(|metric| (metric, None))
 		.collect::<BTreeMap<_, _>>();
@@ -49,54 +51,11 @@ pub(super) fn aggregate_metric_states(
 }
 
 pub(super) fn aggregate_denominators(rows: &[QuantitativePerQueryRow]) -> BTreeMap<String, usize> {
-	let mut denominators = BTreeMap::new();
-
-	for k in QUANTITATIVE_K_VALUES {
-		denominators.insert(
-			format!("recall_at_{k}"),
-			sum_per_query_denominator(rows, &format!("recall_at_{k}")),
-		);
-		denominators.insert(
-			format!("precision_at_{k}"),
-			sum_per_query_denominator(rows, &format!("precision_at_{k}")),
-		);
-		denominators.insert(
-			format!("success_at_{k}"),
-			sum_per_query_denominator(rows, &format!("success_at_{k}")),
-		);
-	}
-
-	denominators.insert("mrr".to_string(), sum_per_query_denominator(rows, "mrr"));
-	denominators.insert("ndcg_at_5".to_string(), sum_per_query_denominator(rows, "ndcg_at_5"));
-	denominators.insert(
-		"average_precision".to_string(),
-		sum_per_query_denominator(rows, "average_precision"),
-	);
-
-	denominators
+	denominators::aggregate_denominators(rows)
 }
 
 pub(super) fn aggregate_confidence_intervals(
 	rows: &[QuantitativePerQueryRow],
 ) -> BTreeMap<String, QuantitativeConfidenceInterval> {
 	confidence::aggregate_confidence_intervals(rows)
-}
-
-fn quantitative_metric_names() -> Vec<String> {
-	let mut metrics = Vec::new();
-
-	for k in QUANTITATIVE_K_VALUES {
-		metrics.push(format!("recall_at_{k}"));
-		metrics.push(format!("precision_at_{k}"));
-		metrics.push(format!("success_at_{k}"));
-	}
-	for metric in ["mrr", "ndcg_at_5", "average_precision"] {
-		metrics.push(metric.to_string());
-	}
-
-	metrics
-}
-
-fn sum_per_query_denominator(rows: &[QuantitativePerQueryRow], metric: &str) -> usize {
-	rows.iter().filter_map(|row| row.denominators.get(metric)).sum()
 }
