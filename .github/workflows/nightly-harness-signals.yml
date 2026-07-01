@@ -62,7 +62,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client jq
 
       - name: Install taplo
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5
+        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419
         with:
           tool: taplo
 
