@@ -49,4 +49,3 @@ STARTUP_ATTEMPTS = int(os.environ.get("ELF_LETTA_STARTUP_ATTEMPTS", "30"))
 STARTUP_INTERVAL_SECONDS = float(os.environ.get("ELF_LETTA_STARTUP_INTERVAL_SECONDS", "2"))
 
 CORE_KINDS = {"core_block", "core_block_contract", "core_block_event"}
-
