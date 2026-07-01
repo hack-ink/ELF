@@ -1,12 +1,13 @@
+mod benchmark_row;
 mod query_counts;
 
 use crate::{
 	QuantitativeBenchmarkRow, QuantitativePerQueryRow, Result,
 	quantitative::{
-		self, QUANTITATIVE_ROW_CLAIM_BOUNDARY,
+		self,
 		audit_manifest::{self, QuantitativeAuditContext},
 		metrics,
-		report::QuantitativeReportInput,
+		report::{QuantitativeReportInput, row::benchmark_row::QuantitativeBenchmarkRowInput},
 	},
 };
 
@@ -55,39 +56,18 @@ pub(super) fn current_quantitative_row(
 		metric_comparable,
 		&audit_evidence,
 	);
-	let row = QuantitativeBenchmarkRow {
-		product: "ELF".to_string(),
-		adapter_id: input.adapter.adapter_id.clone(),
-		adapter_name: input.adapter.name.clone(),
-		suite: quantitative::quantitative_suite_id(input.jobs),
-		evidence_class: evidence_class.to_string(),
-		source_manifest_corpus_id: Some(corpus_id.clone()),
-		result_state: result_state.to_string(),
-		comparable: metric_comparable,
-		metric_comparable,
-		leaderboard_eligible,
-		held_out: audit_evidence.held_out,
-		leakage_audited: audit_evidence.leakage_audited,
-		audit_manifest_id: audit_evidence.audit_manifest_id,
-		fixture_regression_only: evidence_class == "fixture_backed",
-		sample_size: input.jobs.len(),
+	let row = benchmark_row::quantitative_benchmark_row(QuantitativeBenchmarkRowInput {
+		input,
+		corpus_id: corpus_id.as_str(),
+		evidence_class,
+		per_query_rows: per_query_rows.as_slice(),
 		ranking_query_count,
-		ranking_coverage_state: metrics::ranking_coverage_state(
-			input.summary,
-			input.source_jobs.len(),
-			ranking_query_count,
-		)
-		.to_string(),
-		ranked_candidate_source: metrics::ranked_candidate_source(ranking_query_count).to_string(),
-		qrel_source: metrics::aggregate_qrel_source(ranking_query_count, explicit_qrel_query_count)
-			.to_string(),
 		explicit_qrel_query_count,
-		metrics: metrics::aggregate_metrics(per_query_rows.as_slice()),
-		metric_states: metrics::aggregate_metric_states(result_state, metric_comparable),
-		denominators: metrics::aggregate_denominators(per_query_rows.as_slice()),
-		confidence_intervals: metrics::aggregate_confidence_intervals(per_query_rows.as_slice()),
-		claim_boundary: QUANTITATIVE_ROW_CLAIM_BOUNDARY.to_string(),
-	};
+		metric_comparable,
+		result_state,
+		audit_evidence,
+		leaderboard_eligible,
+	});
 
 	Ok(CurrentQuantitativeRow {
 		corpus_id,
