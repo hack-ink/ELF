@@ -1,3 +1,5 @@
+mod query_counts;
+
 use crate::{
 	QuantitativeBenchmarkRow, QuantitativePerQueryRow, Result,
 	quantitative::{
@@ -28,12 +30,9 @@ pub(super) fn current_quantitative_row(
 		evidence_class,
 		input.adapter.adapter_id.as_str(),
 	);
-	let ranking_query_count = per_query_rows
-		.iter()
-		.filter(|row| row.candidate_count > 0 && row.expected_relevant_count > 0)
-		.count();
-	let explicit_qrel_query_count =
-		per_query_rows.iter().filter(|row| row.qrel_source == "explicit_qrels").count();
+	let query_counts = query_counts::quantitative_query_counts(per_query_rows.as_slice());
+	let ranking_query_count = query_counts.ranking_query_count;
+	let explicit_qrel_query_count = query_counts.explicit_qrel_query_count;
 	let metric_comparable = ranking_query_count > 0;
 	let result_state = quantitative::quantitative_result_state(input.summary);
 	let audit_evidence = audit_manifest::quantitative_audit_evidence(
