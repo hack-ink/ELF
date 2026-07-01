@@ -51,6 +51,9 @@ pub(super) struct RunArgs {
 	/// Skip loading the real-world external adapter coverage manifest.
 	#[arg(long)]
 	pub(super) skip_external_adapter_manifest: bool,
+	/// Optional same-corpus quantitative product manifest to merge into the report.
+	#[arg(long, value_name = "FILE")]
+	pub(super) quantitative_product_manifest: Option<PathBuf>,
 }
 
 #[derive(Debug, Parser)]
@@ -63,9 +66,33 @@ pub(super) struct PublishArgs {
 	pub(super) out: Option<PathBuf>,
 }
 
+#[derive(Debug, Parser)]
+pub(super) struct ExportQuantitativeProductManifestArgs {
+	/// Generated real_world_job JSON report to export.
+	#[arg(long, value_name = "FILE", default_value = DEFAULT_REPORT_PATH)]
+	pub(super) report: PathBuf,
+	/// Write product manifest JSON to this file. Omit to print to stdout.
+	#[arg(long, value_name = "FILE")]
+	pub(super) out: Option<PathBuf>,
+	/// Stable manifest id. Defaults to <run_id>-quantitative-product-manifest.
+	#[arg(long)]
+	pub(super) manifest_id: Option<String>,
+	/// Override the exported product name.
+	#[arg(long)]
+	pub(super) product: Option<String>,
+	/// Override the exported adapter id.
+	#[arg(long)]
+	pub(super) adapter_id: Option<String>,
+	/// Override the exported adapter name.
+	#[arg(long)]
+	pub(super) adapter_name: Option<String>,
+}
+
 #[derive(Debug, Subcommand)]
 #[command(rename_all = "kebab")]
 pub(super) enum Command {
+	/// Export the primary quantitative row as a reusable product manifest.
+	ExportQuantitativeProductManifest(ExportQuantitativeProductManifestArgs),
 	/// Parse and score real_world_job fixtures, then emit a JSON report.
 	Run(RunArgs),
 	/// Render Markdown from a generated real_world_job JSON report.

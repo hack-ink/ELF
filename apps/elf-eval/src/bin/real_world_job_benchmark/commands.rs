@@ -1,7 +1,8 @@
 use crate::{
-	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile, OffsetDateTime, Path,
-	PathBuf, PrivateCorpusRedaction, PublishArgs, QuantitativeReportInput, REPORT_SCHEMA,
-	RealWorldJob, RealWorldReport, Result, Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
+	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile,
+	ExportQuantitativeProductManifestArgs, OffsetDateTime, Path, PathBuf, PrivateCorpusRedaction,
+	PublishArgs, QuantitativeReportInput, REPORT_SCHEMA, RealWorldJob, RealWorldReport, Result,
+	Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
 };
 
 pub(super) fn run_command(args: RunArgs) -> Result<()> {
@@ -18,6 +19,17 @@ pub(super) fn publish_command(args: PublishArgs) -> Result<()> {
 	let markdown = crate::render_markdown(&report, &args.report);
 
 	write_or_print(args.out.as_deref(), markdown.as_str())
+}
+
+pub(super) fn export_quantitative_product_manifest_command(
+	args: ExportQuantitativeProductManifestArgs,
+) -> Result<()> {
+	let raw = fs::read_to_string(&args.report)?;
+	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
+	let manifest = crate::quantitative_product_manifest_from_report(&report, &args)?;
+	let json = serde_json::to_string_pretty(&manifest)?;
+
+	write_or_print(args.out.as_deref(), json.as_str())
 }
 
 fn load_jobs(path: &Path) -> Result<Vec<RealWorldJob>> {
@@ -111,7 +123,8 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		source_jobs: jobs,
 		jobs: &job_reports,
 		summary: &summary,
-	});
+		product_manifest_path: args.quantitative_product_manifest.as_deref(),
+	})?;
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),
