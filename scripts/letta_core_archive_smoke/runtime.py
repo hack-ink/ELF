@@ -22,7 +22,7 @@ from .context import (
     STARTUP_INTERVAL_SECONDS,
     WORK_DIR,
 )
-from .fixtures import benchmark_input_contract, slug
+from .fixtures import benchmark_input_contract
 from .models import CommandRecord
 
 def wait_for_letta(command_records: list[CommandRecord]) -> bool:
