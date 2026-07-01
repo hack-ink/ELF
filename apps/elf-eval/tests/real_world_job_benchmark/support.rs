@@ -1,5 +1,6 @@
 #[path = "support/contracts.rs"] mod contracts;
 #[path = "support/json.rs"] mod json;
+#[path = "support/makefiles.rs"] mod makefiles;
 #[path = "support/paths.rs"] mod paths;
 #[path = "support/report_paths.rs"] mod report_paths;
 #[path = "support/runners.rs"] mod runners;
@@ -9,6 +10,7 @@ pub(super) use self::{
 	json::{
 		array_at, array_contains_str, find_by_field, load_json, set_json_pointer, string_array_at,
 	},
+	makefiles::make_task_catalog,
 	paths::{
 		adversarial_quality_fixture_dir, capture_fixture_dir, collapse_whitespace,
 		consolidation_fixture_dir, context_trajectory_fixture_dir,

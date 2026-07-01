@@ -1,0 +1,61 @@
+# Rust workspace tasks: Lint.
+
+# Lint
+# | task        | type      | cwd |
+# | ----------- | --------- | --- |
+# | lint        | composite |     |
+# | lint-rust   | command   |     |
+# | lint-vstyle | command   |     |
+
+[tasks.lint]
+workspace = false
+dependencies = [
+	"lint-rust",
+	"lint-vstyle",
+]
+
+[tasks.lint-rust]
+workspace = false
+command = "cargo"
+args = [
+	"clippy",
+	"--all-features",
+	"--all-targets",
+	"--workspace",
+	"--",
+	"-D",
+	"clippy::all",
+	"-D",
+	"clippy::too_many_lines",
+	"-D",
+	"clippy::unwrap_used",
+	"-D",
+	"clippy::use_self",
+	"-D",
+	"clippy::wildcard_imports",
+	"-D",
+	"missing-docs",
+	"-D",
+	"unused-crate-dependencies",
+	"-D",
+	"warnings",
+]
+
+[tasks.lint-vstyle]
+workspace = false
+command = "cargo"
+args = [
+	"vstyle",
+	"curate",
+	"--language",
+	"rust",
+	"--workspace",
+	"--all-features",
+]
+
+# Lint Fix
+# | task            | type      | cwd |
+# | --------------- | --------- | --- |
+# | lint-fix        | composite |     |
+# | lint-fix-rust   | command   |     |
+# | lint-fix-vstyle | command   |     |

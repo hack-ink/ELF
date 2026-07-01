@@ -1,0 +1,69 @@
+# Rust workspace tasks: Lint Fix.
+
+# Lint Fix
+# | task            | type      | cwd |
+# | --------------- | --------- | --- |
+# | lint-fix        | composite |     |
+# | lint-fix-rust   | command   |     |
+# | lint-fix-vstyle | command   |     |
+
+[tasks.lint-fix]
+workspace = false
+dependencies = [
+	"lint-fix-rust",
+	"lint-fix-vstyle",
+]
+
+[tasks.lint-fix-rust]
+workspace = false
+command = "cargo"
+args = [
+	"clippy",
+	"--fix",
+	"--allow-dirty",
+	"--all-features",
+	"--all-targets",
+	"--workspace",
+	"--",
+	"-D",
+	"clippy::all",
+	"-D",
+	"clippy::too_many_lines",
+	"-D",
+	"clippy::unwrap_used",
+	"-D",
+	"clippy::use_self",
+	"-D",
+	"clippy::wildcard_imports",
+	"-D",
+	"missing-docs",
+	"-D",
+	"unused-crate-dependencies",
+	"-D",
+	"warnings",
+]
+
+[tasks.lint-fix-vstyle]
+workspace = false
+command = "cargo"
+args = [
+	"vstyle",
+	"tune",
+	"--language",
+	"rust",
+	"--workspace",
+	"--all-features",
+	"--strict",
+]
+
+# Research
+# | task                                    | type      | cwd |
+# | --------------------------------------- | --------- | --- |
+# | external-memory-radar                   | command   |     |
+# | external-memory-radar-artifact          | composite |     |
+# | external-memory-radar-artifact-json     | command   |     |
+# | external-memory-radar-artifact-validate | command   |     |
+# | external-memory-radar-dry-run           | composite |     |
+# | external-memory-radar-dry-run-json      | command   |     |
+# | external-memory-radar-dry-run-validate  | command   |     |
+# | external-memory-radar-validate          | command   |     |

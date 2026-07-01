@@ -1,0 +1,61 @@
+# Rust workspace tasks: Test.
+
+# Test
+# | task                  | type      | cwd |
+# | --------------------- | --------- | --- |
+# | test                  | composite |     |
+# | test-e2e              | command   |     |
+# | test-rust             | command   |     |
+# | test-rust-all         | command   |     |
+# | test-rust-integration | command   |     |
+
+[tasks.test]
+clear = true
+workspace = false
+dependencies = [
+	"test-rust",
+]
+
+[tasks.test-e2e]
+workspace = false
+command = "bash"
+args = [
+	"scripts/context-misranking-harness.sh",
+]
+
+[tasks.test-rust]
+workspace = false
+command = "cargo"
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+]
+
+[tasks.test-rust-all]
+workspace = false
+command = "cargo"
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+	"--run-ignored",
+	"all",
+]
+
+[tasks.test-rust-integration]
+workspace = false
+command = "cargo"
+args = [
+	"nextest",
+	"run",
+	"--workspace",
+	"--all-targets",
+	"--all-features",
+	"--run-ignored",
+	"only",
+]
