@@ -29,6 +29,7 @@ pub(super) struct QuantitativeBenchmarkRow {
 	pub(super) leaderboard_eligible: bool,
 	pub(super) held_out: bool,
 	pub(super) leakage_audited: bool,
+	pub(super) audit_manifest_id: Option<String>,
 	pub(super) fixture_regression_only: bool,
 	pub(super) sample_size: usize,
 	pub(super) ranking_query_count: usize,
@@ -84,4 +85,32 @@ pub(super) struct QuantitativeProductManifest {
 	pub(super) rows: Vec<QuantitativeBenchmarkRow>,
 	#[serde(default)]
 	pub(super) per_query_rows: Vec<QuantitativePerQueryRow>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(super) struct QuantitativeAuditManifest {
+	pub(super) schema: String,
+	pub(super) manifest_id: String,
+	pub(super) run_id: String,
+	pub(super) corpus_id: String,
+	pub(super) product: String,
+	pub(super) adapter_id: String,
+	pub(super) held_out: bool,
+	pub(super) leakage_audited: bool,
+	pub(super) sample_size: usize,
+	pub(super) ranking_query_count: usize,
+	pub(super) explicit_qrel_query_count: usize,
+	pub(super) query_ids: Vec<String>,
+	#[serde(default)]
+	pub(super) controls: Vec<String>,
+	#[serde(default)]
+	pub(super) artifacts: Vec<QuantitativeAuditArtifact>,
+	pub(super) claim_boundary: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub(super) struct QuantitativeAuditArtifact {
+	pub(super) role: String,
+	pub(super) path: String,
+	pub(super) sha256: String,
 }
