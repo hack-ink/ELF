@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any
 
 from .artifacts import write_fixture, write_manifest, write_materialization, write_summary
 from .benchmark import run_scored_report, status_with_scored_result
@@ -95,7 +94,7 @@ def main() -> int:
                     status.failure_reason = reason
 
     fixture_path = write_fixture(corpus, status, mappings["mapped_evidence_ids"])
-    materialization = write_materialization(
+    write_materialization(
         status,
         corpus,
         fixture_path,
