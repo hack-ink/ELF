@@ -1,10 +1,13 @@
 use crate::{
-	AdapterReport, BTreeMap, BTreeSet, JobReport, QuantitativeBenchmarkControls,
-	QuantitativeBenchmarkReport, QuantitativeBenchmarkRow, QuantitativePerQueryRow, RealWorldJob,
-	ReportSummary, formatting, scoring,
+	AdapterReport, BTreeMap, BTreeSet, ExportQuantitativeProductManifestArgs, JobReport, Path,
+	QuantitativeBenchmarkControls, QuantitativeBenchmarkReport, QuantitativeBenchmarkRow,
+	QuantitativePerQueryRow, QuantitativeProductManifest, REPORT_SCHEMA, RealWorldJob,
+	RealWorldReport, ReportSummary, Result, eyre, formatting, fs, scoring,
 };
 
 const QUANTITATIVE_SCOREBOARD_SCHEMA: &str = "elf.agent_memory_quantitative_benchmark/v1";
+const QUANTITATIVE_PRODUCT_MANIFEST_SCHEMA: &str =
+	"elf.agent_memory_quantitative_product_manifest/v1";
 const QUANTITATIVE_K_VALUES: &[usize] = &[1, 3, 5, 10];
 const MIN_LEADERBOARD_QUERY_COUNT: usize = 30;
 const QUANTITATIVE_ROW_CLAIM_BOUNDARY: &str = concat!(
@@ -18,11 +21,12 @@ pub(super) struct QuantitativeReportInput<'a> {
 	pub(super) source_jobs: &'a [RealWorldJob],
 	pub(super) jobs: &'a [JobReport],
 	pub(super) summary: &'a ReportSummary,
+	pub(super) product_manifest_path: Option<&'a Path>,
 }
 
 pub(super) fn quantitative_scoreboard_report(
 	input: QuantitativeReportInput<'_>,
-) -> QuantitativeBenchmarkReport {
+) -> Result<QuantitativeBenchmarkReport> {
 	let corpus_id = quantitative_corpus_id(input.source_jobs);
 	let evidence_class = quantitative_evidence_class(input.adapter, input.jobs);
 	let per_query_rows = quantitative_per_query_rows(
@@ -72,6 +76,16 @@ pub(super) fn quantitative_scoreboard_report(
 		denominators: aggregate_denominators(per_query_rows.as_slice()),
 		claim_boundary: QUANTITATIVE_ROW_CLAIM_BOUNDARY.to_string(),
 	};
+	let product_manifest =
+		quantitative_product_manifest(input.product_manifest_path, corpus_id.as_str())?;
+	let imported_row_count = product_manifest.rows.len();
+	let imported_per_query_count = product_manifest.per_query_rows.len();
+	let mut rows = vec![row];
+	let mut merged_per_query_rows = per_query_rows;
+
+	rows.extend(product_manifest.rows);
+	merged_per_query_rows.extend(product_manifest.per_query_rows);
+
 	let controls = QuantitativeBenchmarkControls {
 		same_corpus_required: true,
 		same_task_required: true,
@@ -87,25 +101,271 @@ pub(super) fn quantitative_scoreboard_report(
 				.to_string(),
 	};
 
-	QuantitativeBenchmarkReport {
+	Ok(QuantitativeBenchmarkReport {
 		schema: QUANTITATIVE_SCOREBOARD_SCHEMA.to_string(),
 		generated_at: input.generated_at.to_string(),
 		corpus_id,
 		k_values: QUANTITATIVE_K_VALUES.to_vec(),
-		rows: vec![row],
-		per_query_rows,
-		metrics_not_encoded: vec![
-			"paired_significance".to_string(),
-			"external_product_manifest_import".to_string(),
-			"audit_manifest_validation".to_string(),
-		],
+		rows,
+		per_query_rows: merged_per_query_rows,
+		metrics_not_encoded: quantitative_metrics_not_encoded(
+			imported_row_count,
+			imported_per_query_count,
+		),
 		controls,
 		claim_boundary: concat!(
 			"Do not convert fixture mechanics, missing explicit qrels, ",
 			"or partial candidate coverage into product leaderboard claims."
 		)
 		.to_string(),
+	})
+}
+
+pub(super) fn quantitative_product_manifest_from_report(
+	report: &RealWorldReport,
+	args: &ExportQuantitativeProductManifestArgs,
+) -> Result<QuantitativeProductManifest> {
+	if report.schema != REPORT_SCHEMA {
+		return Err(eyre::eyre!(
+			"{} has schema {}, expected {REPORT_SCHEMA}.",
+			args.report.display(),
+			report.schema
+		));
 	}
+
+	let source_row =
+		report.quantitative_scoreboard.rows.first().ok_or_else(|| {
+			eyre::eyre!("{} has no quantitative product row.", args.report.display())
+		})?;
+	let source_product = source_row.product.as_str();
+	let source_adapter_id = source_row.adapter_id.as_str();
+	let product = args.product.as_deref().unwrap_or(source_product).trim();
+	let adapter_id = args.adapter_id.as_deref().unwrap_or(source_adapter_id).trim();
+	let adapter_name =
+		args.adapter_name.as_deref().unwrap_or(source_row.adapter_name.as_str()).trim();
+
+	if product.is_empty() || adapter_id.is_empty() || adapter_name.is_empty() {
+		return Err(eyre::eyre!(
+			"{} cannot export an incomplete quantitative product identity.",
+			args.report.display()
+		));
+	}
+	if product == "ELF" {
+		return Err(eyre::eyre!(
+			"{} exports product ELF; use --product for external product manifest exports.",
+			args.report.display()
+		));
+	}
+
+	let mut row = source_row.clone();
+
+	row.product = product.to_string();
+	row.adapter_id = adapter_id.to_string();
+	row.adapter_name = adapter_name.to_string();
+	row.claim_boundary = concat!(
+		"Exported from a generated real_world_job_report quantitative row; ",
+		"import remains subject to same-corpus, per-query, explicit-qrel, and leaderboard gates."
+	)
+	.to_string();
+
+	let mut per_query_rows = Vec::new();
+
+	for row in &report.quantitative_scoreboard.per_query_rows {
+		if row.product != source_product || row.adapter_id != source_adapter_id {
+			continue;
+		}
+
+		let mut row = row.clone();
+
+		row.product = product.to_string();
+		row.adapter_id = adapter_id.to_string();
+		row.claim_boundary = concat!(
+			"Exported from generated report per-query quantitative evidence; ",
+			"import does not relax paired-significance or leaderboard gates."
+		)
+		.to_string();
+
+		per_query_rows.push(row);
+	}
+
+	let manifest = QuantitativeProductManifest {
+		schema: QUANTITATIVE_PRODUCT_MANIFEST_SCHEMA.to_string(),
+		manifest_id: args
+			.manifest_id
+			.clone()
+			.unwrap_or_else(|| format!("{}-quantitative-product-manifest", report.run_id)),
+		corpus_id: report.quantitative_scoreboard.corpus_id.clone(),
+		rows: vec![row],
+		per_query_rows,
+	};
+
+	validate_quantitative_product_manifest(&manifest, &args.report, manifest.corpus_id.as_str())?;
+
+	Ok(manifest)
+}
+
+fn quantitative_product_manifest(
+	path: Option<&Path>,
+	corpus_id: &str,
+) -> Result<QuantitativeProductManifest> {
+	let Some(path) = path else {
+		return Ok(QuantitativeProductManifest::default());
+	};
+	let raw = fs::read_to_string(path)?;
+	let mut manifest =
+		serde_json::from_str::<QuantitativeProductManifest>(&raw).map_err(|err| {
+			eyre::eyre!("Failed to parse quantitative product manifest {}: {err}", path.display())
+		})?;
+
+	for row in &mut manifest.rows {
+		row.source_manifest_corpus_id.get_or_insert_with(|| manifest.corpus_id.clone());
+	}
+	for row in &mut manifest.per_query_rows {
+		row.source_manifest_corpus_id.get_or_insert_with(|| manifest.corpus_id.clone());
+	}
+
+	validate_quantitative_product_manifest(&manifest, path, corpus_id)?;
+
+	Ok(manifest)
+}
+
+fn validate_quantitative_product_manifest(
+	manifest: &QuantitativeProductManifest,
+	path: &Path,
+	corpus_id: &str,
+) -> Result<()> {
+	if manifest.schema != QUANTITATIVE_PRODUCT_MANIFEST_SCHEMA {
+		return Err(eyre::eyre!(
+			"{} has schema {}, expected {QUANTITATIVE_PRODUCT_MANIFEST_SCHEMA}.",
+			path.display(),
+			manifest.schema
+		));
+	}
+	if manifest.manifest_id.trim().is_empty() {
+		return Err(eyre::eyre!("{} has an empty manifest_id.", path.display()));
+	}
+	if manifest.corpus_id != corpus_id {
+		return Err(eyre::eyre!(
+			"{} has corpus_id {}, expected same-corpus {}.",
+			path.display(),
+			manifest.corpus_id,
+			corpus_id
+		));
+	}
+	if manifest.rows.is_empty() {
+		return Err(eyre::eyre!("{} declares no quantitative product rows.", path.display()));
+	}
+
+	let row_keys = manifest
+		.rows
+		.iter()
+		.map(|row| (row.product.as_str(), row.adapter_id.as_str()))
+		.collect::<BTreeSet<_>>();
+
+	for row in &manifest.rows {
+		if row.product == "ELF" {
+			return Err(eyre::eyre!(
+				"{} quantitative product manifest must not inject ELF self rows.",
+				path.display()
+			));
+		}
+		if row.product.trim().is_empty()
+			|| row.adapter_id.trim().is_empty()
+			|| row.adapter_name.trim().is_empty()
+			|| row.suite.trim().is_empty()
+			|| row.evidence_class.trim().is_empty()
+			|| row.result_state.trim().is_empty()
+		{
+			return Err(eyre::eyre!(
+				"{} has an incomplete quantitative product row.",
+				path.display()
+			));
+		}
+		if row.source_manifest_corpus_id.as_deref() != Some(corpus_id) {
+			return Err(eyre::eyre!(
+				"{} row {}:{} is not same-corpus {}.",
+				path.display(),
+				row.product,
+				row.adapter_id,
+				corpus_id
+			));
+		}
+	}
+	for row in &manifest.per_query_rows {
+		if row.job_id.trim().is_empty()
+			|| row.suite.trim().is_empty()
+			|| row.evidence_class.trim().is_empty()
+			|| row.result_state.trim().is_empty()
+			|| row.product.trim().is_empty()
+			|| row.adapter_id.trim().is_empty()
+			|| row.qrel_source.trim().is_empty()
+		{
+			return Err(eyre::eyre!(
+				"{} has an incomplete quantitative per-query product row.",
+				path.display()
+			));
+		}
+		if !row_keys.contains(&(row.product.as_str(), row.adapter_id.as_str())) {
+			return Err(eyre::eyre!(
+				"{} per-query row {}:{} has no matching product row.",
+				path.display(),
+				row.product,
+				row.adapter_id
+			));
+		}
+		if row.source_manifest_corpus_id.as_deref() != Some(corpus_id) {
+			return Err(eyre::eyre!(
+				"{} per-query row {}:{} is not same-corpus {}.",
+				path.display(),
+				row.product,
+				row.adapter_id,
+				corpus_id
+			));
+		}
+	}
+	for row in &manifest.rows {
+		if row.ranking_query_count == 0 {
+			continue;
+		}
+
+		let per_query_count = manifest
+			.per_query_rows
+			.iter()
+			.filter(|per_query| {
+				per_query.product == row.product && per_query.adapter_id == row.adapter_id
+			})
+			.count();
+
+		if per_query_count < row.ranking_query_count {
+			return Err(eyre::eyre!(
+				"{} row {}:{} declares {} ranked queries but only {} per-query rows.",
+				path.display(),
+				row.product,
+				row.adapter_id,
+				row.ranking_query_count,
+				per_query_count
+			));
+		}
+	}
+
+	Ok(())
+}
+
+fn quantitative_metrics_not_encoded(
+	imported_row_count: usize,
+	imported_per_query_count: usize,
+) -> Vec<String> {
+	let mut metrics =
+		vec!["paired_significance".to_string(), "audit_manifest_validation".to_string()];
+
+	if imported_row_count == 0 {
+		metrics.push("external_product_manifest_import".to_string());
+	}
+	if imported_row_count > 0 && imported_per_query_count == 0 {
+		metrics.push("imported_product_per_query_rows".to_string());
+	}
+
+	metrics
 }
 
 fn quantitative_per_query_rows(

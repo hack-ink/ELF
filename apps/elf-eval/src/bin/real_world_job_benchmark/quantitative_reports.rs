@@ -74,3 +74,14 @@ pub(super) struct QuantitativeBenchmarkControls {
 	pub(super) leaderboard_claim_allowed: bool,
 	pub(super) leakage_control: String,
 }
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub(super) struct QuantitativeProductManifest {
+	pub(super) schema: String,
+	pub(super) manifest_id: String,
+	pub(super) corpus_id: String,
+	#[serde(default)]
+	pub(super) rows: Vec<QuantitativeBenchmarkRow>,
+	#[serde(default)]
+	pub(super) per_query_rows: Vec<QuantitativePerQueryRow>,
+}

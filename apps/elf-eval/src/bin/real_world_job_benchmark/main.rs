@@ -51,7 +51,7 @@ use artifacts::{
 	WorkJournalNextStepArtifact, WorkJournalReadbackArtifact, WorkJournalRejectedOptionArtifact,
 	WorkJournalWhereStoppedArtifact,
 };
-use cli::{Args, Command, PublishArgs, RunArgs};
+use cli::{Args, Command, ExportQuantitativeProductManifestArgs, PublishArgs, RunArgs};
 use diagnostic_reports::{
 	OperatorDebugEvidence, OperatorUxGap, TraceExplainability, TraceStageExplainability,
 };
@@ -86,10 +86,13 @@ use operational_reports::{
 	OperationalEvidenceReport, OperationalEvidenceTierReport, OperationalLatencyReport,
 	OperationalResourceSummary,
 };
-use quantitative::{QuantitativeReportInput, quantitative_scoreboard_report};
+use quantitative::{
+	QuantitativeReportInput, quantitative_product_manifest_from_report,
+	quantitative_scoreboard_report,
+};
 use quantitative_reports::{
 	QuantitativeBenchmarkControls, QuantitativeBenchmarkReport, QuantitativeBenchmarkRow,
-	QuantitativePerQueryRow,
+	QuantitativePerQueryRow, QuantitativeProductManifest,
 };
 use report_root::RealWorldReport;
 use scoreboard::scoreboard_report;
@@ -174,6 +177,8 @@ fn main() -> Result<()> {
 	color_eyre::install()?;
 
 	match Args::parse().command {
+		Command::ExportQuantitativeProductManifest(args) =>
+			commands::export_quantitative_product_manifest_command(args),
 		Command::Run(args) => commands::run_command(args),
 		Command::Publish(args) => commands::publish_command(args),
 	}
