@@ -251,6 +251,14 @@ args = [
 	"memory-live-consolidation",
 ]
 
+[tasks.real-world-memory-live-explicit-qrels]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"memory-live-explicit-qrels",
+]
+
 [tasks.real-world-memory-live-knowledge]
 workspace = false
 command = "bash"
