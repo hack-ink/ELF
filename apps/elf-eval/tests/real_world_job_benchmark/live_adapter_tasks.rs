@@ -104,7 +104,15 @@ fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 	let makefile = fs::read_to_string(workspace_root.join("Makefile.toml"))?;
 	let docker_script = fs::read_to_string(workspace_root.join("scripts/baseline-docker.sh"))?;
 	let compose = fs::read_to_string(workspace_root.join("docker-compose.baseline.yml"))?;
-	let script = fs::read_to_string(workspace_root.join("scripts/live-baseline-benchmark.sh"))?;
+	let script = [
+		"scripts/live-baseline-benchmark.sh",
+		"scripts/live-baseline/core.sh",
+		"scripts/live-baseline/openmemory.sh",
+	]
+	.into_iter()
+	.map(|path| fs::read_to_string(workspace_root.join(path)))
+	.collect::<Result<Vec<_>, _>>()?
+	.join("\n");
 	let report = serde_json::from_str::<Value>(&fs::read_to_string(workspace_root.join(
 		"apps/elf-eval/fixtures/report_snapshots/2026-06-11-xy-931-openmemory-ui-export-readback.json",
 	))?)?;
