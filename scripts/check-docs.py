@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -16,7 +17,26 @@ def read_text(path: Path) -> str:
 	return path.read_text(encoding="utf-8")
 
 
+def makefile_task_names(path: Path, seen: set[Path] | None = None) -> set[str]:
+	seen = seen or set()
+	path = path.resolve()
+	if path in seen:
+		return set()
+	seen.add(path)
+
+	data = tomllib.loads(read_text(path))
+	tasks = set(data.get("tasks", {}))
+	for item in data.get("extend", []):
+		if not isinstance(item, dict) or not item.get("path"):
+			continue
+		tasks.update(makefile_task_names(path.parent / item["path"], seen))
+	return tasks
+
+
 def cargo_make_tasks() -> set[str]:
+	tasks = makefile_task_names(ROOT / "Makefile.toml")
+	if tasks:
+		return tasks
 	return set(TASK_RE.findall(read_text(ROOT / "Makefile.toml")))
 
 

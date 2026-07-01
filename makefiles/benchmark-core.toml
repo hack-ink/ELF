@@ -1,0 +1,297 @@
+# Rust workspace tasks: Benchmark core, baseline, and operator tasks.
+
+# Rust workspace tasks: Benchmark.
+
+# Benchmark
+# | task                                       | type      | cwd |
+# | ------------------------------------------ | --------- | --- |
+# | baseline-backfill-100k-docker              | command   |     |
+# | baseline-backfill-10k-docker               | command   |     |
+# | baseline-backfill-docker                   | command   |     |
+# | baseline-live-docker                       | command   |     |
+# | baseline-live-report                       | command   |     |
+# | baseline-production-private                | command   |     |
+# | baseline-production-private-addendum       | command   |     |
+# | baseline-production-synthetic              | command   |     |
+# | baseline-soak-docker                       | command   |     |
+# | local-agent-loop                           | command   |     |
+# | openmemory-ui-export-readback              | command   |     |
+# | parity-docker                              | command   |     |
+# | real-world-first-generation-oss            | composite |     |
+# | real-world-first-generation-oss-json       | command   |     |
+# | real-world-first-generation-oss-report     | command   |     |
+# | real-world-job-operator-ux                 | composite |     |
+# | real-world-job-operator-ux-json            | command   |     |
+# | real-world-job-operator-ux-live-adapters   | command   |     |
+# | real-world-job-operator-ux-report          | command   |     |
+# | real-world-memory                          | composite |     |
+# | real-world-memory-adversarial-quality      | composite |     |
+# | real-world-memory-adversarial-quality-json | command   |     |
+# | real-world-memory-adversarial-quality-report | command |     |
+# | real-world-memory-consolidation            | composite |     |
+# | real-world-memory-consolidation-json       | command   |     |
+# | real-world-memory-consolidation-report     | command   |     |
+# | real-world-memory-p1-closeout              | composite |     |
+# | real-world-memory-p1-closeout-json         | command   |     |
+# | real-world-memory-p1-closeout-report       | command   |     |
+# | real-world-memory-p4-production-readiness  | composite |     |
+# | real-world-memory-p4-production-readiness-json | command |     |
+# | real-world-memory-p4-production-readiness-report | command |     |
+# | real-world-memory-p4-quality-hardening-closeout | composite |     |
+# | real-world-memory-p2-knowledge-closeout    | composite |     |
+# | real-world-memory-core-archival            | composite |     |
+# | real-world-memory-core-archival-json       | command   |     |
+# | real-world-memory-core-archival-report     | command   |     |
+# | real-world-memory-context-trajectory       | composite |     |
+# | real-world-memory-context-trajectory-json  | command   |     |
+# | real-world-memory-context-trajectory-report | command   |     |
+# | real-world-memory-evolution                | composite |     |
+# | real-world-memory-evolution-json           | command   |     |
+# | real-world-memory-evolution-report         | command   |     |
+# | real-world-memory-graph-rag                | composite |     |
+# | real-world-memory-graph-rag-json           | command   |     |
+# | real-world-memory-graph-rag-report         | command   |     |
+# | real-world-memory-json                     | command   |     |
+# | real-world-memory-knowledge                | composite |     |
+# | real-world-memory-knowledge-json           | command   |     |
+# | real-world-memory-knowledge-report         | command   |     |
+# | real-world-memory-live-adapters            | command   |     |
+# | real-world-memory-live-consolidation       | command   |     |
+# | real-world-memory-live-knowledge           | command   |     |
+# | real-world-memory-mem0-openmemory-letta    | composite |     |
+# | real-world-memory-mem0-openmemory-letta-json | command |     |
+# | real-world-memory-mem0-openmemory-letta-report | command |     |
+# | real-world-memory-pageindex-openkb         | composite |     |
+# | real-world-memory-pageindex-openkb-json    | command   |     |
+# | real-world-memory-pageindex-openkb-report  | command   |     |
+# | real-world-memory-proactive-brief          | composite |     |
+# | real-world-memory-proactive-brief-json     | command   |     |
+# | real-world-memory-proactive-brief-report   | command   |     |
+# | real-world-memory-production-ops           | composite |     |
+# | real-world-memory-production-ops-json      | command   |     |
+# | real-world-memory-production-ops-report    | command   |     |
+# | real-world-memory-project-decisions        | composite |     |
+# | real-world-memory-project-decisions-json   | command   |     |
+# | real-world-memory-project-decisions-report | command   |     |
+# | real-world-memory-quantitative-scoreboard  | composite |     |
+# | real-world-memory-quantitative-scoreboard-json | command |     |
+# | real-world-memory-quantitative-scoreboard-report | command |     |
+# | real-world-memory-report                   | command   |     |
+# | real-world-memory-retrieval                | composite |     |
+# | real-world-memory-retrieval-json           | command   |     |
+# | real-world-memory-retrieval-report         | command   |     |
+# | real-world-memory-scheduled                | composite |     |
+# | real-world-memory-scheduled-json           | command   |     |
+# | real-world-memory-scheduled-report         | command   |     |
+# | real-world-memory-service-native-dreaming  | command   |     |
+# | real-world-memory-summary                  | composite |     |
+# | real-world-memory-summary-json             | command   |     |
+# | real-world-memory-summary-report           | command   |     |
+# | real-world-memory-work-continuity          | composite |     |
+# | real-world-memory-work-continuity-json     | command   |     |
+# | real-world-memory-work-continuity-report   | command   |     |
+
+[tasks.baseline-backfill-100k-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"backfill-100k",
+]
+
+[tasks.baseline-backfill-10k-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"backfill-10k",
+]
+
+[tasks.baseline-backfill-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"backfill",
+]
+
+[tasks.baseline-live-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"live",
+]
+
+[tasks.baseline-live-report]
+workspace = false
+command = "bash"
+args = [
+	"scripts/live-baseline-report-to-md.sh",
+]
+
+[tasks.baseline-production-private]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"production-private",
+]
+
+[tasks.baseline-production-private-addendum]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"production-private-addendum",
+]
+
+[tasks.baseline-production-synthetic]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"production-synthetic",
+]
+
+[tasks.baseline-soak-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"soak",
+]
+
+[tasks.local-agent-loop]
+workspace = false
+command = "bash"
+args = [
+	"scripts/local-agent-loop.sh",
+]
+
+[tasks.openmemory-ui-export-readback]
+workspace = false
+command = "bash"
+args = [
+	"scripts/baseline-docker.sh",
+	"openmemory-ui-export-readback",
+]
+
+[tasks.parity-docker]
+workspace = false
+command = "docker"
+args = [
+	"compose",
+	"-f",
+	"docker-compose.parity.yml",
+	"run",
+	"--build",
+	"--rm",
+	"parity-runner",
+]
+
+[tasks.real-world-first-generation-oss]
+workspace = false
+dependencies = [
+	"real-world-first-generation-oss-report",
+]
+
+[tasks.real-world-first-generation-oss-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_external_adapters/first_generation_oss",
+	"--out",
+	"tmp/real-world-memory/first-generation-oss/report.json",
+	"--run-id",
+	"first-generation-oss-continuity-source-store",
+	"--adapter-id",
+	"fixture_first_generation_oss",
+	"--adapter-name",
+	"First-generation OSS fixture coverage",
+]
+
+[tasks.real-world-first-generation-oss-report]
+workspace = false
+dependencies = [
+	"real-world-first-generation-oss-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/first-generation-oss/report.json",
+	"--out",
+	"tmp/real-world-memory/first-generation-oss/report.md",
+]
+
+[tasks.real-world-job-operator-ux]
+workspace = false
+dependencies = [
+	"real-world-job-operator-ux-report",
+]
+
+[tasks.real-world-job-operator-ux-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_job/operator_debugging_ux",
+	"--out",
+	"tmp/real-world-job/real-world-job-operator-ux-report.json",
+	"--run-id",
+	"real-world-job-operator-ux",
+	"--adapter-id",
+	"fixture_operator_ux",
+	"--adapter-name",
+	"ELF operator UX fixture",
+]
+
+[tasks.real-world-job-operator-ux-live-adapters]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"job-operator-ux-live-adapters",
+]
+
+[tasks.real-world-job-operator-ux-report]
+workspace = false
+dependencies = [
+	"real-world-job-operator-ux-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-job/real-world-job-operator-ux-report.json",
+	"--out",
+	"tmp/real-world-job/real-world-job-operator-ux-report.md",
+]

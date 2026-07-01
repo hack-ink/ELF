@@ -1,0 +1,414 @@
+# Rust workspace tasks: Benchmark real-world memory tasks, first half.
+
+[tasks.real-world-memory]
+workspace = false
+dependencies = [
+	"real-world-memory-report",
+]
+
+[tasks.real-world-memory-adversarial-quality]
+workspace = false
+dependencies = [
+	"real-world-memory-adversarial-quality-report",
+]
+
+[tasks.real-world-memory-adversarial-quality-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/adversarial_quality",
+	"--out",
+	"tmp/real-world-memory/adversarial-quality/report.json",
+	"--run-id",
+	"real-world-memory-adversarial-quality",
+	"--adapter-id",
+	"fixture_adversarial_quality",
+	"--adapter-name",
+	"ELF adversarial quality fixture",
+]
+
+[tasks.real-world-memory-adversarial-quality-report]
+workspace = false
+dependencies = [
+	"real-world-memory-adversarial-quality-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/adversarial-quality/report.json",
+	"--out",
+	"tmp/real-world-memory/adversarial-quality/report.md",
+]
+
+[tasks.real-world-memory-consolidation]
+workspace = false
+dependencies = [
+	"real-world-memory-consolidation-report",
+]
+
+[tasks.real-world-memory-consolidation-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/consolidation",
+	"--out",
+	"tmp/real-world-memory/consolidation/report.json",
+	"--run-id",
+	"real-world-memory-consolidation",
+	"--adapter-id",
+	"fixture_consolidation",
+	"--adapter-name",
+	"ELF consolidation fixture",
+]
+
+[tasks.real-world-memory-consolidation-report]
+workspace = false
+dependencies = [
+	"real-world-memory-consolidation-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/consolidation/report.json",
+	"--out",
+	"tmp/real-world-memory/consolidation/report.md",
+]
+
+[tasks.real-world-memory-p1-closeout]
+workspace = false
+dependencies = [
+	"real-world-memory-p1-closeout-report",
+]
+
+[tasks.real-world-memory-p1-closeout-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/p1_closeout",
+	"--out",
+	"tmp/real-world-memory/p1-closeout/report.json",
+	"--run-id",
+	"real-world-memory-p1-closeout",
+	"--adapter-id",
+	"fixture_p1_closeout",
+	"--adapter-name",
+	"ELF P1 closeout fixture",
+]
+
+[tasks.real-world-memory-p1-closeout-report]
+workspace = false
+dependencies = [
+	"real-world-memory-p1-closeout-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/p1-closeout/report.json",
+	"--out",
+	"tmp/real-world-memory/p1-closeout/report.md",
+]
+
+[tasks.real-world-memory-p4-production-readiness]
+workspace = false
+dependencies = [
+	"real-world-memory-p4-production-readiness-report",
+]
+
+[tasks.real-world-memory-p4-production-readiness-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/production_ops",
+	"--out",
+	"tmp/real-world-memory/p4-production-readiness/report.json",
+	"--run-id",
+	"real-world-memory-p4-production-readiness",
+	"--adapter-id",
+	"fixture_production_ops",
+	"--adapter-name",
+	"ELF P4 production-readiness fixture",
+]
+
+[tasks.real-world-memory-p4-production-readiness-report]
+workspace = false
+dependencies = [
+	"real-world-memory-p4-production-readiness-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/p4-production-readiness/report.json",
+	"--out",
+	"tmp/real-world-memory/p4-production-readiness/report.md",
+]
+
+[tasks.real-world-memory-p4-quality-hardening-closeout]
+workspace = false
+dependencies = [
+	"real-world-memory-adversarial-quality-report",
+	"real-world-memory-p2-knowledge-closeout",
+	"real-world-memory-p4-production-readiness-report",
+]
+
+[tasks.real-world-memory-p2-knowledge-closeout]
+workspace = false
+dependencies = [
+	"real-world-memory-source-library-report",
+	"real-world-memory-knowledge-report",
+]
+
+[tasks.real-world-memory-core-archival]
+workspace = false
+dependencies = [
+	"real-world-memory-core-archival-report",
+]
+
+[tasks.real-world-memory-core-archival-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/core_archival_memory",
+	"--out",
+	"tmp/real-world-memory/core-archival/report.json",
+	"--run-id",
+	"real-world-memory-core-archival",
+	"--adapter-id",
+	"fixture_core_archival_memory",
+	"--adapter-name",
+	"ELF core and archival memory fixture",
+]
+
+[tasks.real-world-memory-core-archival-report]
+workspace = false
+dependencies = [
+	"real-world-memory-core-archival-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/core-archival/report.json",
+	"--out",
+	"tmp/real-world-memory/core-archival/report.md",
+]
+
+[tasks.real-world-memory-context-trajectory]
+workspace = false
+dependencies = [
+	"real-world-memory-context-trajectory-report",
+]
+
+[tasks.real-world-memory-context-trajectory-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/context_trajectory",
+	"--out",
+	"tmp/real-world-memory/context-trajectory/report.json",
+	"--run-id",
+	"real-world-memory-context-trajectory",
+	"--adapter-id",
+	"fixture_context_trajectory",
+	"--adapter-name",
+	"ELF context trajectory fixture",
+]
+
+[tasks.real-world-memory-context-trajectory-report]
+workspace = false
+dependencies = [
+	"real-world-memory-context-trajectory-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/context-trajectory/report.json",
+	"--out",
+	"tmp/real-world-memory/context-trajectory/report.md",
+]
+
+[tasks.real-world-memory-evolution]
+workspace = false
+dependencies = [
+	"real-world-memory-evolution-report",
+]
+
+[tasks.real-world-memory-evolution-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/evolution",
+	"--out",
+	"tmp/real-world-memory/evolution-report.json",
+	"--run-id",
+	"real-world-memory-evolution",
+	"--adapter-id",
+	"fixture_memory_evolution",
+	"--adapter-name",
+	"ELF fixture memory evolution",
+]
+
+[tasks.real-world-memory-evolution-report]
+workspace = false
+dependencies = [
+	"real-world-memory-evolution-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/evolution-report.json",
+	"--out",
+	"tmp/real-world-memory/evolution-report.md",
+]
+
+[tasks.real-world-memory-graph-rag]
+workspace = false
+dependencies = [
+	"real-world-memory-graph-rag-report",
+]
+
+[tasks.real-world-memory-graph-rag-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_external_adapters/graph_rag",
+	"--out",
+	"tmp/real-world-memory/graph-rag/report.json",
+	"--run-id",
+	"real-world-memory-graph-rag",
+	"--adapter-id",
+	"fixture_graph_rag_external_adapters",
+	"--adapter-name",
+	"Graph/RAG representative external-adapter fixtures",
+]
+
+[tasks.real-world-memory-graph-rag-report]
+workspace = false
+dependencies = [
+	"real-world-memory-graph-rag-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/graph-rag/report.json",
+	"--out",
+	"tmp/real-world-memory/graph-rag/report.md",
+]
