@@ -3,12 +3,10 @@ use std::env;
 use crate::{
 	BTreeSet, ExportQuantitativeAuditManifestArgs, Path, PathBuf, QuantitativeAuditArtifact,
 	QuantitativeAuditManifest, RealWorldJob, Result, eyre, fs,
-};
-
-use super::{
-	QUANTITATIVE_AUDIT_MANIFEST_SCHEMA, REQUIRED_CANDIDATE_LEAKAGE_AUDIT_CONTROL,
-	REQUIRED_HELD_OUT_AUDIT_CONTROL, REQUIRED_QREL_LEAKAGE_AUDIT_CONTROL,
-	explicit_qrel_query_count, quantitative_corpus_id, ranking_query_count, ranking_query_ids,
+	quantitative::{
+		QUANTITATIVE_AUDIT_MANIFEST_SCHEMA, REQUIRED_CANDIDATE_LEAKAGE_AUDIT_CONTROL,
+		REQUIRED_HELD_OUT_AUDIT_CONTROL, REQUIRED_QREL_LEAKAGE_AUDIT_CONTROL, metrics,
+	},
 };
 
 pub(super) struct QuantitativeAuditContext<'a> {
@@ -38,9 +36,9 @@ pub(crate) fn quantitative_audit_manifest_from_jobs(
 		return Err(eyre::eyre!("quantitative audit export requires product and adapter_id."));
 	}
 
-	let corpus_id = quantitative_corpus_id(jobs);
-	let ranking_query_count = ranking_query_count(jobs);
-	let explicit_qrel_query_count = explicit_qrel_query_count(jobs);
+	let corpus_id = super::quantitative_corpus_id(jobs);
+	let ranking_query_count = metrics::ranking_query_count(jobs);
+	let explicit_qrel_query_count = metrics::explicit_qrel_query_count(jobs);
 	let manifest = QuantitativeAuditManifest {
 		schema: QUANTITATIVE_AUDIT_MANIFEST_SCHEMA.to_string(),
 		manifest_id: args
@@ -56,7 +54,7 @@ pub(crate) fn quantitative_audit_manifest_from_jobs(
 		sample_size: jobs.len(),
 		ranking_query_count,
 		explicit_qrel_query_count,
-		query_ids: ranking_query_ids(jobs).into_iter().map(str::to_string).collect(),
+		query_ids: metrics::ranking_query_ids(jobs).into_iter().map(str::to_string).collect(),
 		controls: args.controls.clone(),
 		artifacts: vec![QuantitativeAuditArtifact {
 			role: "product_runtime_fixtures".to_string(),
@@ -199,7 +197,7 @@ fn validate_quantitative_audit_query_ids(
 	path: &Path,
 	source_jobs: &[RealWorldJob],
 ) -> Result<()> {
-	let expected = ranking_query_ids(source_jobs);
+	let expected = metrics::ranking_query_ids(source_jobs);
 	let actual = manifest.query_ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
 
 	if actual.len() != manifest.query_ids.len() {
