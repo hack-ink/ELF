@@ -13,7 +13,7 @@ fn p2_knowledge_workspace_closeout_preserves_pageindex_openkb_boundaries() -> Re
 	let markdown = fs::read_to_string(
 		support::p2_knowledge_workspace_pageindex_openkb_closeout_report_markdown_path()?,
 	)?;
-	let makefile = fs::read_to_string(support::workspace_root()?.join("Makefile.toml"))?;
+	let makefile = support::make_task_catalog()?;
 	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
 	let readme = fs::read_to_string(support::readme_path()?)?;
 	let benchmark_runbook = fs::read_to_string(

@@ -22,7 +22,7 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 			.join("benchmarking")
 			.join("real_world_agent_memory_benchmark.md"),
 	)?;
-	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let makefile = support::make_task_catalog()?;
 	let live_script =
 		fs::read_to_string(workspace.join("scripts/real-world-consolidation-live-adapter.sh"))?;
 	let live_adapter =
@@ -136,7 +136,7 @@ fn assert_live_consolidation_scripts(docker_script: &str, live_script: &str, liv
 #[test]
 fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
 	let workspace = support::workspace_root()?;
-	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let makefile = support::make_task_catalog()?;
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 	let live_script =
 		fs::read_to_string(workspace.join("scripts/real-world-knowledge-live-adapter.sh"))?;

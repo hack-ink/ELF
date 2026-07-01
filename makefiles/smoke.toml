@@ -1,0 +1,113 @@
+# Rust workspace tasks: Smoke.
+
+# Smoke
+# | task                               | type      | cwd |
+# | ---------------------------------- | --------- | --- |
+# | smoke-graphify-docker-graph-report | command   |     |
+# | smoke-graphiti-zep-docker-temporal | command   |     |
+# | smoke-graphrag-docker              | command   |     |
+# | smoke-letta-core-archive-export-readback | command   |     |
+# | smoke-lightrag-docker-context      | command   |     |
+# | smoke-ragflow-docker               | command   |     |
+# | smoke-real-world-job               | composite |     |
+# | smoke-real-world-job-json          | command   |     |
+# | smoke-real-world-job-report        | command   |     |
+
+[tasks.smoke-graphify-docker-graph-report]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"graphify-docker-graph-report",
+]
+
+[tasks.smoke-graphiti-zep-docker-temporal]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"graphiti-zep-docker-temporal",
+]
+
+[tasks.smoke-graphrag-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"graphrag-docker",
+]
+
+[tasks.smoke-letta-core-archive-export-readback]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"letta-core-archive-export-readback",
+]
+
+[tasks.smoke-lightrag-docker-context]
+workspace = false
+command = "bash"
+args = [
+	"scripts/smoke-docker.sh",
+	"lightrag-docker-context",
+]
+
+[tasks.smoke-ragflow-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/ragflow-docker-evidence-smoke.sh",
+]
+
+[tasks.smoke-real-world-job]
+workspace = false
+dependencies = [
+	"smoke-real-world-job-report",
+]
+
+[tasks.smoke-real-world-job-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/work_resume",
+	"--out",
+	"tmp/real-world-job/real-world-job-smoke-report.json",
+]
+
+[tasks.smoke-real-world-job-report]
+workspace = false
+dependencies = [
+	"smoke-real-world-job-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-job/real-world-job-smoke-report.json",
+	"--out",
+	"tmp/real-world-job/real-world-job-smoke-report.md",
+]
+
+# Test
+# | task                  | type      | cwd |
+# | --------------------- | --------- | --- |
+# | test                  | composite |     |
+# | test-e2e              | command   |     |
+# | test-rust             | command   |     |
+# | test-rust-all         | command   |     |
+# | test-rust-integration | command   |     |
