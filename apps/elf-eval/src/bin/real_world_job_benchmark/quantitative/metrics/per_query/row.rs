@@ -1,10 +1,8 @@
+mod basis;
+
 use crate::{
 	JobReport, QuantitativePerQueryRow, RealWorldJob, formatting,
-	quantitative::{
-		QUANTITATIVE_ROW_CLAIM_BOUNDARY,
-		metrics::per_query::{evidence, query_metrics},
-	},
-	scoring,
+	quantitative::QUANTITATIVE_ROW_CLAIM_BOUNDARY,
 };
 
 pub(super) fn quantitative_per_query_row(
@@ -14,16 +12,7 @@ pub(super) fn quantitative_per_query_row(
 	evidence_class: &str,
 	adapter_id: &str,
 ) -> QuantitativePerQueryRow {
-	let relevance = evidence::relevance_grades(source_job, job);
-	let candidates = scoring::produced_evidence_order(source_job);
-	let positive_relevance_count = query_metrics::positive_qrel_count(&relevance);
-	let metrics = query_metrics::per_query_metrics(candidates.as_slice(), &relevance);
-	let metric_state = if positive_relevance_count == 0 || candidates.is_empty() {
-		"not_encoded"
-	} else {
-		formatting::status_str(job.status)
-	};
-	let metric_states = metrics.keys().map(|key| (key.clone(), metric_state.to_string())).collect();
+	let basis = basis::quantitative_per_query_row_basis(source_job, job);
 
 	QuantitativePerQueryRow {
 		job_id: job.job_id.clone(),
@@ -31,18 +20,15 @@ pub(super) fn quantitative_per_query_row(
 		evidence_class: evidence_class.to_string(),
 		source_manifest_corpus_id: Some(corpus_id.to_string()),
 		result_state: formatting::status_str(job.status).to_string(),
-		expected_relevant_count: positive_relevance_count,
-		candidate_count: candidates.len(),
-		qrel_source: evidence::qrel_source(source_job, relevance.is_empty()).to_string(),
-		relevance_grade_sum: formatting::round3(relevance.values().sum::<f64>()),
+		expected_relevant_count: basis.positive_relevance_count,
+		candidate_count: basis.candidate_count,
+		qrel_source: basis.qrel_source,
+		relevance_grade_sum: basis.relevance_grade_sum,
 		product: "ELF".to_string(),
 		adapter_id: adapter_id.to_string(),
-		metrics,
-		metric_states,
-		denominators: query_metrics::per_query_denominators(
-			candidates.len(),
-			positive_relevance_count,
-		),
+		metrics: basis.metrics,
+		metric_states: basis.metric_states,
+		denominators: basis.denominators,
 		claim_boundary: QUANTITATIVE_ROW_CLAIM_BOUNDARY.to_string(),
 	}
 }
