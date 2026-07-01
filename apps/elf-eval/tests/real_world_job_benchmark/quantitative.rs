@@ -469,6 +469,22 @@ fn assert_quantitative_row_contract(report: &Value) -> Result<()> {
 		);
 		assert!(row.pointer(&format!("/denominators/{metric}")).and_then(Value::as_u64).is_some());
 	}
+	for metric in ["recall_at_5", "precision_at_5", "success_at_5"] {
+		assert_eq!(
+			row.pointer(&format!("/confidence_intervals/{metric}/method")).and_then(Value::as_str),
+			Some("wilson_score")
+		);
+		assert_eq!(
+			row.pointer(&format!("/confidence_intervals/{metric}/confidence"))
+				.and_then(Value::as_f64),
+			Some(0.95)
+		);
+		assert!(
+			row.pointer(&format!("/confidence_intervals/{metric}/denominator"))
+				.and_then(Value::as_u64)
+				.is_some()
+		);
+	}
 
 	Ok(())
 }
