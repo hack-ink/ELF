@@ -1,0 +1,141 @@
+use serde_json::Value;
+
+pub(crate) fn assert_root_knowledge_summary(report: &Value) {
+	assert_eq!(report.pointer("/summary/knowledge/job_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(report.pointer("/summary/knowledge/page_count").and_then(Value::as_u64), Some(5));
+	assert_eq!(
+		report.pointer("/summary/knowledge/page_usefulness").and_then(Value::as_f64),
+		Some(0.979)
+	);
+}
+
+pub(crate) fn assert_root_proactive_brief_summary(report: &Value) {
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/job_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/suggestion_count").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/evidence_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/proactive_brief/freshness_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/action_rationale_coverage")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/invalid_current_suggestion_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/proactive_brief/tombstone_violation_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+}
+
+pub(crate) fn assert_root_scheduled_memory_summary(report: &Value) {
+	assert_eq!(
+		report.pointer("/summary/scheduled_memory/job_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/scheduled_memory/task_run_count").and_then(Value::as_u64),
+		Some(4)
+	);
+	assert_eq!(
+		report.pointer("/summary/scheduled_memory/output_count").and_then(Value::as_u64),
+		Some(5)
+	);
+	assert_eq!(
+		report.pointer("/summary/scheduled_memory/evidence_ref_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/scheduled_memory/freshness_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/scheduled_memory/action_rationale_coverage")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report.pointer("/summary/scheduled_memory/trace_coverage").and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/scheduled_memory/invalid_current_output_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/scheduled_memory/tombstone_violation_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+}
+
+pub(crate) fn assert_root_work_continuity_summary(report: &Value) {
+	assert_eq!(
+		report.pointer("/summary/work_continuity/job_count").and_then(Value::as_u64),
+		Some(8)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/work_continuity/reset_resume_success_rate")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/work_continuity/decision_rationale_recall_rate")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/work_continuity/rejected_option_suppression_rate")
+			.and_then(Value::as_f64),
+		Some(1.0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/work_continuity/inferred_step_instruction_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/work_continuity/sensitive_marker_persistence_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/work_continuity/janitor_false_promotion_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+	assert_eq!(
+		report
+			.pointer("/summary/work_continuity/journal_only_authority_claim_count")
+			.and_then(Value::as_u64),
+		Some(0)
+	);
+}
