@@ -1,23 +1,11 @@
-use crate::{
-	QuantitativeBenchmarkRow, QuantitativePerQueryRow,
-	quantitative::{
-		self, QUANTITATIVE_ROW_CLAIM_BOUNDARY, audit_manifest::QuantitativeAuditEvidence, metrics,
-		report::QuantitativeReportInput,
-	},
-};
+mod input;
 
-pub(super) struct QuantitativeBenchmarkRowInput<'a, 'b> {
-	pub(super) input: &'a QuantitativeReportInput<'b>,
-	pub(super) corpus_id: &'a str,
-	pub(super) evidence_class: &'a str,
-	pub(super) per_query_rows: &'a [QuantitativePerQueryRow],
-	pub(super) ranking_query_count: usize,
-	pub(super) explicit_qrel_query_count: usize,
-	pub(super) metric_comparable: bool,
-	pub(super) result_state: &'a str,
-	pub(super) audit_evidence: QuantitativeAuditEvidence,
-	pub(super) leaderboard_eligible: bool,
-}
+pub(super) use self::input::QuantitativeBenchmarkRowInput;
+
+use crate::{
+	QuantitativeBenchmarkRow,
+	quantitative::{self, QUANTITATIVE_ROW_CLAIM_BOUNDARY, metrics},
+};
 
 pub(super) fn quantitative_benchmark_row(
 	row_input: QuantitativeBenchmarkRowInput<'_, '_>,
