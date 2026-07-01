@@ -1,6 +1,9 @@
+mod claim_boundary;
+mod identity;
+
 use crate::{
 	ExportQuantitativeAuditManifestArgs, QuantitativeAuditArtifact, QuantitativeAuditManifest,
-	RealWorldJob, Result, eyre,
+	RealWorldJob, Result,
 	quantitative::{
 		self, QUANTITATIVE_AUDIT_MANIFEST_SCHEMA,
 		audit_manifest::{QuantitativeAuditContext, artifacts, validation},
@@ -15,9 +18,7 @@ pub(crate) fn quantitative_audit_manifest_from_jobs(
 	let product = args.product.trim();
 	let adapter_id = args.adapter_id.trim();
 
-	if product.is_empty() || adapter_id.is_empty() {
-		return Err(eyre::eyre!("quantitative audit export requires product and adapter_id."));
-	}
+	identity::validate_audit_export_identity(product, adapter_id)?;
 
 	let corpus_id = quantitative::quantitative_corpus_id(jobs);
 	let ranking_query_count = metrics::ranking_query_count(jobs);
@@ -44,7 +45,7 @@ pub(crate) fn quantitative_audit_manifest_from_jobs(
 			path: artifacts::audit_artifact_display_path(args.fixtures.as_path()),
 			sha256: artifacts::fixture_path_digest(args.fixtures.as_path())?,
 		}],
-		claim_boundary: quantitative_audit_claim_boundary(args),
+		claim_boundary: claim_boundary::quantitative_audit_claim_boundary(args),
 	};
 
 	validation::validate_quantitative_audit_manifest(
@@ -62,22 +63,4 @@ pub(crate) fn quantitative_audit_manifest_from_jobs(
 	)?;
 
 	Ok(manifest)
-}
-
-fn quantitative_audit_claim_boundary(args: &ExportQuantitativeAuditManifestArgs) -> String {
-	args.claim_boundary.clone().unwrap_or_else(|| {
-		if args.held_out || args.leakage_audited {
-			concat!(
-				"Audit manifest supplied by operator; runner validates run/corpus/product/",
-				"adapter/count/query-id/artifact bindings before opening row gates."
-			)
-			.to_string()
-		} else {
-			concat!(
-				"Diagnostic audit manifest binds the current product-runtime fixture set to ",
-				"query ids and counts, but it does not prove held-out or leakage-audited status."
-			)
-			.to_string()
-		}
-	})
 }
