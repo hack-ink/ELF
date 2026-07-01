@@ -1,3 +1,5 @@
+mod states;
+
 use crate::{
 	BTreeMap, JobReport, RealWorldJob, formatting,
 	quantitative::metrics::per_query::{evidence, query_metrics},
@@ -23,7 +25,7 @@ pub(super) fn quantitative_per_query_row_basis(
 	let positive_relevance_count = query_metrics::positive_qrel_count(&relevance);
 	let metrics = query_metrics::per_query_metrics(candidates.as_slice(), &relevance);
 	let candidate_count = candidates.len();
-	let metric_states = per_query_metric_states(
+	let metric_states = states::per_query_metric_states(
 		metrics.keys(),
 		positive_relevance_count,
 		candidate_count,
@@ -42,19 +44,4 @@ pub(super) fn quantitative_per_query_row_basis(
 			positive_relevance_count,
 		),
 	}
-}
-
-fn per_query_metric_states<'a>(
-	metric_names: impl Iterator<Item = &'a String>,
-	positive_relevance_count: usize,
-	candidate_count: usize,
-	result_state: &str,
-) -> BTreeMap<String, String> {
-	let metric_state = if positive_relevance_count == 0 || candidate_count == 0 {
-		"not_encoded"
-	} else {
-		result_state
-	};
-
-	metric_names.map(|key| (key.clone(), metric_state.to_string())).collect()
 }
