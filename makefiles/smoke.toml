@@ -1,18 +1,5 @@
 # Rust workspace tasks: Smoke.
 
-# Smoke
-# | task                               | type      | cwd |
-# | ---------------------------------- | --------- | --- |
-# | smoke-graphify-docker-graph-report | command   |     |
-# | smoke-graphiti-zep-docker-temporal | command   |     |
-# | smoke-graphrag-docker              | command   |     |
-# | smoke-letta-core-archive-export-readback | command   |     |
-# | smoke-lightrag-docker-context      | command   |     |
-# | smoke-ragflow-docker               | command   |     |
-# | smoke-real-world-job               | composite |     |
-# | smoke-real-world-job-json          | command   |     |
-# | smoke-real-world-job-report        | command   |     |
-
 [tasks.smoke-graphify-docker-graph-report]
 workspace = false
 command = "bash"
@@ -102,12 +89,3 @@ args = [
 	"--out",
 	"tmp/real-world-job/real-world-job-smoke-report.md",
 ]
-
-# Test
-# | task                  | type      | cwd |
-# | --------------------- | --------- | --- |
-# | test                  | composite |     |
-# | test-e2e              | command   |     |
-# | test-rust             | command   |     |
-# | test-rust-all         | command   |     |
-# | test-rust-integration | command   |     |

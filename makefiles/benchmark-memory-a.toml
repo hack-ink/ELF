@@ -1,4 +1,4 @@
-# Rust workspace tasks: Benchmark real-world memory tasks, first half.
+# Rust workspace tasks: real-world memory benchmark fixtures A-G.
 
 [tasks.real-world-memory]
 workspace = false

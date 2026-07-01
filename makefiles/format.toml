@@ -1,15 +1,5 @@
 # Rust workspace tasks: Format.
 
-# Format
-# | task           | type      | cwd |
-# | -------------- | --------- | --- |
-# | fmt            | composite |     |
-# | fmt-check      | composite |     |
-# | fmt-rust       | command   |     |
-# | fmt-rust-check | extend    |     |
-# | fmt-toml       | command   |     |
-# | fmt-toml-check | extend    |     |
-
 [tasks.fmt]
 workspace = false
 dependencies = [
@@ -45,10 +35,3 @@ args = [
 	"fmt",
 	"--check",
 ]
-
-# Lint
-# | task        | type      | cwd |
-# | ----------- | --------- | --- |
-# | lint        | composite |     |
-# | lint-rust   | command   |     |
-# | lint-vstyle | command   |     |
