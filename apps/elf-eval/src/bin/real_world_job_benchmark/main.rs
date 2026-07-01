@@ -95,8 +95,8 @@ use quantitative::{
 };
 use quantitative_reports::{
 	QuantitativeAuditArtifact, QuantitativeAuditManifest, QuantitativeBenchmarkControls,
-	QuantitativeBenchmarkReport, QuantitativeBenchmarkRow, QuantitativePerQueryRow,
-	QuantitativeProductManifest,
+	QuantitativeBenchmarkReport, QuantitativeBenchmarkRow, QuantitativeConfidenceInterval,
+	QuantitativePerQueryRow, QuantitativeProductManifest,
 };
 use report_root::RealWorldReport;
 use scoreboard::scoreboard_report;

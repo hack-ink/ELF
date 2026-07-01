@@ -40,6 +40,8 @@ pub(super) struct QuantitativeBenchmarkRow {
 	pub(super) metrics: BTreeMap<String, Option<f64>>,
 	pub(super) metric_states: BTreeMap<String, String>,
 	pub(super) denominators: BTreeMap<String, usize>,
+	#[serde(default)]
+	pub(super) confidence_intervals: BTreeMap<String, QuantitativeConfidenceInterval>,
 	pub(super) claim_boundary: String,
 }
 
@@ -74,6 +76,16 @@ pub(super) struct QuantitativeBenchmarkControls {
 	pub(super) current_explicit_qrel_query_count: usize,
 	pub(super) leaderboard_claim_allowed: bool,
 	pub(super) leakage_control: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub(super) struct QuantitativeConfidenceInterval {
+	pub(super) method: String,
+	pub(super) confidence: f64,
+	pub(super) lower: f64,
+	pub(super) upper: f64,
+	pub(super) numerator: usize,
+	pub(super) denominator: usize,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
