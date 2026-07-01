@@ -1,12 +1,11 @@
+mod audit_gates;
 mod benchmark_row;
 mod query_counts;
 
 use crate::{
 	QuantitativeBenchmarkRow, QuantitativePerQueryRow, Result,
 	quantitative::{
-		self,
-		audit_manifest::{self, QuantitativeAuditContext},
-		metrics,
+		self, metrics,
 		report::{QuantitativeReportInput, row::benchmark_row::QuantitativeBenchmarkRowInput},
 	},
 };
@@ -36,26 +35,14 @@ pub(super) fn current_quantitative_row(
 	let explicit_qrel_query_count = query_counts.explicit_qrel_query_count;
 	let metric_comparable = ranking_query_count > 0;
 	let result_state = quantitative::quantitative_result_state(input.summary);
-	let audit_evidence = audit_manifest::quantitative_audit_evidence(
-		input.audit_manifest_path,
-		QuantitativeAuditContext {
-			run_id: input.run_id,
-			corpus_id: corpus_id.as_str(),
-			product: "ELF",
-			adapter_id: input.adapter.adapter_id.as_str(),
-			source_jobs: input.source_jobs,
-			ranking_query_count,
-			explicit_qrel_query_count,
-		},
-	)?;
-	let leaderboard_eligible = quantitative::quantitative_row_leaderboard_eligible(
+	let audit_gates = audit_gates::quantitative_audit_gates(
+		input,
+		corpus_id.as_str(),
 		evidence_class,
-		input.source_jobs.len(),
 		ranking_query_count,
 		explicit_qrel_query_count,
 		metric_comparable,
-		&audit_evidence,
-	);
+	)?;
 	let row = benchmark_row::quantitative_benchmark_row(QuantitativeBenchmarkRowInput {
 		input,
 		corpus_id: corpus_id.as_str(),
@@ -65,8 +52,8 @@ pub(super) fn current_quantitative_row(
 		explicit_qrel_query_count,
 		metric_comparable,
 		result_state,
-		audit_evidence,
-		leaderboard_eligible,
+		audit_evidence: audit_gates.audit_evidence,
+		leaderboard_eligible: audit_gates.leaderboard_eligible,
 	});
 
 	Ok(CurrentQuantitativeRow {
