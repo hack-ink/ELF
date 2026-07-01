@@ -120,16 +120,6 @@ def main() -> int:
                     status.failure_reason = mapping["reason"]
 
     fixture_path = write_fixture(facts, status, mapping)
-    materialization = write_materialization(
-        status,
-        facts,
-        fixture_path,
-        command_records,
-        inserted,
-        search_results,
-        mapping,
-        started_at,
-    )
     manifest = write_manifest(status)
     report = run_scored_report(fixture_path, MANIFEST_OUT, status)
     materialization = write_materialization(

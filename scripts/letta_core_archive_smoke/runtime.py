@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import textwrap
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -11,7 +11,17 @@ from pathlib import Path
 from typing import Any
 
 from .common import run_command, write_json
-from .context import *  # noqa: F403
+from .context import (
+    INSTALL_CLIENT,
+    LETTA_BASE_URL,
+    LETTA_CLIENT_PACKAGE,
+    LETTA_EMBEDDING,
+    LETTA_MODEL,
+    RUN_ID,
+    STARTUP_ATTEMPTS,
+    STARTUP_INTERVAL_SECONDS,
+    WORK_DIR,
+)
 from .fixtures import benchmark_input_contract, slug
 from .models import CommandRecord
 

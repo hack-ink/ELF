@@ -8,7 +8,21 @@ from typing import Any
 
 from .benchmark import scored_benchmark
 from .common import command_to_json, rel, utc_now, write_json
-from .context import *  # noqa: F403
+from .context import (
+    LETTA_BASE_URL,
+    LETTA_CLIENT_REF,
+    LETTA_EMBEDDING,
+    LETTA_MODEL,
+    MANIFEST_OUT,
+    OUT,
+    REPORT_JSON,
+    REPORT_MD,
+    RUN_ID,
+    RUN_LIVE,
+    SUMMARY_OUT,
+    TIMEOUT_SECONDS,
+    WORK_DIR,
+)
 from .fixtures import benchmark_input_contract
 from .models import CommandRecord, StatusState
 

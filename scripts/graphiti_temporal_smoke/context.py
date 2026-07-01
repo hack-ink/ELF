@@ -6,8 +6,6 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from typing import Any
-
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = SCRIPT_DIR.parent
