@@ -1,9 +1,8 @@
 use crate::{
 	BTreeSet, ExportQuantitativeProductManifestArgs, Path, QuantitativeBenchmarkRow,
 	QuantitativeProductManifest, REPORT_SCHEMA, RealWorldReport, Result, eyre, fs,
+	quantitative::{MIN_LEADERBOARD_QUERY_COUNT, QUANTITATIVE_PRODUCT_MANIFEST_SCHEMA},
 };
-
-use super::{MIN_LEADERBOARD_QUERY_COUNT, QUANTITATIVE_PRODUCT_MANIFEST_SCHEMA};
 
 pub(crate) fn quantitative_product_manifest_from_report(
 	report: &RealWorldReport,
