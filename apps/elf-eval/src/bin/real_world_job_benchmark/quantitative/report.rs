@@ -1,4 +1,5 @@
 mod controls;
+mod imported;
 mod input;
 mod row;
 
@@ -6,24 +7,22 @@ pub(crate) use self::input::QuantitativeReportInput;
 
 use crate::{
 	QuantitativeBenchmarkReport, Result,
-	quantitative::{self, QUANTITATIVE_K_VALUES, QUANTITATIVE_SCOREBOARD_SCHEMA, product_manifest},
+	quantitative::{self, QUANTITATIVE_K_VALUES, QUANTITATIVE_SCOREBOARD_SCHEMA},
 };
 
 pub(crate) fn quantitative_scoreboard_report(
 	input: QuantitativeReportInput<'_>,
 ) -> Result<QuantitativeBenchmarkReport> {
 	let current_row = row::current_quantitative_row(&input)?;
-	let product_manifest = product_manifest::quantitative_product_manifest(
+	let imported_rows = imported::imported_quantitative_rows(
 		input.product_manifest_path,
 		current_row.corpus_id.as_str(),
 	)?;
-	let imported_row_count = product_manifest.rows.len();
-	let imported_per_query_count = product_manifest.per_query_rows.len();
 	let mut rows = vec![current_row.row];
 	let mut merged_per_query_rows = current_row.per_query_rows;
 
-	rows.extend(product_manifest.rows);
-	merged_per_query_rows.extend(product_manifest.per_query_rows);
+	rows.extend(imported_rows.rows);
+	merged_per_query_rows.extend(imported_rows.per_query_rows);
 
 	let leaderboard_claim_allowed = rows.iter().filter(|row| row.leaderboard_eligible).count() >= 2;
 	let controls = controls::quantitative_benchmark_controls(
@@ -41,8 +40,8 @@ pub(crate) fn quantitative_scoreboard_report(
 		rows,
 		per_query_rows: merged_per_query_rows,
 		metrics_not_encoded: quantitative::quantitative_metrics_not_encoded(
-			imported_row_count,
-			imported_per_query_count,
+			imported_rows.row_count,
+			imported_rows.per_query_count,
 		),
 		controls,
 		claim_boundary: concat!(
