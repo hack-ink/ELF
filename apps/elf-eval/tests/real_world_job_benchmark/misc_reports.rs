@@ -9,9 +9,12 @@ use crate::support;
 
 #[test]
 fn mem0_delete_audit_probe_requires_explicit_delete_history_event() -> Result<()> {
-	let script = fs::read_to_string(
-		support::workspace_root()?.join("scripts").join("live-baseline-benchmark.sh"),
-	)?;
+	let workspace_root = support::workspace_root()?;
+	let script = ["scripts/live-baseline-benchmark.sh", "scripts/live-baseline/projects/mem0.sh"]
+		.into_iter()
+		.map(|path| fs::read_to_string(workspace_root.join(path)))
+		.collect::<Result<Vec<_>, _>>()?
+		.join("\n");
 
 	assert!(script.contains("def history_has_event"));
 	assert!(script.contains("str(entry.get(\"event\", \"\")).upper() == expected"));
