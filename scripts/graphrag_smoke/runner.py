@@ -90,16 +90,6 @@ def main() -> int:
 
     scrub_report_secrets(project_dir)
     fixture_path = write_fixture(corpus, status, mapped_ids)
-    materialization = write_materialization(
-        status,
-        corpus,
-        fixture_path,
-        corpus_csv,
-        command_records,
-        mappings,
-        mapped_ids,
-        started_at,
-    )
     manifest = write_manifest(status)
     report = run_scored_report(fixture_path, MANIFEST_OUT, status)
     materialization = write_materialization(
