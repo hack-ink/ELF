@@ -55,7 +55,7 @@ fn append_rust_sources(dir: &Path, source: &mut String) -> Result<()> {
 #[test]
 fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
 	let workspace = support::workspace_root()?;
-	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let makefile = support::make_task_catalog()?;
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 
 	assert!(
@@ -101,7 +101,7 @@ fn live_adapter_aggregate_forwards_graph_rag_smoke_controls() -> Result<()> {
 #[test]
 fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 	let workspace_root = support::workspace_root()?;
-	let makefile = fs::read_to_string(workspace_root.join("Makefile.toml"))?;
+	let makefile = support::make_task_catalog()?;
 	let docker_script = fs::read_to_string(workspace_root.join("scripts/baseline-docker.sh"))?;
 	let compose = fs::read_to_string(workspace_root.join("docker-compose.baseline.yml"))?;
 	let script = [
@@ -154,7 +154,7 @@ fn openmemory_ui_export_probe_has_dedicated_docker_task() -> Result<()> {
 #[test]
 fn operator_debug_live_adapter_task_is_docker_scoped() -> Result<()> {
 	let workspace = support::workspace_root()?;
-	let makefile = fs::read_to_string(workspace.join("Makefile.toml"))?;
+	let makefile = support::make_task_catalog()?;
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 	let script = fs::read_to_string(
 		workspace.join("scripts").join("real-world-operator-debug-live-adapters.sh"),

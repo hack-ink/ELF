@@ -45,6 +45,7 @@ exclude = [
 	"coverage/**",
 	"dist",
 	"dist/**",
+	"makefiles/*.toml",
 	"model",
 	"model/**",
 	"node_modules",
