@@ -54,6 +54,9 @@ pub(super) struct RunArgs {
 	/// Optional same-corpus quantitative product manifest to merge into the report.
 	#[arg(long, value_name = "FILE")]
 	pub(super) quantitative_product_manifest: Option<PathBuf>,
+	/// Optional audit manifest proving the current quantitative row's held-out/leakage gates.
+	#[arg(long, value_name = "FILE")]
+	pub(super) quantitative_audit_manifest: Option<PathBuf>,
 }
 
 #[derive(Debug, Parser)]
@@ -88,9 +91,45 @@ pub(super) struct ExportQuantitativeProductManifestArgs {
 	pub(super) adapter_name: Option<String>,
 }
 
+#[derive(Debug, Parser)]
+pub(super) struct ExportQuantitativeAuditManifestArgs {
+	/// Fixture file or directory containing current product-runtime real_world_job outputs.
+	#[arg(long, value_name = "PATH", default_value = DEFAULT_FIXTURE_PATH)]
+	pub(super) fixtures: PathBuf,
+	/// Write audit manifest JSON to this file. Omit to print to stdout.
+	#[arg(long, value_name = "FILE")]
+	pub(super) out: Option<PathBuf>,
+	/// Stable run id that the audit manifest is allowed to attest.
+	#[arg(long, default_value = DEFAULT_RUN_ID)]
+	pub(super) run_id: String,
+	/// Stable manifest id. Defaults to <run_id>-quantitative-audit-manifest.
+	#[arg(long)]
+	pub(super) manifest_id: Option<String>,
+	/// Product name for the current row.
+	#[arg(long, default_value = "ELF")]
+	pub(super) product: String,
+	/// Adapter id for the current row.
+	#[arg(long, default_value = DEFAULT_ADAPTER_ID)]
+	pub(super) adapter_id: String,
+	/// Mark the current row as held-out only when query ids were locked before runtime.
+	#[arg(long)]
+	pub(super) held_out: bool,
+	/// Mark the current row as leakage audited only when runtime inputs excluded answers/qrels.
+	#[arg(long)]
+	pub(super) leakage_audited: bool,
+	/// Audit control string. Repeat for multiple controls.
+	#[arg(long = "control")]
+	pub(super) controls: Vec<String>,
+	/// Claim boundary recorded in the audit manifest.
+	#[arg(long)]
+	pub(super) claim_boundary: Option<String>,
+}
+
 #[derive(Debug, Subcommand)]
 #[command(rename_all = "kebab")]
 pub(super) enum Command {
+	/// Export a quantitative audit manifest for the current fixture set.
+	ExportQuantitativeAuditManifest(ExportQuantitativeAuditManifestArgs),
 	/// Export the primary quantitative row as a reusable product manifest.
 	ExportQuantitativeProductManifest(ExportQuantitativeProductManifestArgs),
 	/// Parse and score real_world_job fixtures, then emit a JSON report.
