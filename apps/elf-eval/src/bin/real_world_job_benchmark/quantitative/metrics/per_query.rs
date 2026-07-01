@@ -1,7 +1,8 @@
+mod evidence;
 mod query_metrics;
 
 use crate::{
-	BTreeMap, JobReport, QuantitativePerQueryRow, RealWorldJob, formatting,
+	JobReport, QuantitativePerQueryRow, RealWorldJob, formatting,
 	quantitative::QUANTITATIVE_ROW_CLAIM_BOUNDARY, scoring,
 };
 
@@ -28,7 +29,7 @@ fn quantitative_per_query_row(
 	evidence_class: &str,
 	adapter_id: &str,
 ) -> QuantitativePerQueryRow {
-	let relevance = relevance_grades(source_job, job);
+	let relevance = evidence::relevance_grades(source_job, job);
 	let candidates = scoring::produced_evidence_order(source_job);
 	let positive_relevance_count = query_metrics::positive_qrel_count(&relevance);
 	let metrics = query_metrics::per_query_metrics(candidates.as_slice(), &relevance);
@@ -47,7 +48,7 @@ fn quantitative_per_query_row(
 		result_state: formatting::status_str(job.status).to_string(),
 		expected_relevant_count: positive_relevance_count,
 		candidate_count: candidates.len(),
-		qrel_source: qrel_source(source_job, relevance.is_empty()).to_string(),
+		qrel_source: evidence::qrel_source(source_job, relevance.is_empty()).to_string(),
 		relevance_grade_sum: formatting::round3(relevance.values().sum::<f64>()),
 		product: "ELF".to_string(),
 		adapter_id: adapter_id.to_string(),
@@ -58,30 +59,5 @@ fn quantitative_per_query_row(
 			positive_relevance_count,
 		),
 		claim_boundary: QUANTITATIVE_ROW_CLAIM_BOUNDARY.to_string(),
-	}
-}
-
-fn relevance_grades(source_job: &RealWorldJob, job: &JobReport) -> BTreeMap<String, f64> {
-	let explicit = source_job
-		.expected_answer
-		.relevance_judgments
-		.iter()
-		.map(|judgment| (judgment.evidence_id.clone(), judgment.grade))
-		.collect::<BTreeMap<_, _>>();
-
-	if !explicit.is_empty() {
-		return explicit;
-	}
-
-	job.expected_evidence.iter().map(|evidence| (evidence.evidence_id.clone(), 1.0)).collect()
-}
-
-fn qrel_source(source_job: &RealWorldJob, empty: bool) -> &'static str {
-	if !source_job.expected_answer.relevance_judgments.is_empty() {
-		"explicit_qrels"
-	} else if empty {
-		"not_encoded"
-	} else {
-		"expected_evidence_fallback"
 	}
 }
