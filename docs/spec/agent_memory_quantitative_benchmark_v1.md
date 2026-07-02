@@ -18,8 +18,10 @@ code_refs:
   - makefiles/benchmark-memory-a.toml
   - makefiles/benchmark-memory-b.toml
   - scripts/materialize-explicit-qrels.py
+  - scripts/materialize-quantitative-artifact-freshness.py
   - scripts/real-world-explicit-qrels.sh
   - scripts/real-world-docker.sh
+  - scripts/real-world-quantitative-docker.sh
   - scripts/real-world-live-explicit-qrels.sh
   - apps/elf-eval/src/app.rs
   - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
@@ -36,8 +38,10 @@ drift_watch:
   - makefiles/benchmark-memory-a.toml
   - makefiles/benchmark-memory-b.toml
   - scripts/materialize-explicit-qrels.py
+  - scripts/materialize-quantitative-artifact-freshness.py
   - scripts/real-world-explicit-qrels.sh
   - scripts/real-world-docker.sh
+  - scripts/real-world-quantitative-docker.sh
   - scripts/real-world-live-explicit-qrels.sh
   - docs/spec/agent_memory_knowledge_system_v1.md
   - docs/spec/real_world_agent_memory_benchmark_v1.md
@@ -83,6 +87,24 @@ Every quantitative row must declare one evidence class:
 | `provider_backed` | Provider credentials/models were used and cost/latency are measured. | Yes only against rows with equivalent provider boundary. |
 | `research_gate` | Research-only, blocked, or reference-only evidence. | No. |
 | `mixed_evidence` | Aggregate row blends multiple evidence classes. | No; split rows before leaderboard use. |
+
+## Artifact Freshness And Public Reproducibility
+
+Public reproducibility is a separate gate from metric quality. A quantitative row
+may support a public reproducibility claim only when its provenance carries the
+aggregate command, Docker runner, Compose file, repository head, environment
+profile, input product-manifest SHA-256, artifact digest, container image digest,
+and structured 40-hex product source commit.
+
+`cargo make real-world-memory-quantitative-docker` runs the Docker-owned aggregate
+entrypoint and fails before aggregate work starts if the `baseline-runner` image
+digest is absent or malformed. `scripts/materialize-quantitative-artifact-freshness.py`
+then materializes the row-level freshness manifest for Docker-contained
+quantitative product manifests. Runtime-sensitive rows such as Honcho, Letta, and
+RAGFlow must not accept a product commit unless a matching
+`runtime_source_attestation` proves the pinned checkout or image revision was the
+runtime that emitted the row. A non-pass attestation remains a failure even when a
+commit-shaped value is present.
 
 ## Result States
 
