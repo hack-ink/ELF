@@ -1,14 +1,5 @@
 # Rust workspace tasks: Test.
 
-# Test
-# | task                  | type      | cwd |
-# | --------------------- | --------- | --- |
-# | test                  | composite |     |
-# | test-e2e              | command   |     |
-# | test-rust             | command   |     |
-# | test-rust-all         | command   |     |
-# | test-rust-integration | command   |     |
-
 [tasks.test]
 clear = true
 workspace = false

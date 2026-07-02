@@ -20,6 +20,7 @@
 #[path = "real_world_job_benchmark/operator_debug.rs"] mod operator_debug;
 #[path = "real_world_job_benchmark/proactive_brief.rs"] mod proactive_brief;
 #[path = "real_world_job_benchmark/production_ops.rs"] mod production_ops;
+#[path = "real_world_job_benchmark/quantitative.rs"] mod quantitative;
 #[path = "real_world_job_benchmark/recall_debug_reports.rs"] mod recall_debug_reports;
 #[path = "real_world_job_benchmark/retrieval.rs"] mod retrieval;
 #[path = "real_world_job_benchmark/root_aggregate.rs"] mod root_aggregate;

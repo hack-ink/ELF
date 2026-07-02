@@ -1,7 +1,8 @@
 use crate::{
-	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile, OffsetDateTime, Path,
-	PathBuf, PrivateCorpusRedaction, PublishArgs, REPORT_SCHEMA, RealWorldJob, RealWorldReport,
-	Result, Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
+	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile,
+	ExportQuantitativeAuditManifestArgs, ExportQuantitativeProductManifestArgs, OffsetDateTime,
+	Path, PathBuf, PrivateCorpusRedaction, PublishArgs, QuantitativeReportInput, REPORT_SCHEMA,
+	RealWorldJob, RealWorldReport, Result, Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
 };
 
 pub(super) fn run_command(args: RunArgs) -> Result<()> {
@@ -18,6 +19,27 @@ pub(super) fn publish_command(args: PublishArgs) -> Result<()> {
 	let markdown = crate::render_markdown(&report, &args.report);
 
 	write_or_print(args.out.as_deref(), markdown.as_str())
+}
+
+pub(super) fn export_quantitative_product_manifest_command(
+	args: ExportQuantitativeProductManifestArgs,
+) -> Result<()> {
+	let raw = fs::read_to_string(&args.report)?;
+	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
+	let manifest = crate::quantitative_product_manifest_from_report(&report, &args)?;
+	let json = serde_json::to_string_pretty(&manifest)?;
+
+	write_or_print(args.out.as_deref(), json.as_str())
+}
+
+pub(super) fn export_quantitative_audit_manifest_command(
+	args: ExportQuantitativeAuditManifestArgs,
+) -> Result<()> {
+	let jobs = load_jobs(&args.fixtures)?;
+	let manifest = crate::quantitative_audit_manifest_from_jobs(jobs.as_slice(), &args)?;
+	let json = serde_json::to_string_pretty(&manifest)?;
+
+	write_or_print(args.out.as_deref(), json.as_str())
 }
 
 fn load_jobs(path: &Path) -> Result<Vec<RealWorldJob>> {
@@ -103,16 +125,29 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 	)?;
 	let scoreboard = crate::scoreboard_report(jobs, &job_reports, &summary, &external_adapters);
 	let operational_evidence = crate::operational_evidence_report(jobs, &job_reports);
+	let adapter = adapter_report(args)?;
+	let generated_at = OffsetDateTime::now_utc().format(&Rfc3339)?;
+	let quantitative_scoreboard = crate::quantitative_scoreboard_report(QuantitativeReportInput {
+		run_id: args.run_id.as_str(),
+		generated_at: generated_at.as_str(),
+		adapter: &adapter,
+		source_jobs: jobs,
+		jobs: &job_reports,
+		summary: &summary,
+		product_manifest_path: args.quantitative_product_manifest.as_deref(),
+		audit_manifest_path: args.quantitative_audit_manifest.as_deref(),
+	})?;
 
 	Ok(RealWorldReport {
 		schema: REPORT_SCHEMA.to_string(),
 		run_id: args.run_id.clone(),
-		generated_at: OffsetDateTime::now_utc().format(&Rfc3339)?,
+		generated_at,
 		runner_version: VERSION.to_string(),
 		corpus_profile: corpus_profile(jobs),
-		adapter: adapter_report(args)?,
+		adapter,
 		scoreboard,
 		operational_evidence,
+		quantitative_scoreboard,
 		external_adapters,
 		capture_integration: capture_integration_report(jobs),
 		summary,

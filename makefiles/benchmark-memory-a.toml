@@ -1,4 +1,4 @@
-# Rust workspace tasks: Benchmark real-world memory tasks, first half.
+# Rust workspace tasks: real-world memory benchmark fixtures A-G.
 
 [tasks.real-world-memory]
 workspace = false
@@ -362,6 +362,13 @@ args = [
 	"tmp/real-world-memory/evolution-report.json",
 	"--out",
 	"tmp/real-world-memory/evolution-report.md",
+]
+
+[tasks.real-world-memory-explicit-qrels]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-explicit-qrels.sh",
 ]
 
 [tasks.real-world-memory-graph-rag]

@@ -1,11 +1,5 @@
 # Rust workspace tasks: Clean.
 
-# Clean
-# | task                       | type    | cwd |
-# | -------------------------- | ------- | --- |
-# | clean-baseline-live-docker | command |     |
-# | clean-parity-docker        | command |     |
-
 [tasks.clean-baseline-live-docker]
 workspace = false
 command = "docker"
@@ -29,13 +23,3 @@ args = [
 	"-v",
 	"--remove-orphans",
 ]
-
-# Format
-# | task           | type      | cwd |
-# | -------------- | --------- | --- |
-# | fmt            | composite |     |
-# | fmt-check      | composite |     |
-# | fmt-rust       | command   |     |
-# | fmt-rust-check | extend    |     |
-# | fmt-toml       | command   |     |
-# | fmt-toml-check | extend    |     |

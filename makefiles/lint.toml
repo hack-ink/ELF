@@ -1,12 +1,5 @@
 # Rust workspace tasks: Lint.
 
-# Lint
-# | task        | type      | cwd |
-# | ----------- | --------- | --- |
-# | lint        | composite |     |
-# | lint-rust   | command   |     |
-# | lint-vstyle | command   |     |
-
 [tasks.lint]
 workspace = false
 dependencies = [
@@ -52,10 +45,3 @@ args = [
 	"--workspace",
 	"--all-features",
 ]
-
-# Lint Fix
-# | task            | type      | cwd |
-# | --------------- | --------- | --- |
-# | lint-fix        | composite |     |
-# | lint-fix-rust   | command   |     |
-# | lint-fix-vstyle | command   |     |
