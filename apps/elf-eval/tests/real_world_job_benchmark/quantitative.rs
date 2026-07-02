@@ -1,5 +1,6 @@
 #[path = "quantitative/audit_manifest.rs"] mod audit_manifest;
 #[path = "quantitative/contracts.rs"] mod contracts;
+#[path = "quantitative/freshness.rs"] mod freshness;
 #[path = "quantitative/metrics.rs"] mod metrics;
 #[path = "quantitative/product_manifest.rs"] mod product_manifest;
 
