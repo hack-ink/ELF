@@ -414,6 +414,14 @@ args = [
 	"tmp/real-world-memory/project-decisions/report.md",
 ]
 
+[tasks.real-world-memory-quantitative-docker]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"memory-quantitative-docker",
+]
+
 [tasks.real-world-memory-quantitative-scoreboard]
 workspace = false
 dependencies = [
