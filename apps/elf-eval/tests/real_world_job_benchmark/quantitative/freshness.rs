@@ -6,7 +6,7 @@ use std::{
 };
 
 use color_eyre::{Result, eyre};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::support;
 
@@ -20,11 +20,11 @@ struct FreshnessFixture {
 	sync_log_path: PathBuf,
 	out_path: PathBuf,
 }
-
 impl FreshnessFixture {
 	fn new(name: &str, product_manifest: &Value) -> Result<Self> {
 		let nonce = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
 		let temp_dir = env::temp_dir().join(format!("{name}-{}-{nonce}", process::id()));
+
 		fs::create_dir_all(&temp_dir)?;
 
 		let product_manifest_path = temp_dir.join("product-manifest.json");
@@ -90,7 +90,6 @@ fn quantitative_freshness_accepts_runner_image_digest_for_public_reproducibility
 			Some("runtime_source_checkout_verified"),
 		)),
 	)?;
-
 	let manifest = fixture.run_materializer()?;
 
 	assert_eq!(
@@ -201,7 +200,6 @@ fn quantitative_freshness_rejects_non_pass_attestation_without_reason() -> Resul
 		"elf-non-pass-attestation",
 		&honcho_product_manifest(honcho_runtime_attestation("fail", None)),
 	)?;
-
 	let manifest = fixture.run_materializer()?;
 
 	assert_eq!(
@@ -236,7 +234,7 @@ fn quantitative_freshness_rejects_non_pass_attestation_without_reason() -> Resul
 }
 
 fn honcho_product_manifest(runtime_source_attestation: Value) -> Value {
-	json!({
+	serde_json::json!({
 		"schema": "elf.agent_memory_quantitative_product_manifest/v1",
 		"manifest_id": "honcho-test-product-manifest",
 		"product": "Honcho",
@@ -259,7 +257,7 @@ fn honcho_product_manifest(runtime_source_attestation: Value) -> Value {
 }
 
 fn honcho_runtime_attestation(status: &str, reason: Option<&str>) -> Value {
-	let mut attestation = json!({
+	let mut attestation = serde_json::json!({
 		"status": status,
 		"product_commit": HONCHO_COMMIT,
 		"runtime_executed": true,
@@ -268,7 +266,7 @@ fn honcho_runtime_attestation(status: &str, reason: Option<&str>) -> Value {
 	});
 
 	if let Some(reason) = reason {
-		attestation["reason"] = json!(reason);
+		attestation["reason"] = serde_json::json!(reason);
 	}
 
 	attestation
@@ -278,10 +276,12 @@ fn only_freshness_row(manifest: &Value) -> Result<&Value> {
 	let inputs = support::array_at(manifest, "/combined_inputs")?;
 	let input = inputs.first().ok_or_else(|| eyre::eyre!("missing freshness input"))?;
 	let rows = support::array_at(input, "/rows")?;
+
 	rows.first().ok_or_else(|| eyre::eyre!("missing freshness row"))
 }
 
 fn only_product_commit_gap(manifest: &Value) -> Result<&Value> {
 	let gaps = support::array_at(manifest, "/product_commit_gap_rows")?;
+
 	gaps.first().ok_or_else(|| eyre::eyre!("missing product commit gap row"))
 }
