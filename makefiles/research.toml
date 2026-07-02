@@ -1,17 +1,5 @@
 # Rust workspace tasks: Research.
 
-# Research
-# | task                                    | type      | cwd |
-# | --------------------------------------- | --------- | --- |
-# | external-memory-radar                   | command   |     |
-# | external-memory-radar-artifact          | composite |     |
-# | external-memory-radar-artifact-json     | command   |     |
-# | external-memory-radar-artifact-validate | command   |     |
-# | external-memory-radar-dry-run           | composite |     |
-# | external-memory-radar-dry-run-json      | command   |     |
-# | external-memory-radar-dry-run-validate  | command   |     |
-# | external-memory-radar-validate          | command   |     |
-
 [tasks.external-memory-radar]
 workspace = false
 command = "cargo"
@@ -127,16 +115,3 @@ args = [
 	"--cursor",
 	"apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json",
 ]
-
-# Smoke
-# | task                               | type      | cwd |
-# | ---------------------------------- | --------- | --- |
-# | smoke-graphify-docker-graph-report | command   |     |
-# | smoke-graphiti-zep-docker-temporal | command   |     |
-# | smoke-graphrag-docker              | command   |     |
-# | smoke-letta-core-archive-export-readback | command   |     |
-# | smoke-lightrag-docker-context      | command   |     |
-# | smoke-ragflow-docker               | command   |     |
-# | smoke-real-world-job               | composite |     |
-# | smoke-real-world-job-json          | command   |     |
-# | smoke-real-world-job-report        | command   |     |

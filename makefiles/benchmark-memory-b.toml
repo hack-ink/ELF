@@ -1,4 +1,4 @@
-# Rust workspace tasks: Benchmark real-world memory tasks, second half.
+# Rust workspace tasks: real-world memory benchmark fixtures K-W and aggregate runners.
 
 [tasks.real-world-memory-json]
 workspace = false
@@ -249,6 +249,14 @@ command = "bash"
 args = [
 	"scripts/real-world-docker.sh",
 	"memory-live-consolidation",
+]
+
+[tasks.real-world-memory-live-explicit-qrels]
+workspace = false
+command = "bash"
+args = [
+	"scripts/real-world-docker.sh",
+	"memory-live-explicit-qrels",
 ]
 
 [tasks.real-world-memory-live-knowledge]
@@ -678,12 +686,3 @@ args = [
 	"--out",
 	"tmp/real-world-memory/memory-summary/report.md",
 ]
-
-# Check
-# | task             | type      | cwd |
-# | ---------------- | --------- | --- |
-# | check            | composite |     |
-# | check-docs       | command   |     |
-# | check-rust       | command   |     |
-# | check-trace-gate | command   |     |
-# | checks           | composite |     |

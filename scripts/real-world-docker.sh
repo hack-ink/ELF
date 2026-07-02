@@ -45,6 +45,11 @@ memory-live-adapters)
 		docker compose -f docker-compose.baseline.yml --profile graphiti-zep up -d graphiti-falkordb
 	fi
 	docker compose -f docker-compose.baseline.yml run --build --rm \
+		-e ELF_REAL_WORLD_LIVE_REPORT_DIR \
+		-e ELF_REAL_WORLD_LIVE_FIXTURES \
+		-e ELF_REAL_WORLD_OPERATOR_DEBUG_FIXTURES \
+		-e ELF_REAL_WORLD_LIVE_WORK_DIR \
+		-e ELF_REAL_WORLD_QMD_DIR \
 		-e ELF_REAL_WORLD_LIVE_ENABLE_RAGFLOW \
 		-e ELF_REAL_WORLD_LIVE_ENABLE_LIGHTRAG \
 		-e ELF_REAL_WORLD_LIVE_ENABLE_GRAPHRAG \
@@ -122,6 +127,15 @@ memory-live-adapters)
 		docker compose -f docker-compose.baseline.yml --profile graphiti-zep stop graphiti-falkordb >/dev/null 2>&1 || true
 	fi
 	exit "$status"
+	;;
+memory-live-explicit-qrels)
+	docker compose -f docker-compose.baseline.yml run --build --rm \
+		-e ELF_REAL_WORLD_LIVE_EXPLICIT_QRELS_REPORT_DIR \
+		-e ELF_REAL_WORLD_LIVE_EXPLICIT_QRELS_FIXTURES \
+		-e ELF_REAL_WORLD_LIVE_EXPLICIT_QRELS_OPERATOR_DEBUG_FIXTURES \
+		-e ELF_REAL_WORLD_LIVE_EXPLICIT_QRELS_WORK_DIR \
+		-e ELF_REAL_WORLD_QMD_DIR \
+		baseline-runner bash scripts/real-world-live-explicit-qrels.sh
 	;;
 *)
 	echo "unknown real-world Docker profile: $profile" >&2
