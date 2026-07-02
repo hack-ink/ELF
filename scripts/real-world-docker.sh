@@ -6,6 +6,28 @@ if [ -z "$profile" ]; then
 	echo "usage: scripts/real-world-docker.sh <profile>" >&2
 	exit 2
 fi
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+build_baseline_runner_with_digest() {
+	docker compose -f docker-compose.baseline.yml build baseline-runner
+
+	local image_id
+	image_id="$(docker compose -f docker-compose.baseline.yml images -q baseline-runner | head -n 1)"
+	if [ -z "$image_id" ]; then
+		echo "Unable to resolve baseline-runner image id after Docker Compose build." >&2
+		exit 1
+	fi
+
+	case "$image_id" in
+		sha256:*) export ELF_BASELINE_RUNNER_IMAGE_DIGEST="$image_id" ;;
+		*) export ELF_BASELINE_RUNNER_IMAGE_DIGEST="sha256:${image_id}" ;;
+	esac
+
+	if [[ ! "$ELF_BASELINE_RUNNER_IMAGE_DIGEST" =~ ^sha256:[0-9a-fA-F]{64}$ ]]; then
+		echo "Invalid baseline-runner image digest: ${ELF_BASELINE_RUNNER_IMAGE_DIGEST}" >&2
+		exit 1
+	fi
+}
 
 case "$profile" in
 job-operator-ux-live-adapters)
@@ -136,6 +158,17 @@ memory-live-explicit-qrels)
 		-e ELF_REAL_WORLD_LIVE_EXPLICIT_QRELS_WORK_DIR \
 		-e ELF_REAL_WORLD_QMD_DIR \
 		baseline-runner bash scripts/real-world-live-explicit-qrels.sh
+	;;
+memory-quantitative-docker)
+	build_baseline_runner_with_digest
+	docker compose -f docker-compose.baseline.yml run --rm \
+		-e ELF_BASELINE_RUNNER_IMAGE_DIGEST \
+		-e ELF_REAL_WORLD_QUANTITATIVE_REPORT_DIR \
+		-e ELF_REAL_WORLD_QUANTITATIVE_LIVE_EXPLICIT_QRELS_DIR \
+		-e ELF_REAL_WORLD_QUANTITATIVE_RUN_LIVE_EXPLICIT_QRELS \
+		-e ELF_REAL_WORLD_QUANTITATIVE_RUN_LANGGRAPH \
+		-e ELF_REAL_WORLD_QMD_DIR \
+		baseline-runner bash scripts/real-world-quantitative-docker.sh
 	;;
 *)
 	echo "unknown real-world Docker profile: $profile" >&2
