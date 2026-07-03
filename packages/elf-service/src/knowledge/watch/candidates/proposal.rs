@@ -48,6 +48,7 @@ pub(in crate::knowledge::watch::candidates) fn candidate_diff(
 			"page_id": page.page.page_id,
 			"section_id": section.section_id,
 			"section_key": section.section_key,
+			"authority_boundary": knowledge_delta_authority_boundary(),
 		}),
 	}
 }
@@ -77,6 +78,7 @@ pub(in crate::knowledge::watch::candidates) fn candidate_proposed_payload(
 		"scope": "project_shared",
 		"importance": 0.65,
 		"confidence": 0.72,
+		"authority_boundary": knowledge_delta_authority_boundary(),
 		"source_ref": {
 			"schema": "elf.knowledge_delta/v1",
 			"reason": reason,
@@ -86,6 +88,18 @@ pub(in crate::knowledge::watch::candidates) fn candidate_proposed_payload(
 			"section_key": section.section_key,
 			"source_mutation_allowed": false,
 		}
+	})
+}
+
+fn knowledge_delta_authority_boundary() -> Value {
+	serde_json::json!({
+		"schema": "elf.knowledge_delta.authority_boundary/v1",
+		"origin_layer": "knowledge_workspace",
+		"authority": "derived_non_authoritative",
+		"review_surface": "consolidation_proposals",
+		"promotion_required_for_memory_authority": true,
+		"direct_memory_ledger_mutation_allowed": false,
+		"source_mutation_allowed": false,
 	})
 }
 
