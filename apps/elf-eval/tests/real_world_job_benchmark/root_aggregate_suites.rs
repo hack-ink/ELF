@@ -76,7 +76,7 @@ pub(crate) fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 	let context_trajectory = support::find_by_field(suites, "/suite_id", "context_trajectory")?;
 
 	assert_eq!(context_trajectory.pointer("/status").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(context_trajectory.pointer("/encoded_job_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(context_trajectory.pointer("/encoded_job_count").and_then(Value::as_u64), Some(4));
 
 	let work_continuity = support::find_by_field(suites, "/suite_id", "work_continuity")?;
 

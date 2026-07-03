@@ -77,10 +77,10 @@ fn assert_root_scoreboard_rows(report: &Value) -> Result<()> {
 	assert_eq!(elf.pointer("/same_corpus").and_then(Value::as_bool), Some(true));
 	assert_eq!(elf.pointer("/source_id_mapped").and_then(Value::as_bool), Some(true));
 	assert_eq!(elf.pointer("/product_runtime").and_then(Value::as_bool), Some(false));
-	assert_eq!(elf.pointer("/metrics/retrieval/recall_at_k").and_then(Value::as_f64), Some(0.988));
+	assert_eq!(elf.pointer("/metrics/retrieval/recall_at_k").and_then(Value::as_f64), Some(0.989));
 	assert_eq!(
 		elf.pointer("/metrics/retrieval/precision_at_k").and_then(Value::as_f64),
-		Some(0.415)
+		Some(0.414)
 	);
 	assert_eq!(elf.pointer("/metrics/retrieval/mrr").and_then(Value::as_f64), Some(0.988));
 	assert_eq!(elf.pointer("/metrics/retrieval/ndcg").and_then(Value::as_f64), Some(0.985));

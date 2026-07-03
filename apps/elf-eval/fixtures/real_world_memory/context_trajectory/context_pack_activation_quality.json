@@ -1,0 +1,284 @@
+{
+  "schema": "elf.real_world_job/v1",
+  "job_id": "context-pack-activation-quality-001",
+  "suite": "context_trajectory",
+  "title": "Activate Context Pack layers automatically without widening authority",
+  "corpus": {
+    "corpus_id": "real-world-memory-context-pack-2026-07-03",
+    "profile": "synthetic",
+    "items": [
+      {
+        "evidence_id": "context-pack-routing-trace",
+        "kind": "recall_debug_trace",
+        "text": "Context Pack routing trace: memory_notes and source_documents were enabled for the current project; stale knowledge_pages were suppressed; manual disabled graph_facts stayed disabled; a pinned private dreaming_proposals layer remained blocked by read_profile.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "context_pack_activation_quality",
+            "evidence_id": "context-pack-routing-trace"
+          }
+        },
+        "created_at": "2026-07-03T07:00:00Z"
+      },
+      {
+        "evidence_id": "context-pack-current-source",
+        "kind": "source_document",
+        "text": "Current readable source: Context Packs are read-time views and pinning may change priority only after scope, read_profile, freshness, deletion, redaction, and authority gates pass.",
+        "source_ref": {
+          "schema": "source_ref/v1",
+          "resolver": "real_world_job_fixture/v1",
+          "ref": {
+            "fixture": "context_pack_activation_quality",
+            "evidence_id": "context-pack-current-source"
+          }
+        },
+        "created_at": "2026-07-03T07:01:00Z"
+      },
+      {
+        "evidence_id": "context-pack-private-dreaming-decoy",
+        "kind": "dreaming_proposal",
+        "text": "Private proposal decoy: a pinned dreaming proposal should be included even when read_profile is public.",
+        "source_ref": {},
+        "created_at": "2026-07-03T07:02:00Z"
+      },
+      {
+        "evidence_id": "context-pack-stale-knowledge-decoy",
+        "kind": "knowledge_page",
+        "text": "Stale knowledge decoy: an old Context Pack should override current source freshness.",
+        "source_ref": {},
+        "created_at": "2026-06-01T07:02:00Z"
+      }
+    ],
+    "adapter_response": {
+      "adapter_id": "fixture_context_pack",
+      "answer": {
+        "content": "The Context Pack should auto-enable current readable memory/source layers, suppress stale knowledge, keep disabled graph layers disabled, and keep a pinned private dreaming proposal blocked by read_profile. The routing trace records enabled, suppressed, disabled, blocked, and pinned-ineligible states.",
+        "claims": [
+          {
+            "claim_id": "context_pack_activation",
+            "text": "Context Pack routing enabled current readable layers and suppressed stale, disabled, and private pinned layers without widening authority.",
+            "evidence_ids": ["context-pack-routing-trace", "context-pack-current-source"],
+            "confidence": "high"
+          },
+          {
+            "claim_id": "context_pack_trace",
+            "text": "The activation trace records enabled, suppressed, disabled, blocked, and pinned-ineligible states.",
+            "evidence_ids": ["context-pack-routing-trace"],
+            "confidence": "high"
+          }
+        ],
+        "evidence_ids": ["context-pack-routing-trace", "context-pack-current-source"],
+        "latency_ms": 1.2,
+        "cost": {
+          "currency": "USD",
+          "amount": 0.0,
+          "input_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "timeline": [
+    {
+      "event_id": "context-pack-route-recorded",
+      "ts": "2026-07-03T07:00:00Z",
+      "actor": "elf",
+      "action": "recorded_context_pack_trace",
+      "evidence_ids": ["context-pack-routing-trace", "context-pack-current-source"],
+      "summary": "The trace recorded automatic activation and suppression decisions for Context Pack v1."
+    }
+  ],
+  "prompt": {
+    "role": "user",
+    "content": "Which Context Pack layers should be active for this task, and why?",
+    "job_mode": "answer",
+    "constraints": [
+      "cite_evidence",
+      "explain_context_pack_activation",
+      "do_not_leak_private_sources",
+      "do_not_treat_pinning_as_authority"
+    ]
+  },
+  "expected_answer": {
+    "must_include": [
+      {
+        "claim_id": "context_pack_activation",
+        "text": "Context Pack routing enabled current readable layers and suppressed stale, disabled, and private pinned layers without widening authority."
+      },
+      {
+        "claim_id": "context_pack_trace",
+        "text": "The activation trace records enabled, suppressed, disabled, blocked, and pinned-ineligible states."
+      }
+    ],
+    "must_not_include": [
+      "Pinned private dreaming proposals bypass read_profile.",
+      "Stale knowledge should override current sources.",
+      "Disabled graph layers should still be returned."
+    ],
+    "evidence_links": {
+      "context_pack_activation": ["context-pack-routing-trace", "context-pack-current-source"],
+      "context_pack_trace": ["context-pack-routing-trace"]
+    },
+    "answer_type": "direct_answer",
+    "accepted_alternates": [],
+    "requires_caveat": false,
+    "requires_refusal": false
+  },
+  "required_evidence": [
+    {
+      "evidence_id": "context-pack-routing-trace",
+      "claim_id": "context_pack_trace",
+      "requirement": "cite",
+      "quote": "memory_notes and source_documents were enabled"
+    },
+    {
+      "evidence_id": "context-pack-current-source",
+      "claim_id": "context_pack_activation",
+      "requirement": "cite",
+      "quote": "pinning may change priority only after scope"
+    }
+  ],
+  "negative_traps": [
+    {
+      "trap_id": "pinned-private-dreaming-read-profile-bypass",
+      "type": "private_scope_leak",
+      "evidence_ids": ["context-pack-private-dreaming-decoy"],
+      "failure_if_used": true
+    },
+    {
+      "trap_id": "stale-context-pack-knowledge-current",
+      "type": "stale_fact",
+      "evidence_ids": ["context-pack-stale-knowledge-decoy"],
+      "failure_if_used": true
+    }
+  ],
+  "scoring_rubric": {
+    "dimensions": {
+      "answer_correctness": {
+        "weight": 0.35,
+        "max_points": 1.0,
+        "criteria": "States the automatic activation and suppression decisions."
+      },
+      "evidence_grounding": {
+        "weight": 0.3,
+        "max_points": 1.0,
+        "criteria": "Cites routing trace and current source evidence."
+      },
+      "trap_avoidance": {
+        "weight": 0.25,
+        "max_points": 1.0,
+        "criteria": "Does not use private pinned or stale knowledge decoys."
+      },
+      "workflow_helpfulness": {
+        "weight": 0.1,
+        "max_points": 1.0,
+        "criteria": "Explains the activation trace in operator-facing terms."
+      }
+    },
+    "pass_threshold": 0.8,
+    "hard_fail_rules": [
+      "unsupported high-confidence claim about a required decision or fact",
+      "use of a negative trap marked failure_if_used = true"
+    ]
+  },
+  "allowed_uncertainty": {
+    "can_answer_unknown": false,
+    "acceptable_phrases": [],
+    "fallback_action": "state_blocker"
+  },
+  "operator_debug": {
+    "failure_mode": "none_context_pack_activation_trace",
+    "trace_id": "11551155-0000-4000-8000-115511551155",
+    "viewer_url": "/viewer?trace_id=11551155-0000-4000-8000-115511551155",
+    "admin_trace_bundle_url": "/v2/admin/traces/11551155-0000-4000-8000-115511551155/bundle?mode=full",
+    "root_cause": "Context Pack routing selected current readable layers and suppressed stale, disabled, and private pinned candidates.",
+    "steps_to_root_cause": 2,
+    "raw_sql_needed": false,
+    "dropped_candidate_visibility": "visible in context_pack.routing_trace entries",
+    "trace_completeness": "complete",
+    "repair_action_clarity": "clear",
+    "trace_available": true,
+    "replay_command_available": true,
+    "replay_command": "cargo make source-backed-memory-quality",
+    "replay_artifact": "tmp/source-backed-memory-quality/report.json",
+    "viewer_panels": ["Context Pack", "Recall Debug", "Source Library"],
+    "cli_steps": ["run source-backed memory quality benchmark", "inspect source_backed_quality metrics"],
+    "trace_evidence": ["context-pack-routing-trace", "context-pack-current-source"],
+    "ux_gaps": []
+  },
+  "context_pack": {
+    "decisions": [
+      {
+        "decision_id": "memory-notes-enabled-current-project",
+        "layer": "memory_notes",
+        "expected_state": "enabled",
+        "observed_state": "enabled",
+        "reason_code": "current_project_readable_memory",
+        "source_refs": ["context-pack-routing-trace"]
+      },
+      {
+        "decision_id": "source-documents-enabled-current-project",
+        "layer": "source_documents",
+        "expected_state": "enabled",
+        "observed_state": "enabled",
+        "reason_code": "current_project_source_authority",
+        "source_refs": ["context-pack-current-source"]
+      },
+      {
+        "decision_id": "irrelevant-pack-suppressed",
+        "layer": "context_pack",
+        "expected_state": "suppressed",
+        "observed_state": "suppressed",
+        "reason_code": "irrelevant_to_prompt",
+        "source_refs": ["context-pack-routing-trace"]
+      },
+      {
+        "decision_id": "disabled-graph-facts-remain-disabled",
+        "layer": "graph_facts",
+        "expected_state": "disabled",
+        "observed_state": "disabled",
+        "reason_code": "manual_disable_preserved",
+        "source_refs": ["context-pack-routing-trace"]
+      },
+      {
+        "decision_id": "stale-knowledge-suppressed",
+        "layer": "knowledge_pages",
+        "expected_state": "stale_suppressed",
+        "observed_state": "stale_suppressed",
+        "reason_code": "freshness_gate_failed",
+        "source_refs": ["context-pack-routing-trace"]
+      },
+      {
+        "decision_id": "private-dreaming-blocked",
+        "layer": "dreaming_proposals",
+        "expected_state": "blocked",
+        "observed_state": "blocked",
+        "reason_code": "read_profile_gate_failed",
+        "source_refs": ["context-pack-routing-trace"]
+      },
+      {
+        "decision_id": "pinned-private-dreaming-ineligible",
+        "layer": "dreaming_proposals",
+        "expected_state": "pinned_ineligible",
+        "observed_state": "pinned_ineligible",
+        "reason_code": "pin_priority_cannot_widen_read_profile",
+        "source_refs": ["context-pack-routing-trace"],
+        "pinned": true
+      }
+    ]
+  },
+  "tags": [
+    "synthetic",
+    "context_trajectory",
+    "context_pack_relevant_activation",
+    "context_pack_irrelevant_suppression",
+    "context_pack_disabled_suppression",
+    "context_pack_stale_suppression",
+    "read_profile_downgrade",
+    "pinned_pack_trap",
+    "recall_debug_reason_codes",
+    "recall_debug_privacy",
+    "no_live_claim"
+  ]
+}
