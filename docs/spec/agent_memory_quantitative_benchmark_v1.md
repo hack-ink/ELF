@@ -106,6 +106,17 @@ RAGFlow must not accept a product commit unless a matching
 runtime that emitted the row. A non-pass attestation remains a failure even when a
 commit-shaped value is present.
 
+The same Docker aggregate materializes
+`qmd-candidate-replay-comparability-gate.json` through
+`scripts/materialize-qmd-candidate-replay-gate.py`. The gate is qmd-specific
+because qmd's useful comparator strength is candidate replay: it can be compared
+only when the qmd quantitative manifest carries source-id mapping, held-out and
+leakage audit evidence, explicit qrels, passing per-query runtime candidate rows,
+aggregate replay counts that match those rows, and a matching freshness row that
+binds a valid container image digest to a structured product commit. The gate
+emits typed `pass` or `blocked` state and never permits an unqualified product
+leaderboard claim.
+
 ## Result States
 
 Every row must declare one result state:

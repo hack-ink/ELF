@@ -3,6 +3,7 @@
 #[path = "quantitative/freshness.rs"] mod freshness;
 #[path = "quantitative/metrics.rs"] mod metrics;
 #[path = "quantitative/product_manifest.rs"] mod product_manifest;
+#[path = "quantitative/qmd_candidate_replay.rs"] mod qmd_candidate_replay;
 
 use std::{path::Path, process::Command};
 
