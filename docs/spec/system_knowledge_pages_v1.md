@@ -176,6 +176,15 @@ nested source refs.
 - `allowed_variance`
 - `previous_version_diff`
 
+Knowledge delta memory candidates produced by changed-source watch/rebuild are
+review proposals only. Their proposed payload and diff must carry
+`elf.knowledge_delta.authority_boundary/v1` with
+`authority = "derived_non_authoritative"`,
+`review_surface = "consolidation_proposals"`,
+`promotion_required_for_memory_authority = true`,
+`direct_memory_ledger_mutation_allowed = false`, and
+`source_mutation_allowed = false`.
+
 `previous_version_diff` must use schema `elf.knowledge_page.version_diff/v1`.
 Initial rebuilds must set `available = false` and explain that no previous version
 exists. Later rebuilds must set `available = true` and include previous and new

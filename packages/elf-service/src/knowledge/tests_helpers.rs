@@ -165,6 +165,14 @@ pub(super) fn assert_candidate_is_reviewable(candidate: &KnowledgeDeltaMemoryCan
 	assert_eq!(candidate.source_refs[0].kind.as_str(), "note");
 	assert_eq!(candidate.source_snapshot["source_mutation_allowed"], false);
 	assert_eq!(candidate.diff.after["reason"], "changed_claim");
+	assert_eq!(
+		candidate.diff.after["authority_boundary"]["review_surface"],
+		"consolidation_proposals"
+	);
 	assert_eq!(candidate.proposed_payload["type"], "plan");
+	assert_eq!(
+		candidate.proposed_payload["authority_boundary"]["authority"],
+		"derived_non_authoritative"
+	);
 	assert_eq!(candidate.proposed_payload["source_ref"]["schema"], "elf.knowledge_delta/v1");
 }
