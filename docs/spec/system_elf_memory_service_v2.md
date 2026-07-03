@@ -1176,10 +1176,27 @@ Behavior:
   through provenance/history or explicit non-active list filters, not ordinary search.
 
 Recall/debug panel:
+- POST /v2/context-packs
 - POST /v2/recall-debug/panel
 - POST /v2/admin/recall-debug/panel
 
 Behavior:
+- `POST /v2/context-packs` returns `elf.context_pack/v1`, an ephemeral read-time
+  scoped view over current readable recall layers. Context Packs include
+  `pack_id`, schema/version, title/description, activation policy, authority layers,
+  typed selectors, required anchors, read-profile policy, freshness policy, budget
+  limits, ranking policy, debug policy, `elf.context_pack.routing_trace/v1`, bounded
+  item references, and embedded `elf.recall_trace/v1`. Context Pack creation must
+  not store conclusions, mutate authority, write traces, write Qdrant points, or
+  become durable memory.
+- Context Pack default routing is automatic. Manual enable/disable/pin controls are
+  override/debug/test/admin aids only. Pinning may affect eligible item priority but
+  cannot bypass scope, read_profile, grants, freshness, deletion, redaction,
+  authority, evidence, or required-anchor checks.
+- Context Pack debug output must not leak unreadable/private source existence, counts,
+  refs, or content. Ineligible pinned, stale, deleted, expired, ungranted, or private
+  rows must remain omitted from pack items and represented only through public-safe
+  routing or recall-debug states.
 - The endpoints return `elf.recall_debug_panel/v1`, a read-only cross-layer panel
   over Memory Note trace bundles, Source Library document search, Knowledge Workspace
   page search, graph reports, and Dreaming review queue proposals.
@@ -1200,6 +1217,7 @@ Behavior:
   pass claim.
 - Requested layer failures must be represented as blocked layer evidence, so one
   unavailable readback surface does not hide the other layer states.
+- The detailed Context Pack contract is defined in `system_context_pack_v1.md`.
 - The detailed contract is defined in `system_recall_debug_panel_v1.md`.
 
 Admin derived knowledge pages:
@@ -2595,6 +2613,7 @@ Original query:
   - elf_admin_trajectory_get -> GET /v2/admin/trajectories/{trace_id}
   - elf_admin_trace_item_get -> GET /v2/admin/trace-items/{item_id}
   - elf_admin_trace_bundle_get -> GET /v2/admin/traces/{trace_id}/bundle
+  - elf_context_pack_build -> POST /v2/context-packs
   - elf_recall_debug_panel -> POST /v2/recall-debug/panel
   - elf_admin_note_provenance_get -> GET /v2/admin/notes/{note_id}/provenance
   - elf_admin_memory_history_get -> GET /v2/admin/notes/{note_id}/history

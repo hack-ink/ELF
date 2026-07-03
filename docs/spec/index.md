@@ -38,6 +38,7 @@ Question this index answers: "what must remain true?"
 - `real_world_agent_memory_benchmark_v1.md`: Real-World Agent Memory Benchmark v1.
 - `system_competitive_parity_gate_v1.md`: Competitive Parity Gate v1 Specification.
 - `system_consolidation_proposals_v1.md`: Consolidation Proposals v1 Specification.
+- `system_context_pack_v1.md`: Context Pack v1 Specification.
 - `system_doc_chunking_profiles_v1.md`: System: `doc_chunking_profiles/v1` for `docs_put`.
 - `system_doc_extension_v1_filters.md`: System: Document Extension v1 Filter and Payload Contract.
 - `system_doc_extension_v1_trajectory.md`: System: Doc Extension v1 Retrieval Trajectory (`doc_retrieval_trajectory/v1`).

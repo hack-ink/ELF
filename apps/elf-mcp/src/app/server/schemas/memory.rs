@@ -109,3 +109,74 @@ pub(in crate::app::server) fn recall_debug_panel_schema() -> Arc<JsonObject> {
 		}
 	}))
 }
+
+pub(in crate::app::server) fn context_pack_build_schema() -> Arc<JsonObject> {
+	Arc::new(rmcp::object!({
+		"type": "object",
+		"additionalProperties": false,
+		"required": ["task"],
+		"properties": {
+			"task": { "type": "string" },
+			"title": { "type": ["string", "null"] },
+			"description": { "type": ["string", "null"] },
+			"trace_id": { "type": ["string", "null"], "format": "uuid" },
+			"query": { "type": ["string", "null"] },
+			"docs_query": { "type": ["string", "null"] },
+			"knowledge_query": { "type": ["string", "null"] },
+			"graph_subject": {
+				"oneOf": [
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["entity_id"],
+						"properties": {
+							"entity_id": {
+								"type": "string",
+								"format": "uuid"
+							}
+						}
+					},
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["surface"],
+						"properties": {
+							"surface": { "type": "string" }
+						}
+					},
+					{ "type": "null" }
+				]
+			},
+			"graph_predicate": {
+				"oneOf": [
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["predicate_id"],
+						"properties": {
+							"predicate_id": {
+								"type": "string",
+								"format": "uuid"
+							}
+						}
+					},
+					{
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["surface"],
+						"properties": {
+							"surface": { "type": "string" }
+						}
+					},
+					{ "type": "null" }
+				]
+			},
+			"include_dreaming": { "type": ["boolean", "null"] },
+			"limit": {
+				"type": ["integer", "null"],
+				"minimum": 1,
+				"maximum": 50
+			}
+		}
+	}))
+}
