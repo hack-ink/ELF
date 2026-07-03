@@ -18,6 +18,7 @@ use crate::routes::{
 		__path_consolidation_proposals_list, __path_consolidation_run_create,
 		__path_consolidation_run_get, __path_consolidation_runs_list,
 	},
+	context_pack::__path_context_pack_build,
 	core_memory::{
 		__path_admin_core_block_attach, __path_admin_core_block_detach,
 		__path_admin_core_block_upsert, __path_core_blocks_get, __path_entity_memory_get,
@@ -92,6 +93,7 @@ pub const SCALAR_DOCS_PATH: &str = "/docs";
 		docs_excerpts_get,
 		core_blocks_get,
 		entity_memory_get,
+		context_pack_build,
 		admin_core_block_upsert,
 		admin_core_block_attach,
 		admin_core_block_detach,

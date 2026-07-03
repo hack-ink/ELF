@@ -197,6 +197,30 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Bump rule: Introduce a new identifier only if layer names, selection states,
   evidence-class semantics, replay fields, or required row keys become incompatible.
 
+### Context Pack schema
+
+- Identifier: `elf.context_pack/v1`.
+- Type: Ephemeral read-time context bundle over current readable recall layers.
+- Defined in: `packages/elf-service/src/context_pack.rs`
+  (`ELF_CONTEXT_PACK_SCHEMA_V1`) and `docs/spec/system_context_pack_v1.md`.
+- Consumers: `POST /v2/context-packs`, `apps/elf-api`, `apps/elf-mcp`, and
+  agent workflows that need bounded cited context without creating memory.
+- Bump rule: Introduce a new identifier only if required pack fields, item
+  eligibility, authority-layer semantics, or privacy/debug fields become incompatible.
+
+### Context Pack routing trace schema
+
+- Identifier: `elf.context_pack.routing_trace/v1`.
+- Type: Activation and selection trace embedded in `elf.context_pack/v1`.
+- Defined in: `packages/elf-service/src/context_pack.rs`
+  (`ELF_CONTEXT_PACK_ROUTING_TRACE_SCHEMA_V1`) and
+  `docs/spec/system_context_pack_v1.md`.
+- Consumers: `POST /v2/context-packs`, `apps/elf-api`, `apps/elf-mcp`, and
+  fixture assertions for routing, suppression, blocked, not-requested, and
+  pinned-ineligible states.
+- Bump rule: Introduce a new identifier only if activation states, reason-code
+  semantics, pin behavior, or privacy fields become incompatible.
+
 ### Recall trace schema
 
 - Identifier: `elf.recall_trace/v1`.

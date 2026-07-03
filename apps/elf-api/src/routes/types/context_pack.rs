@@ -1,0 +1,16 @@
+use crate::routes::types::{Deserialize, GraphQueryEntityRef, GraphQueryPredicateRef, Uuid};
+
+#[derive(Clone, Debug, Deserialize)]
+pub(in crate::routes) struct ContextPackBody {
+	pub(in crate::routes) task: String,
+	pub(in crate::routes) title: Option<String>,
+	pub(in crate::routes) description: Option<String>,
+	pub(in crate::routes) trace_id: Option<Uuid>,
+	pub(in crate::routes) query: Option<String>,
+	pub(in crate::routes) docs_query: Option<String>,
+	pub(in crate::routes) knowledge_query: Option<String>,
+	pub(in crate::routes) graph_subject: Option<GraphQueryEntityRef>,
+	pub(in crate::routes) graph_predicate: Option<GraphQueryPredicateRef>,
+	pub(in crate::routes) include_dreaming: Option<bool>,
+	pub(in crate::routes) limit: Option<u32>,
+}

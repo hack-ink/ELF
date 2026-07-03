@@ -173,3 +173,9 @@ logs.
 - Added the XY-1153 Knowledge Workspace authority-boundary marker for changed-source
   memory candidates so derived page deltas remain reviewable consolidation proposals
   and cannot directly mutate Memory Authority or source evidence.
+- Added `docs/spec/system_context_pack_v1.md` for XY-1154, defining
+  `elf.context_pack/v1`, automatic routing, debug-only enable/disable/pin overrides,
+  read-time-only pack assembly, source-ref/freshness eligibility, and
+  `elf.context_pack.routing_trace/v1` privacy boundaries.
+- Linked Context Pack v1 from the spec index, version registry, source-backed product
+  contract, ELF v2 HTTP endpoint map, and MCP tool map.

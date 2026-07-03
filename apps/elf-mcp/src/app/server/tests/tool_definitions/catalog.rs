@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::app::server::HttpMethod;
 
-const ALL_TOOL_DEFINITIONS: [ToolDefinition; 37] = [
+const ALL_TOOL_DEFINITIONS: [ToolDefinition; 38] = [
 	ToolDefinition::new(
 		"elf_notes_ingest",
 		HttpMethod::Post,
@@ -50,6 +50,12 @@ const ALL_TOOL_DEFINITIONS: [ToolDefinition; 37] = [
 		HttpMethod::Get,
 		"/v2/admin/dreaming/review-queue",
 		"List source-backed Dreaming review queue proposals with variants, affected refs, lint flags, policy gates, and review audit.",
+	),
+	ToolDefinition::new(
+		"elf_context_pack_build",
+		HttpMethod::Post,
+		"/v2/context-packs",
+		"Build an ephemeral Context Pack v1 as a read-time scoped view with automatic layer routing, source-backed item refs, and activation trace.",
 	),
 	ToolDefinition::new(
 		"elf_recall_debug_panel",
