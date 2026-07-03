@@ -23,6 +23,73 @@ args = [
 	"ELF real-world memory fixture",
 ]
 
+[tasks.source-backed-memory-quality]
+workspace = false
+dependencies = [
+	"source-backed-memory-quality-report",
+]
+
+[tasks.source-backed-memory-quality-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory",
+	"--out",
+	"tmp/source-backed-memory-quality/report.json",
+	"--run-id",
+	"source-backed-memory-quality",
+	"--adapter-id",
+	"elf_source_backed_memory_quality",
+	"--adapter-name",
+	"ELF source-backed memory quality benchmark",
+]
+
+[tasks.source-backed-memory-quality-validate]
+workspace = false
+dependencies = [
+	"source-backed-memory-quality-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"validate-source-backed-quality",
+	"--report",
+	"tmp/source-backed-memory-quality/report.json",
+]
+
+[tasks.source-backed-memory-quality-report]
+workspace = false
+dependencies = [
+	"source-backed-memory-quality-validate",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/source-backed-memory-quality/report.json",
+	"--out",
+	"tmp/source-backed-memory-quality/report.md",
+]
+
 [tasks.real-world-memory-knowledge]
 workspace = false
 dependencies = [

@@ -25,6 +25,7 @@
 #[path = "real_world_job_benchmark/retrieval.rs"] mod retrieval;
 #[path = "real_world_job_benchmark/root_aggregate.rs"] mod root_aggregate;
 #[path = "real_world_job_benchmark/scheduled_memory.rs"] mod scheduled_memory;
+#[path = "real_world_job_benchmark/source_backed_quality.rs"] mod source_backed_quality;
 #[path = "real_world_job_benchmark/support.rs"] mod support;
 #[path = "real_world_job_benchmark/trace_replay_reports.rs"] mod trace_replay_reports;
 #[path = "real_world_job_benchmark/work_continuity.rs"] mod work_continuity;

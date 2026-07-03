@@ -179,3 +179,8 @@ logs.
   `elf.context_pack.routing_trace/v1` privacy boundaries.
 - Linked Context Pack v1 from the spec index, version registry, source-backed product
   contract, ELF v2 HTTP endpoint map, and MCP tool map.
+- Added the XY-1155 `cargo make source-backed-memory-quality` benchmark task and
+  `elf.source_backed_memory_quality_benchmark/v1` report surface, covering expected
+  evidence recall, precision@5, source-ref coverage, stale/correction/delete behavior,
+  Context Pack activation, Recall Debug privacy, hard-fail leak counters, latency, and
+  required source-backed memory scenario coverage.

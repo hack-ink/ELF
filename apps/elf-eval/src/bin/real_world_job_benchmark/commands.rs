@@ -2,7 +2,8 @@ use crate::{
 	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile,
 	ExportQuantitativeAuditManifestArgs, ExportQuantitativeProductManifestArgs, OffsetDateTime,
 	Path, PathBuf, PrivateCorpusRedaction, PublishArgs, QuantitativeReportInput, REPORT_SCHEMA,
-	RealWorldJob, RealWorldReport, Result, Rfc3339, RunArgs, TypedStatus, VERSION, eyre, fs,
+	RealWorldJob, RealWorldReport, Result, Rfc3339, RunArgs, TypedStatus, VERSION,
+	ValidateSourceBackedQualityArgs, eyre, fs,
 };
 
 pub(super) fn run_command(args: RunArgs) -> Result<()> {
@@ -19,6 +20,17 @@ pub(super) fn publish_command(args: PublishArgs) -> Result<()> {
 	let markdown = crate::render_markdown(&report, &args.report);
 
 	write_or_print(args.out.as_deref(), markdown.as_str())
+}
+
+pub(super) fn validate_source_backed_quality_command(
+	args: ValidateSourceBackedQualityArgs,
+) -> Result<()> {
+	let raw = fs::read_to_string(&args.report)?;
+	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
+
+	crate::validate_source_backed_quality_gate(&report.source_backed_quality).map_err(|failures| {
+		eyre::eyre!("source-backed quality gate failed: {}", failures.join(", "))
+	})
 }
 
 pub(super) fn export_quantitative_product_manifest_command(
@@ -124,6 +136,8 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		args.skip_external_adapter_manifest,
 	)?;
 	let scoreboard = crate::scoreboard_report(jobs, &job_reports, &summary, &external_adapters);
+	let source_backed_quality =
+		crate::source_backed_quality_report(jobs, &job_reports, &summary, &scoreboard);
 	let operational_evidence = crate::operational_evidence_report(jobs, &job_reports);
 	let adapter = adapter_report(args)?;
 	let generated_at = OffsetDateTime::now_utc().format(&Rfc3339)?;
@@ -146,6 +160,7 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 		corpus_profile: corpus_profile(jobs),
 		adapter,
 		scoreboard,
+		source_backed_quality,
 		operational_evidence,
 		quantitative_scoreboard,
 		external_adapters,

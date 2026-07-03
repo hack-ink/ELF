@@ -7,8 +7,8 @@ use crate::support;
 fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
 	let report = support::run_json_report_from(support::context_trajectory_fixture_dir())?;
 
-	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(3));
-	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(0));
+	assert_eq!(report.pointer("/summary/job_count").and_then(Value::as_u64), Some(4));
+	assert_eq!(report.pointer("/summary/pass").and_then(Value::as_u64), Some(1));
 	assert_eq!(report.pointer("/summary/blocked").and_then(Value::as_u64), Some(3));
 	assert_eq!(report.pointer("/summary/wrong_result").and_then(Value::as_u64), Some(0));
 	assert_eq!(report.pointer("/summary/evidence_coverage").and_then(Value::as_f64), Some(1.0));
@@ -25,7 +25,7 @@ fn context_trajectory_fixtures_report_blocked_openviking_gates() -> Result<()> {
 	let context = support::find_by_field(suites, "/suite_id", "context_trajectory")?;
 
 	assert_eq!(context.pointer("/status").and_then(Value::as_str), Some("blocked"));
-	assert_eq!(context.pointer("/encoded_job_count").and_then(Value::as_u64), Some(3));
+	assert_eq!(context.pointer("/encoded_job_count").and_then(Value::as_u64), Some(4));
 
 	let jobs = support::array_at(&report, "/jobs")?;
 	let staged = support::find_by_field(
