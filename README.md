@@ -246,12 +246,14 @@ provider-backed ELF evidence was required.
   replay command. Missing anchors remain explicit `not_requested` layers, so the
   panel improves debug ergonomics without turning untested or blocked layers into
   pass claims.
-- Agent Knowledge OS closeout after XY-1023: the June 20 closeout report publishes
-  the full product/scenario matrix for 19 tracked products and six Agent Knowledge OS
+- Historical Agent Knowledge OS closeout after XY-1023: the June 20 closeout report
+  publishes the full product/scenario matrix for 19 tracked products and six
+  then-named Agent Knowledge OS
   layers, after rerunning `cargo make real-world-memory` at 62 jobs, 55 pass,
-  0 wrong_result, and 7 typed blockers. ELF is the strongest measured integrated
-  Agent Knowledge OS product because all six ELF-owned layers have checked-in
-  evidence, but the report preserves qmd
+  0 wrong_result, and 7 typed blockers. Within that historical matrix, ELF had the
+  strongest measured integrated evidence because all six ELF-owned layers had
+  checked-in evidence, but the current product boundary is source-backed project
+  memory for AI agents rather than a generic Knowledge OS. The report preserves qmd
   retrieval/debug ergonomics, OpenViking trajectory, mem0/OpenMemory history and
   UI/export, Letta core/archive, graph/RAG temporal-citation, agentmemory/claude-mem
   capture/viewer, and VectifyAI PageIndex/OpenKB long-document knowledge-library
@@ -488,6 +490,9 @@ Detailed evidence and interpretation:
 - [P4 Production-Readiness Evidence Gates Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-production-readiness-evidence-gates-report.md)
 - [P4 Quality Hardening and Productization Readiness Report - June 23, 2026](docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md)
 - [Public Quantitative Competitor Scoreboard Report - June 27, 2026](docs/evidence/benchmarking/2026-06-27-public-quantitative-competitor-scoreboard-report.md)
+- [Source-Backed Memory Quality Benchmark Harness - July 3, 2026](docs/evidence/benchmarking/2026-07-03-source-backed-quality-benchmark-harness.md)
+- [qmd Candidate-Replay Comparability Gate - July 3, 2026](docs/evidence/benchmarking/2026-07-03-qmd-candidate-replay-comparability-gate.md)
+- [Final Source-Backed Project Memory Closeout Report - July 3, 2026](docs/evidence/benchmarking/2026-07-03-final-source-backed-project-memory-closeout-report.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -598,7 +603,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
-Latest real-world benchmark report: June 27, 2026. Latest external research refresh:
+Latest real-world benchmark report: July 3, 2026. Latest external research refresh:
 June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
 the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
 Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20,
@@ -614,7 +619,9 @@ Dreaming readback, the qmd debug-ergonomics Dreaming retest, the June 17
 competitor-strength closeout, and the June 16 temporal reconciliation, live
 consolidation self-check, proactive-brief, and scheduled-memory scoring evidence.
 June 27 adds the public quantitative competitor scoreboard report with row-level
-comparability gates and no universal leaderboard claim.
+comparability gates and no universal leaderboard claim. July 3 adds the
+source-backed memory quality benchmark harness, the qmd candidate-replay
+comparability gate, and the final source-backed project memory closeout report.
 
 ## Documentation
 

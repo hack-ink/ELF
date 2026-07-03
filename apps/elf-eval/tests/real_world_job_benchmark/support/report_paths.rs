@@ -9,6 +9,7 @@ pub(crate) use self::{
 		competitor_strength_adoption_report_path, competitor_strength_matrix_path,
 		dreaming_competitor_strength_retest_report_markdown_path,
 		dreaming_readiness_stage_ledger_markdown_path, dreaming_review_queue_report_markdown_path,
+		final_source_backed_project_memory_closeout_report_markdown_path,
 		graph_rag_adapter_matrix_report_markdown_path,
 		graph_rag_citation_navigation_promotion_report_markdown_path,
 		graph_topic_map_report_markdown_path, iteration_direction_report_path,
