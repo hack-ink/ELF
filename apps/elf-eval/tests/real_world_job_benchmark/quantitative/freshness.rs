@@ -141,6 +141,8 @@ fn quantitative_docker_task_routes_through_split_makefile_and_digest_runner() ->
 	assert!(docker_script.contains("build_baseline_runner_with_digest"));
 	assert!(aggregate_script.contains("require_runner_image_digest"));
 	assert!(aggregate_script.contains("materialize-quantitative-artifact-freshness.py"));
+	assert!(aggregate_script.contains("materialize-qmd-candidate-replay-gate.py"));
+	assert!(aggregate_script.contains("qmd-candidate-replay-comparability-gate.json"));
 
 	Ok(())
 }
