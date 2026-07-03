@@ -321,7 +321,7 @@ Repository-native validation is authoritative.
   docs are validation-ready.
 - Before a PR handoff or any push that refreshes a PR head, run the registered
   Decodex workflow gate: `cargo make fmt`, `cargo make lint-fix`, then
-  `cargo make check`.
+  `cargo make checks`.
 - If a phase changes commands, schemas, config, runtime behavior, status semantics,
   or benchmark claims, update the owning docs and include drift evidence as required
   by `docs/policy.md`.

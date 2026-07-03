@@ -53,6 +53,8 @@ pub struct DocsSourceCaptureSummary {
 	pub schema: String,
 	/// Stable source record identifier. This is also the stored `doc_id`.
 	pub source_record_id: Uuid,
+	/// Source-record lifecycle and freshness state at capture time.
+	pub lifecycle: DocsSourceLifecycle,
 	/// Canonical source origin used for operator inspection and deduplication.
 	pub origin: String,
 	/// RFC3339 timestamp when ELF captured the source.
@@ -71,6 +73,29 @@ pub struct DocsSourceCaptureSummary {
 	#[serde(skip_serializing_if = "Vec::is_empty")]
 	/// Typed audit records for redacted or excluded source spans.
 	pub policy_spans: Vec<DocsSourceSpanRef>,
+}
+
+/// Source Library lifecycle metadata persisted with normalized source refs.
+#[derive(Clone, Debug, Serialize)]
+pub struct DocsSourceLifecycle {
+	/// Schema identifier for this lifecycle object.
+	pub schema: String,
+	/// Authoritative Source Library row status.
+	pub status: String,
+	/// Freshness label used by recall and audit surfaces.
+	pub freshness: String,
+	/// Actor that created the current lifecycle transition.
+	pub actor_agent_id: String,
+	/// Transition timestamp.
+	pub ts: String,
+	/// Machine-readable lifecycle reason.
+	pub reason_code: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Timestamp when the source was tombstoned or deleted.
+	pub deleted_at: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	/// Review or delete metadata that proves the tombstone.
+	pub tombstone_ref: Option<Value>,
 }
 
 /// Stable reference to one captured or policy-affected source span.

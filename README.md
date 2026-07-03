@@ -638,7 +638,7 @@ comparability gates and no universal leaderboard claim.
 
 ```sh
 cargo make fmt
-cargo make check
+cargo make checks
 cargo make test-rust
 ```
 
