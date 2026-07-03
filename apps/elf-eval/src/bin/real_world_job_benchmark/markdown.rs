@@ -8,6 +8,7 @@ mod jobs;
 mod operational;
 mod quantitative;
 mod scoreboard;
+mod source_backed_quality;
 mod trace;
 
 use std::path::Path;
@@ -33,6 +34,7 @@ pub(super) fn render_markdown(report: &RealWorldReport, report_path: &Path) -> S
 
 	self::header::render_markdown_header(&mut out, report, report_path.as_str());
 	self::scoreboard::render_markdown_scoreboard(&mut out, report);
+	self::source_backed_quality::render_markdown_source_backed_quality(&mut out, report);
 	self::quantitative::render_markdown_quantitative_scoreboard(&mut out, report);
 	self::operational::render_markdown_operational_evidence(&mut out, report);
 	self::adapters::render_markdown_external_adapters(&mut out, report);

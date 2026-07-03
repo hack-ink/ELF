@@ -1,8 +1,8 @@
 use crate::{
 	AdapterReport, CaptureIntegrationReport, Deserialize, EvolutionSummary, ExternalAdapterSection,
 	FollowUpReport, JobReport, OperationalEvidenceReport, PrivateCorpusRedaction,
-	QuantitativeBenchmarkReport, ReportSummary, ScoreboardReport, Serialize, SuiteReport,
-	UnsupportedClaimReport,
+	QuantitativeBenchmarkReport, ReportSummary, ScoreboardReport, Serialize,
+	SourceBackedQualityReport, SuiteReport, UnsupportedClaimReport,
 };
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -19,6 +19,8 @@ pub(super) struct RealWorldReport {
 	pub(super) operational_evidence: OperationalEvidenceReport,
 	#[serde(default)]
 	pub(super) quantitative_scoreboard: QuantitativeBenchmarkReport,
+	#[serde(default)]
+	pub(super) source_backed_quality: SourceBackedQualityReport,
 	#[serde(default)]
 	pub(super) external_adapters: ExternalAdapterSection,
 	pub(super) capture_integration: CaptureIntegrationReport,
