@@ -31,6 +31,7 @@ pub(super) struct RealWorldJob {
 	pub(super) proactive_brief: Option<ProactiveBriefExpectation>,
 	pub(super) scheduled_memory: Option<ScheduledMemoryExpectation>,
 	pub(super) work_continuity: Option<WorkContinuityExpectation>,
+	pub(super) context_pack: Option<ContextPackExpectation>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -125,6 +126,25 @@ pub(super) struct NegativeTrap {
 	pub(super) evidence_ids: Vec<String>,
 	#[serde(default)]
 	pub(super) failure_if_used: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct ContextPackExpectation {
+	#[serde(default)]
+	pub(super) decisions: Vec<ContextPackRoutingDecision>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct ContextPackRoutingDecision {
+	pub(super) decision_id: String,
+	pub(super) layer: String,
+	pub(super) expected_state: String,
+	pub(super) observed_state: String,
+	pub(super) reason_code: String,
+	#[serde(default)]
+	pub(super) source_refs: Vec<String>,
+	#[serde(default)]
+	pub(super) pinned: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]

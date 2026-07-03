@@ -111,7 +111,7 @@ fn job_metrics(job: &RealWorldJob, answer: &ProducedAnswer) -> JobMetrics {
 		.filter(|evidence| produced_evidence.contains(&evidence.evidence_id))
 		.count();
 	let stale_retrieval_count = trap_use_count(job, &produced_evidence, "stale_fact", answer);
-	let scope_violation_count = ["near_duplicate", "scope_leak"]
+	let scope_violation_count = ["near_duplicate", "scope_leak", "private_scope_leak"]
 		.into_iter()
 		.map(|trap_type| trap_use_count(job, &produced_evidence, trap_type, answer))
 		.sum();
@@ -145,7 +145,7 @@ fn source_ref_by_evidence(job: &RealWorldJob) -> BTreeMap<&str, &Value> {
 }
 
 fn is_scope_trap_type(trap_type: &str) -> bool {
-	matches!(trap_type, "near_duplicate" | "scope_leak")
+	matches!(trap_type, "near_duplicate" | "scope_leak" | "private_scope_leak")
 }
 
 fn trap_use_count(
