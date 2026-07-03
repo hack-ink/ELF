@@ -150,3 +150,14 @@ logs.
   checked-in snapshot covering 20 tracked products, including explicit VectifyAI
   PageIndex, VectifyAI OpenKB, and plastic-labs Honcho typed rows, without promoting
   any row to a universal product leaderboard claim.
+
+## 2026-07-03
+
+- Updated `docs/spec/agent_memory_knowledge_system_v1.md` for XY-1151 to codify ELF
+  as open-source, source-backed project memory for AI agents. The revised contract
+  treats Source Library, Memory Authority, Source-to-Memory Authority loop, Knowledge
+  Workspace, Work Journal, Dreaming Review, Context Pack v1, Automatic Context
+  Routing, Recall Engine, Recall Debug, and benchmarks as supporting capabilities
+  rather than generic Knowledge OS scope.
+- Updated docs routing so the retained spec path now resolves by the source-backed
+  project memory product name and explicit Context Pack/recall boundary language.
