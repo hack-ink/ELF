@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use crate::search::{
-	ChunkCandidate, RetrievalSourceCandidates, RetrievalSourceKind, Uuid, ranking,
+	ChunkCandidate, NoteMeta, RetrievalSourceCandidates, RetrievalSourceKind, Uuid, ranking,
 };
 
 fn test_chunk_candidate(note_id: Uuid, retrieval_rank: u32) -> ChunkCandidate {
@@ -23,6 +25,24 @@ fn default_retrieval_sources_policy() -> ranking::ResolvedRetrievalSourcesPolicy
 		fusion_priority: 1,
 		structured_field_priority: 0,
 		recursive_priority: 0,
+	}
+}
+
+fn note_meta(note_id: Uuid, updated_at: time::OffsetDateTime) -> NoteMeta {
+	NoteMeta {
+		note_id,
+		note_type: "fact".to_string(),
+		key: None,
+		scope: "project_shared".to_string(),
+		agent_id: "agent-a".to_string(),
+		importance: 0.7,
+		confidence: 0.9,
+		updated_at,
+		expires_at: None,
+		source_ref: serde_json::json!({}),
+		embedding_version: "provider:model:1".to_string(),
+		hit_count: 0,
+		last_hit_at: None,
 	}
 }
 
@@ -53,6 +73,31 @@ fn merge_retrieval_candidates_keeps_structured_hits_under_full_fusion_capacity()
 		merged_chunk_ids.contains(&structured_chunk_id),
 		"Structured candidate was dropped by retrieval fusion."
 	);
+}
+
+#[test]
+fn candidate_revalidation_rejects_stale_index_payloads() {
+	let note_id = Uuid::new_v4();
+	let current_updated_at =
+		time::OffsetDateTime::from_unix_timestamp(1_700_000_001).expect("Expected timestamp.");
+	let stale_updated_at =
+		time::OffsetDateTime::from_unix_timestamp(1_700_000_000).expect("Expected timestamp.");
+	let note_meta = HashMap::from([(note_id, note_meta(note_id, current_updated_at))]);
+	let mut candidate = test_chunk_candidate(note_id, 1);
+
+	candidate.embedding_version = Some("provider:model:1".to_string());
+	candidate.updated_at = Some(current_updated_at);
+
+	assert!(ranking::candidate_matches_note(&note_meta, &candidate));
+
+	candidate.updated_at = Some(stale_updated_at);
+
+	assert!(!ranking::candidate_matches_note(&note_meta, &candidate));
+
+	candidate.updated_at = Some(current_updated_at);
+	candidate.embedding_version = Some("old-provider:model:1".to_string());
+
+	assert!(!ranking::candidate_matches_note(&note_meta, &candidate));
 }
 
 #[test]

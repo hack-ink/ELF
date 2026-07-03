@@ -112,6 +112,7 @@ pub async fn mark_doc_deleted<'e, E>(
 	executor: E,
 	tenant_id: &str,
 	doc_id: Uuid,
+	source_ref: &Value,
 	now: OffsetDateTime,
 ) -> Result<()>
 where
@@ -120,9 +121,10 @@ where
 	sqlx::query(
 		"\
 UPDATE doc_documents
-SET status = 'deleted', updated_at = $1
-WHERE tenant_id = $2 AND doc_id = $3",
+SET status = 'deleted', source_ref = $1, updated_at = $2
+WHERE tenant_id = $3 AND doc_id = $4",
 	)
+	.bind(source_ref)
 	.bind(now)
 	.bind(tenant_id)
 	.bind(doc_id)

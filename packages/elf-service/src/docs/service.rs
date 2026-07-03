@@ -20,8 +20,8 @@ use crate::{
 		load_doc_search_rows, load_docs_excerpt_context, load_tokenizer,
 		normalize_source_ref_for_capture, record_result_projection_stage,
 		resolve_doc_chunking_profile, run_doc_fusion_query, slice, source_record_id_for,
-		split_tokens_by_offsets, validate_docs_excerpts_get, validate_docs_put,
-		validate_docs_search_l0,
+		source_ref_with_deleted_lifecycle, split_tokens_by_offsets, validate_docs_excerpts_get,
+		validate_docs_put, validate_docs_search_l0,
 	},
 	search,
 };

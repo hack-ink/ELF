@@ -11,7 +11,10 @@ pub use self::{
 	excerpts::{
 		DocsExcerptLocator, DocsExcerptResponse, DocsExcerptVerification, DocsExcerptsGetRequest,
 	},
-	put::{DocsPutRequest, DocsPutResponse, DocsSourceCaptureSummary, DocsSourceSpanRef},
+	put::{
+		DocsPutRequest, DocsPutResponse, DocsSourceCaptureSummary, DocsSourceLifecycle,
+		DocsSourceSpanRef,
+	},
 	read::{DocsDeleteRequest, DocsDeleteResponse, DocsGetRequest, DocsGetResponse},
 	search_l0::{
 		DocsSearchL0Item, DocsSearchL0ItemHashes, DocsSearchL0ItemLocator, DocsSearchL0ItemPointer,

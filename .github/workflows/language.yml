@@ -78,4 +78,4 @@ jobs:
           tool: taplo
 
       - name: Run repository checks
-        run: cargo make check
+        run: cargo make checks

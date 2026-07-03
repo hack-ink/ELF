@@ -53,6 +53,7 @@ impl ElfService {
 			source_ref: source_ref_map,
 			doc_type,
 			scope: scope.as_str(),
+			actor_agent_id: agent_id.as_str(),
 			title: title.as_deref(),
 			content_hash: content_hash.as_str(),
 			raw_content_hash: raw_content_hash.as_str(),

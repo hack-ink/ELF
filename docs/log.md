@@ -161,3 +161,12 @@ logs.
   rather than generic Knowledge OS scope.
 - Updated docs routing so the retained spec path now resolves by the source-backed
   project memory product name and explicit Context Pack/recall boundary language.
+- Updated Source Library and Memory Authority lifecycle contracts for XY-1152 so
+  captured sources carry active/current lifecycle metadata, deleted sources retain
+  tombstone metadata, memory corrections carry supersede/delete/restore lifecycle
+  state, and stale vector candidates are revalidated against current authority.
+- Renamed the full repository gate task to `cargo make checks` for XY-1152 so the
+  Makefile command surface matches the registered Decodex verify command.
+- Preserved historical benchmark evidence rows that recorded the former singular
+  check command, and constrained docs task validation to allow only those exact
+  legacy evidence references.

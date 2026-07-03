@@ -11,6 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 TASK_RE = re.compile(r"^\[tasks\.([^\]]+)\]", re.MULTILINE)
 CARGO_MAKE_RE = re.compile(r"\bcargo\s+make\s+([A-Za-z0-9][A-Za-z0-9_:-]*)")
 MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]\n]*\]\(([^)\n]+)\)")
+LEGACY_CARGO_MAKE_TASK_REFS = {
+	Path("docs/evidence/benchmarking/2026-06-20-dreaming-review-queue-report.md"): {"check"},
+	Path("docs/evidence/benchmarking/2026-06-20-graph-topic-map-report.md"): {"check"},
+}
 
 
 def read_text(path: Path) -> str:
@@ -90,11 +94,13 @@ def is_external_or_anchor(target: str) -> bool:
 def check_cargo_make_references(tasks: set[str]) -> list[str]:
 	errors: list[str] = []
 	for path in iter_reference_files():
+		rel_path = path.relative_to(ROOT)
 		for line_number, line in enumerate(read_text(path).splitlines(), start=1):
 			for match in CARGO_MAKE_RE.finditer(line):
 				task = match.group(1)
+				if task in LEGACY_CARGO_MAKE_TASK_REFS.get(rel_path, set()):
+					continue
 				if task not in tasks:
-					rel_path = path.relative_to(ROOT)
 					errors.append(f"{rel_path}:{line_number}: unknown cargo make task `{task}`")
 	return errors
 
