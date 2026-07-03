@@ -31,6 +31,7 @@ pub(super) use self::{
 		dreaming_competitor_strength_retest_report_markdown_path,
 		dreaming_readiness_stage_ledger_json_path, dreaming_readiness_stage_ledger_markdown_path,
 		dreaming_review_queue_report_json_path, dreaming_review_queue_report_markdown_path,
+		final_source_backed_project_memory_closeout_report_markdown_path,
 		graph_rag_adapter_matrix_report_json_path, graph_rag_adapter_matrix_report_markdown_path,
 		graph_rag_citation_navigation_promotion_report_json_path,
 		graph_rag_citation_navigation_promotion_report_markdown_path,

@@ -29,9 +29,15 @@ related:
   - docs/spec/system_graph_memory_postgres_v1.md
   - docs/spec/system_memory_summary_v1.md
   - docs/spec/system_work_journal_v1.md
+  - docs/evidence/benchmarking/2026-07-03-source-backed-quality-benchmark-harness.md
+  - docs/evidence/benchmarking/2026-07-03-qmd-candidate-replay-comparability-gate.md
+  - docs/evidence/benchmarking/2026-07-03-final-source-backed-project-memory-closeout-report.md
 drift_watch:
   - docs/spec/agent_memory_knowledge_system_v1.md
   - docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md
+  - docs/evidence/benchmarking/2026-07-03-source-backed-quality-benchmark-harness.md
+  - docs/evidence/benchmarking/2026-07-03-qmd-candidate-replay-comparability-gate.md
+  - docs/evidence/benchmarking/2026-07-03-final-source-backed-project-memory-closeout-report.md
   - docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
   - Makefile.toml
 ---

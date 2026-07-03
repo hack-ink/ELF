@@ -191,3 +191,8 @@ logs.
   candidate-replay comparison. Digest and product commit evidence must be bound to
   the same matching freshness row. The gate remains typed pass/blocked and never
   permits an unqualified product leaderboard claim.
+- Added the XY-1157 final source-backed project memory closeout report, tying
+  Source Library, Memory Authority, Source-to-Memory loop, Knowledge Workspace, Work
+  Journal, Dreaming Review, Context Pack, routing, Recall Engine, Recall Debug,
+  benchmark validity, competitor claim boundaries, and Decodex lifecycle/status
+  accuracy into one review-readiness evidence surface.
