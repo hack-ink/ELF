@@ -8,6 +8,7 @@ LIVE_ADAPTER_DIR="${LIVE_QRELS_DIR}/live-adapters"
 SYNC_LOG="${REPORT_DIR}/synced-artifacts.tsv"
 QMD_PRODUCT_MANIFEST="${REPORT_DIR}/qmd-quantitative-product-manifest.json"
 FRESHNESS_MANIFEST="${REPORT_DIR}/quantitative-artifact-freshness-manifest.json"
+QMD_CANDIDATE_REPLAY_GATE="${REPORT_DIR}/qmd-candidate-replay-comparability-gate.json"
 RUN_LIVE_EXPLICIT_QRELS="${ELF_REAL_WORLD_QUANTITATIVE_RUN_LIVE_EXPLICIT_QRELS:-1}"
 RUN_LANGGRAPH="${ELF_REAL_WORLD_QUANTITATIVE_RUN_LANGGRAPH:-0}"
 QMD_DIR="${ELF_REAL_WORLD_QMD_DIR:-/bench/repos/qmd}"
@@ -96,6 +97,12 @@ python3 scripts/materialize-quantitative-artifact-freshness.py \
 	--run-live-explicit-qrels "${RUN_LIVE_EXPLICIT_QRELS}" \
 	--run-langgraph "${RUN_LANGGRAPH}"
 
+python3 scripts/materialize-qmd-candidate-replay-gate.py \
+	--product-manifest "${QMD_PRODUCT_MANIFEST}" \
+	--freshness-manifest "${FRESHNESS_MANIFEST}" \
+	--out "${QMD_CANDIDATE_REPLAY_GATE}"
+
 echo "Quantitative Docker benchmark artifacts:"
 echo "  ${QMD_PRODUCT_MANIFEST}"
 echo "  ${FRESHNESS_MANIFEST}"
+echo "  ${QMD_CANDIDATE_REPLAY_GATE}"

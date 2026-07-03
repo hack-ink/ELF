@@ -184,3 +184,10 @@ logs.
   evidence recall, precision@5, source-ref coverage, stale/correction/delete behavior,
   Context Pack activation, Recall Debug privacy, hard-fail leak counters, latency, and
   required source-backed memory scenario coverage.
+- Added the XY-1156 qmd candidate-replay comparability gate to the Docker-owned
+  quantitative aggregate so qmd source-id mapping, held-out/leakage audit evidence,
+  passing per-query replay rows, aggregate replay consistency, baseline runner image
+  digest, and product commit provenance are checked before any qualified qmd
+  candidate-replay comparison. Digest and product commit evidence must be bound to
+  the same matching freshness row. The gate remains typed pass/blocked and never
+  permits an unqualified product leaderboard claim.
