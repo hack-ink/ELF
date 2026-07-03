@@ -170,3 +170,6 @@ logs.
 - Preserved historical benchmark evidence rows that recorded the former singular
   check command, and constrained docs task validation to allow only those exact
   legacy evidence references.
+- Added the XY-1153 Knowledge Workspace authority-boundary marker for changed-source
+  memory candidates so derived page deltas remain reviewable consolidation proposals
+  and cannot directly mutate Memory Authority or source evidence.
