@@ -25,7 +25,20 @@ fn memory_candidate_uses_reviewable_consolidation_proposal_contract() {
 
 	assert_eq!(proposal.apply_intent, ConsolidationApplyIntent::CreateDerivedNote);
 	assert_eq!(proposal.source_refs.len(), 1);
+	assert_eq!(proposal.diff.after["authority_boundary"]["authority"], "derived_non_authoritative");
+	assert_eq!(
+		proposal.diff.after["authority_boundary"]["direct_memory_ledger_mutation_allowed"],
+		false
+	);
 	assert_eq!(proposal.proposed_payload["source_ref"]["source_mutation_allowed"], false);
+	assert_eq!(
+		proposal.proposed_payload["authority_boundary"]["review_surface"],
+		"consolidation_proposals"
+	);
+	assert_eq!(
+		proposal.proposed_payload["authority_boundary"]["promotion_required_for_memory_authority"],
+		true
+	);
 	assert_eq!(proposal.proposed_payload["source_ref"]["reason"], "changed_claim");
 	assert!(!proposal.markers.staleness.is_empty());
 }
