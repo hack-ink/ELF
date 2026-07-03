@@ -24,6 +24,7 @@ related:
   - docs/spec/system_elf_memory_service_v2.md
   - docs/spec/system_consolidation_proposals_v1.md
   - docs/spec/system_knowledge_pages_v1.md
+  - docs/spec/system_context_pack_v1.md
   - docs/spec/system_recall_debug_panel_v1.md
   - docs/spec/system_graph_memory_postgres_v1.md
   - docs/spec/system_memory_summary_v1.md

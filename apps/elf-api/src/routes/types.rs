@@ -1,4 +1,5 @@
 mod consolidation;
+mod context_pack;
 mod core_memory;
 mod docs;
 mod errors;
@@ -18,6 +19,7 @@ pub(in crate::routes) use self::{
 		ConsolidationProposalReviewBody, ConsolidationProposalsListQuery,
 		ConsolidationRunCreateBody, ConsolidationRunsListQuery, DreamingReviewQueueQuery,
 	},
+	context_pack::ContextPackBody,
 	core_memory::{CoreBlockAttachBody, CoreBlockUpsertBody},
 	docs::{DocsExcerptsGetBody, DocsPutBody, DocsSearchL0Body},
 	errors::ErrorBody,

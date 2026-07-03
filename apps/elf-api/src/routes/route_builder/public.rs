@@ -9,6 +9,7 @@ pub(super) fn public_api_router() -> Router<AppState> {
 		.route("/v2/events/ingest", routing::post(routes::events::events_ingest))
 		.route("/v2/core-blocks", routing::get(routes::core_memory::core_blocks_get))
 		.route("/v2/entity-memory", routing::get(routes::core_memory::entity_memory_get))
+		.route("/v2/context-packs", routing::post(routes::context_pack::context_pack_build))
 		.route("/v2/recall-debug/panel", routing::post(routes::recall::recall_debug_panel))
 		.route("/v2/searches", routing::post(routes::search::searches_create))
 		.route("/v2/searches/{search_id}", routing::get(routes::search::searches_get))

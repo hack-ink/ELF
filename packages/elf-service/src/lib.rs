@@ -7,6 +7,7 @@ pub mod add_note;
 pub mod admin;
 pub mod admin_graph_predicates;
 pub mod consolidation;
+pub mod context_pack;
 pub mod core_blocks;
 pub mod delete;
 pub mod docs;
@@ -62,6 +63,14 @@ pub use self::{
 		ConsolidationRunResponse, ConsolidationRunsListRequest, ConsolidationRunsListResponse,
 	},
 	constants::{REJECT_EVIDENCE_MISMATCH, REJECT_WRITE_POLICY_MISMATCH},
+	context_pack::{
+		ContextPackActivationPolicy, ContextPackAuthorityLayer, ContextPackBudgetLimits,
+		ContextPackDebugOverrides, ContextPackDebugPolicy, ContextPackFreshnessPolicy,
+		ContextPackItem, ContextPackLayerSelector, ContextPackRankingPolicy,
+		ContextPackReadProfilePolicy, ContextPackRequest, ContextPackRequiredAnchor,
+		ContextPackResponse, ContextPackRoutingTrace, ContextPackRoutingTraceEntry,
+		ELF_CONTEXT_PACK_ROUTING_TRACE_SCHEMA_V1, ELF_CONTEXT_PACK_SCHEMA_V1,
+	},
 	core_blocks::{
 		CoreBlockAttachRequest, CoreBlockAttachResponse, CoreBlockDetachRequest,
 		CoreBlockDetachResponse, CoreBlockItem, CoreBlockRecord, CoreBlockUpsertRequest,

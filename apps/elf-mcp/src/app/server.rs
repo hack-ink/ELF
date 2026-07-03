@@ -10,9 +10,9 @@ use rmcp::handler::server::router::tool::ToolRouter;
 
 #[cfg(test)]
 use schemas::{
-	docs_excerpts_get_schema, docs_put_schema, docs_search_l0_schema, notes_ingest_schema,
-	recall_debug_panel_schema, searches_create_schema, searches_get_schema, searches_notes_schema,
-	searches_timeline_schema, work_journal_entry_create_schema,
+	context_pack_build_schema, docs_excerpts_get_schema, docs_put_schema, docs_search_l0_schema,
+	notes_ingest_schema, recall_debug_panel_schema, searches_create_schema, searches_get_schema,
+	searches_notes_schema, searches_timeline_schema, work_journal_entry_create_schema,
 	work_journal_session_readback_schema,
 };
 use state::{ElfContextHeaders, ElfMcp, HttpMethod};

@@ -7,9 +7,9 @@ use rmcp::{
 use crate::app::server::{
 	ElfMcp, HttpMethod,
 	schemas::{
-		core_blocks_get_schema, dreaming_review_queue_schema, entity_memory_get_schema,
-		recall_debug_panel_schema, work_journal_entry_create_schema, work_journal_entry_get_schema,
-		work_journal_session_readback_schema,
+		context_pack_build_schema, core_blocks_get_schema, dreaming_review_queue_schema,
+		entity_memory_get_schema, recall_debug_panel_schema, work_journal_entry_create_schema,
+		work_journal_entry_get_schema, work_journal_session_readback_schema,
 	},
 	support,
 };
@@ -98,6 +98,20 @@ impl ElfMcp {
 		params: JsonObject,
 	) -> Result<CallToolResult, ErrorData> {
 		self.forward(HttpMethod::Get, "/v2/admin/dreaming/review-queue", params, None).await
+	}
+
+	#[rmcp::tool(
+		name = "elf_context_pack_build",
+		description = "Build an ephemeral Context Pack v1 as a read-time scoped view with automatic layer routing, source-backed item refs, and activation trace. This does not create memory.",
+		input_schema = context_pack_build_schema()
+	)]
+	pub(in crate::app::server) async fn elf_context_pack_build(
+		&self,
+		params: JsonObject,
+	) -> Result<CallToolResult, ErrorData> {
+		support::reject_context_override_params(&params)?;
+
+		self.forward(HttpMethod::Post, "/v2/context-packs", params, None).await
 	}
 
 	#[rmcp::tool(

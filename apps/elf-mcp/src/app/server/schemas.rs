@@ -21,8 +21,8 @@ pub(in crate::app::server) use self::{
 	events::events_ingest_schema,
 	graph::{graph_query_schema, graph_report_schema},
 	memory::{
-		core_blocks_get_schema, dreaming_review_queue_schema, entity_memory_get_schema,
-		recall_debug_panel_schema,
+		context_pack_build_schema, core_blocks_get_schema, dreaming_review_queue_schema,
+		entity_memory_get_schema, recall_debug_panel_schema,
 	},
 	notes::{
 		notes_get_schema, notes_ingest_schema, notes_list_schema, notes_patch_schema,
