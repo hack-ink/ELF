@@ -1,5 +1,6 @@
 mod closeout_reports_agent_knowledge;
 mod closeout_reports_competitor_strength;
+mod closeout_reports_final_source_backed;
 mod closeout_reports_graph_rag;
 mod closeout_reports_helpers;
 mod closeout_reports_openmemory;

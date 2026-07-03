@@ -64,6 +64,11 @@ pub(crate) fn agent_knowledge_os_closeout_benchmark_report_markdown_path() -> Re
 	benchmarking_path("2026-06-20-agent-knowledge-os-closeout-benchmark-report.md")
 }
 
+pub(crate) fn final_source_backed_project_memory_closeout_report_markdown_path() -> Result<PathBuf>
+{
+	benchmarking_path("2026-07-03-final-source-backed-project-memory-closeout-report.md")
+}
+
 pub(crate) fn p2_knowledge_workspace_pageindex_openkb_closeout_report_markdown_path()
 -> Result<PathBuf> {
 	benchmarking_path("2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md")
