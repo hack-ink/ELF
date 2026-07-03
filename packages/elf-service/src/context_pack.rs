@@ -828,14 +828,28 @@ fn pack_items(layers: &[RecallDebugLayer], routed: &RoutedPack) -> Vec<ContextPa
 fn row_eligible_for_pack(row: &RecallDebugRow) -> bool {
 	matches!(row.selection_state.as_str(), "selected" | "available" | "reviewable")
 		&& row.evidence_class == "pass"
-		&& !stale_or_non_current(row.freshness_state.as_str())
+		&& layer_freshness_eligible(row.layer.as_str(), row.freshness_state.as_str())
 		&& source_refs_present(&row.source_refs)
+}
+
+fn layer_freshness_eligible(layer: &str, freshness_state: &str) -> bool {
+	if layer == LAYER_DREAMING {
+		return matches!(freshness_state, "proposed" | "approved");
+	}
+
+	!stale_or_non_current(freshness_state)
 }
 
 fn stale_or_non_current(freshness_state: &str) -> bool {
 	matches!(
 		freshness_state,
-		"deleted" | "deprecated" | "expired" | "stale" | "superseded" | "tombstoned" | "historical"
+		"deleted"
+			| "deprecated"
+			| "expired"
+			| "stale" | "superseded"
+			| "tombstoned"
+			| "historical"
+			| "future"
 	)
 }
 
@@ -843,10 +857,11 @@ fn source_refs_present(value: &Value) -> bool {
 	match value {
 		Value::Null => false,
 		Value::Array(values) => !values.is_empty(),
-		Value::Object(values) => ["source_refs", "source_ref", "source_snapshot", "affected_refs"]
-			.iter()
-			.filter_map(|key| values.get(*key))
-			.any(source_refs_present),
+		Value::Object(values) =>
+			["source_refs", "source_ref", "source_snapshot", "affected_refs", "evidence_note_ids"]
+				.iter()
+				.filter_map(|key| values.get(*key))
+				.any(source_refs_present),
 		Value::String(value) => !value.trim().is_empty(),
 		_ => true,
 	}
@@ -891,8 +906,8 @@ mod tests {
 	use crate::{
 		Error, GraphQueryEntityRef, RecallDebugLayer, RecallDebugRow,
 		context_pack::{
-			self, ContextPackDebugOverrides, ContextPackRequest, LAYER_DOCS, LAYER_KNOWLEDGE,
-			LAYER_MEMORY,
+			self, ContextPackDebugOverrides, ContextPackRequest, LAYER_DOCS, LAYER_DREAMING,
+			LAYER_GRAPH, LAYER_KNOWLEDGE, LAYER_MEMORY,
 		},
 	};
 
@@ -1027,6 +1042,107 @@ mod tests {
 
 		assert_eq!(items.len(), 1);
 		assert_eq!(items[0].freshness_state, "active");
+	}
+
+	#[test]
+	fn graph_pack_items_accept_evidence_note_ids_and_suppress_non_current_facts() {
+		let rows = vec![
+			row(
+				LAYER_GRAPH,
+				"available",
+				"current",
+				serde_json::json!({"evidence_note_ids": ["note-current"]}),
+			),
+			row(
+				LAYER_GRAPH,
+				"available",
+				"historical",
+				serde_json::json!({"evidence_note_ids": ["note-historical"]}),
+			),
+			row(
+				LAYER_GRAPH,
+				"available",
+				"future",
+				serde_json::json!({"evidence_note_ids": ["note-future"]}),
+			),
+			row(LAYER_GRAPH, "available", "current", serde_json::json!({"evidence_note_ids": []})),
+		];
+		let layer = RecallDebugLayer {
+			layer: LAYER_GRAPH.to_string(),
+			evidence_class: "pass".to_string(),
+			summary: "graph".to_string(),
+			anchor: Some("entity".to_string()),
+			row_count: rows.len(),
+			selected_count: 0,
+			dropped_count: 0,
+			available_count: rows.len(),
+			raw_sql_needed: false,
+			replayable: false,
+			debug_artifacts: serde_json::json!({}),
+			rows,
+		};
+		let routed = context_pack::route_context_pack(&base_request());
+		let items = context_pack::pack_items(&[layer], &routed);
+
+		assert_eq!(items.len(), 1);
+		assert_eq!(items[0].layer, LAYER_GRAPH);
+		assert_eq!(items[0].freshness_state, "current");
+	}
+
+	#[test]
+	fn dreaming_pack_items_only_include_active_review_states() {
+		let rows = vec![
+			row(
+				LAYER_DREAMING,
+				"reviewable",
+				"proposed",
+				serde_json::json!({"source_refs": [{"schema": "source_ref/v1"}]}),
+			),
+			row(
+				LAYER_DREAMING,
+				"reviewable",
+				"approved",
+				serde_json::json!({"source_refs": [{"schema": "source_ref/v1"}]}),
+			),
+			row(
+				LAYER_DREAMING,
+				"reviewable",
+				"rejected",
+				serde_json::json!({"source_refs": [{"schema": "source_ref/v1"}]}),
+			),
+			row(
+				LAYER_DREAMING,
+				"reviewable",
+				"applied",
+				serde_json::json!({"source_refs": [{"schema": "source_ref/v1"}]}),
+			),
+			row(
+				LAYER_DREAMING,
+				"reviewable",
+				"archived",
+				serde_json::json!({"source_refs": [{"schema": "source_ref/v1"}]}),
+			),
+		];
+		let layer = RecallDebugLayer {
+			layer: LAYER_DREAMING.to_string(),
+			evidence_class: "pass".to_string(),
+			summary: "dreaming".to_string(),
+			anchor: None,
+			row_count: rows.len(),
+			selected_count: 0,
+			dropped_count: 0,
+			available_count: 0,
+			raw_sql_needed: false,
+			replayable: false,
+			debug_artifacts: serde_json::json!({}),
+			rows,
+		};
+		let routed = context_pack::route_context_pack(&base_request());
+		let items = context_pack::pack_items(&[layer], &routed);
+
+		assert_eq!(items.len(), 2);
+		assert!(items.iter().any(|item| item.freshness_state == "proposed"));
+		assert!(items.iter().any(|item| item.freshness_state == "approved"));
 	}
 
 	#[test]
