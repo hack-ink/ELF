@@ -2,8 +2,8 @@ mod helpers;
 
 use crate::docs::{
 	ByteChunk, DOC_SOURCE_CAPTURE_SCHEMA_V1, DOC_SOURCE_SPAN_SCHEMA_V1, DocChunk, DocType,
-	DocsSourceCaptureSummary, DocsSourceSpanRef, Error, Map, OffsetDateTime, Result,
-	SourceCaptureSummaryInput, Uuid, Value,
+	DocsSourceCaptureSummary, DocsSourceLifecycle, DocsSourceSpanRef, Error, Map, OffsetDateTime,
+	Result, SourceCaptureSummaryInput, Uuid, Value,
 };
 
 pub(super) fn build_doc_chunk_rows(
@@ -77,6 +77,7 @@ pub(super) fn build_source_capture_summary(
 		source_ref,
 		doc_type,
 		scope,
+		actor_agent_id,
 		title,
 		content_hash,
 		raw_content_hash,
@@ -109,10 +110,21 @@ pub(super) fn build_source_capture_summary(
 		})
 		.collect();
 	let policy_spans = helpers::source_policy_spans(raw_content_hash, write_policy_audit);
+	let captured_at_for_lifecycle = captured_at.clone();
 
 	Ok(DocsSourceCaptureSummary {
 		schema: DOC_SOURCE_CAPTURE_SCHEMA_V1.to_string(),
 		source_record_id: doc_id,
+		lifecycle: DocsSourceLifecycle {
+			schema: "elf.source_lifecycle/v1".to_string(),
+			status: "active".to_string(),
+			freshness: "current".to_string(),
+			actor_agent_id: actor_agent_id.to_string(),
+			ts: captured_at_for_lifecycle,
+			reason_code: "SOURCE_CAPTURED".to_string(),
+			deleted_at: None,
+			tombstone_ref: None,
+		},
 		origin: helpers::source_origin(source_ref, doc_type),
 		captured_at,
 		content_hash: content_hash.to_string(),
@@ -135,6 +147,12 @@ pub(super) fn normalize_source_ref_for_capture(
 	source_ref.insert(
 		"source_record_id".to_string(),
 		Value::String(source_capture.source_record_id.to_string()),
+	);
+	source_ref.insert(
+		"lifecycle".to_string(),
+		serde_json::to_value(&source_capture.lifecycle).map_err(|_| Error::InvalidRequest {
+			message: "Failed to serialize source lifecycle.".to_string(),
+		})?,
 	);
 	source_ref.insert("origin".to_string(), Value::String(source_capture.origin.clone()));
 	source_ref.insert("captured_at".to_string(), Value::String(source_capture.captured_at.clone()));
@@ -161,6 +179,42 @@ pub(super) fn normalize_source_ref_for_capture(
 			helpers::source_spans_to_value(&source_capture.policy_spans)?,
 		);
 	}
+
+	Ok(Value::Object(source_ref))
+}
+
+pub(super) fn source_ref_with_deleted_lifecycle(
+	source_ref: &Value,
+	actor_agent_id: &str,
+	now: OffsetDateTime,
+) -> Result<Value> {
+	let ts = helpers::format_timestamp(now)?;
+	let tombstone_ref = serde_json::json!({
+		"schema": "elf.source_tombstone/v1",
+		"reason_code": "SOURCE_LIBRARY_DELETE",
+		"actor_agent_id": actor_agent_id,
+		"ts": ts,
+	});
+	let lifecycle = DocsSourceLifecycle {
+		schema: "elf.source_lifecycle/v1".to_string(),
+		status: "deleted".to_string(),
+		freshness: "tombstoned".to_string(),
+		actor_agent_id: actor_agent_id.to_string(),
+		ts: ts.clone(),
+		reason_code: "SOURCE_LIBRARY_DELETE".to_string(),
+		deleted_at: Some(ts),
+		tombstone_ref: Some(tombstone_ref),
+	};
+	let mut source_ref = source_ref.as_object().cloned().ok_or_else(|| Error::InvalidRequest {
+		message: "source_ref must be a JSON object.".to_string(),
+	})?;
+
+	source_ref.insert(
+		"lifecycle".to_string(),
+		serde_json::to_value(lifecycle).map_err(|_| Error::InvalidRequest {
+			message: "Failed to serialize source lifecycle.".to_string(),
+		})?,
+	);
 
 	Ok(Value::Object(source_ref))
 }

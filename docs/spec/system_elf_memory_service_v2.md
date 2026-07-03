@@ -1160,14 +1160,15 @@ Body:
 Behavior:
 - `supersede` sets the note status to `deprecated`, writes a `DEPRECATE`
   `memory_note_versions` row, stores `elf.memory_correction/v1` source-ref evidence,
-  and enqueues an indexing `DELETE` so normal recall suppresses the note.
+  includes `elf.memory_authority_lifecycle/v1` superseded metadata, and enqueues an
+  indexing `DELETE` so normal recall suppresses the note.
 - `delete` sets the note status to `deleted`, writes a `DELETE`
   `memory_note_versions` row, stores `elf.memory_correction/v1` source-ref evidence,
-  and enqueues an indexing `DELETE`.
+  includes tombstone lifecycle metadata, and enqueues an indexing `DELETE`.
 - `restore` restores the latest prior active snapshot from a `DELETE` or `DEPRECATE`
   version, or the supplied `restore_version_id`, writes a `RESTORE`
   `memory_note_versions` row, stores `elf.memory_correction/v1` source-ref evidence,
-  and enqueues an indexing `UPSERT`.
+  includes rollback lifecycle metadata, and enqueues an indexing `UPSERT`.
 - Correction actions require a non-empty reason and non-empty JSON object
   `source_ref`. They do not mutate raw source notes, docs, events, traces, graph
   facts, or source pointers.
@@ -1845,6 +1846,9 @@ Behavior:
   writes doc chunks, and enqueues doc-index `UPSERT` jobs for derived Qdrant points.
 - The request may include write-policy redactions or exclusions; excluded spans are
   retained as policy metadata but are not captured source spans.
+- The normalized document `source_ref` carries `elf.source_lifecycle/v1` metadata
+  with active/current state at capture time. The lifecycle object is source audit
+  metadata; it does not promote the source into Memory Ledger authority.
 - This endpoint must not create Memory Ledger notes, graph facts, knowledge pages,
   search traces, or recall hits.
 
@@ -1874,6 +1878,9 @@ Response:
 Behavior:
 - Marks the Source Library document `deleted` when the caller owns the document and
   the document scope is writable.
+- Updates the stored document `source_ref.lifecycle` to
+  `elf.source_lifecycle/v1` with `status = "deleted"`, `freshness = "tombstoned"`,
+  a delete actor, `deleted_at`, and a tombstone reference.
 - Enqueues a doc-index `DELETE` job for every persisted document chunk so the worker
   removes derived Qdrant doc-vector points.
 - Repeating delete on an already deleted document returns `op = NONE`.

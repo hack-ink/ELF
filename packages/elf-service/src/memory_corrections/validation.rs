@@ -84,6 +84,13 @@ pub(super) fn correction_source_ref_for(
 	now: OffsetDateTime,
 	restore_version_id: Option<Uuid>,
 ) -> Value {
+	let (status, freshness, reason_code) = match action {
+		MemoryCorrectionAction::Supersede =>
+			("deprecated", "superseded", "MEMORY_SUPERSEDED_BY_CORRECTION"),
+		MemoryCorrectionAction::Delete => ("deleted", "tombstoned", "MEMORY_DELETED_BY_CORRECTION"),
+		MemoryCorrectionAction::Restore => ("active", "current", "MEMORY_RESTORED_BY_ROLLBACK"),
+	};
+
 	serde_json::json!({
 		"schema": "elf.memory_correction/v1",
 		"action": action.as_str(),
@@ -91,6 +98,15 @@ pub(super) fn correction_source_ref_for(
 		"actor_agent_id": actor_agent_id,
 		"ts": now,
 		"restore_version_id": restore_version_id,
+		"lifecycle": {
+			"schema": "elf.memory_authority_lifecycle/v1",
+			"status": status,
+			"freshness": freshness,
+			"reason_code": reason_code,
+			"actor_agent_id": actor_agent_id,
+			"ts": now,
+			"restore_version_id": restore_version_id,
+		},
 		"prior_source_ref": prior_snapshot.get("source_ref").cloned().unwrap_or_else(empty_object),
 		"prior_snapshot": prior_snapshot,
 		"correction_source_ref": correction_source_ref,

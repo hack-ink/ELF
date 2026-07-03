@@ -200,6 +200,9 @@ Normalized capture output:
 
 - `docs_put` MUST return `source_capture.schema = "doc_source_capture/v1"`.
 - `source_capture.source_record_id` MUST equal the stored `doc_documents.doc_id`.
+- `source_capture.lifecycle` MUST use `elf.source_lifecycle/v1` with
+  `status = "active"`, `freshness = "current"`, the capture actor, transition
+  timestamp, and `reason_code = "SOURCE_CAPTURED"`.
 - `source_capture.origin` MUST be the canonical source origin used for operator
   inspection and deduplication. Source Library `canonical_uri` takes precedence
   over legacy URL, URI, thread, search, or repo-derived origins.
@@ -254,7 +257,7 @@ Persisted normalized `source_ref`:
 
 - The stored `doc_documents.source_ref` MUST retain the caller-provided
   `doc_source_ref/v1` fields and add normalized capture fields:
-  `source_record_id`, `origin`, `captured_at`, `content_hash`,
+  `source_record_id`, `lifecycle`, `origin`, `captured_at`, `content_hash`,
   `visibility_scope`, `source_type`, and `source_spans`.
 - When policy spans exist, stored `doc_documents.source_ref` MUST include
   `policy_spans`.
@@ -270,6 +273,11 @@ Delete, export, and private-span boundary:
   refs non-recallable. Derived pages may retain stored stale text until rebuild, but
   page search MUST suppress snippets whose source refs no longer resolve to active
   readable document or chunk rows.
+- Source Library delete MUST preserve a tombstone lifecycle in
+  `doc_documents.source_ref.lifecycle` with `status = "deleted"`,
+  `freshness = "tombstoned"`, `reason_code = "SOURCE_LIBRARY_DELETE"`,
+  `deleted_at`, actor metadata, and a `tombstone_ref`. The tombstone is audit
+  evidence only and MUST NOT make deleted source spans recallable.
 - `doc_source_span/v1` entries with `status = "excluded"` or `status = "redacted"`
   are audit evidence for write-policy handling. They MUST NOT be treated as captured
   source evidence for derived page search, memory promotion, graph facts, or export

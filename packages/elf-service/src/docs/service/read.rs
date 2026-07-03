@@ -176,8 +176,11 @@ FOR UPDATE",
 		}
 
 		let chunks = docs::list_doc_chunks(&mut *tx, row.doc_id).await?;
+		let tombstoned_source_ref =
+			service::source_ref_with_deleted_lifecycle(&row.source_ref, agent_id, now)?;
 
-		docs::mark_doc_deleted(&mut *tx, tenant_id, row.doc_id, now).await?;
+		docs::mark_doc_deleted(&mut *tx, tenant_id, row.doc_id, &tombstoned_source_ref, now)
+			.await?;
 
 		for chunk in &chunks {
 			doc_outbox::enqueue_doc_outbox(
