@@ -1,6 +1,6 @@
-# Rust workspace tasks: Check.
+# Rust workspace tasks: Checks.
 
-[tasks.check]
+[tasks.checks]
 clear = true
 workspace = false
 dependencies = [

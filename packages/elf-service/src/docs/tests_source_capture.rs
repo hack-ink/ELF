@@ -57,6 +57,7 @@ fn source_capture_metadata_uses_stable_record_and_span_ids() {
 		source_ref,
 		doc_type: DocType::Knowledge,
 		scope: "project_shared",
+		actor_agent_id: "owner",
 		title: Some("Saved article"),
 		content_hash,
 		raw_content_hash: "raw-content-hash",
@@ -69,6 +70,10 @@ fn source_capture_metadata_uses_stable_record_and_span_ids() {
 	assert_eq!(doc_id, repeated_doc_id);
 	assert_eq!(capture.schema, "doc_source_capture/v1");
 	assert_eq!(capture.source_record_id, doc_id);
+	assert_eq!(capture.lifecycle.schema, "elf.source_lifecycle/v1");
+	assert_eq!(capture.lifecycle.status, "active");
+	assert_eq!(capture.lifecycle.freshness, "current");
+	assert_eq!(capture.lifecycle.actor_agent_id, "owner");
 	assert_eq!(capture.origin, "https://example.com/research/source-library");
 	assert_eq!(capture.captured_at, "2026-02-25T12:10:00Z");
 	assert_eq!(capture.content_hash, content_hash);
@@ -120,6 +125,7 @@ fn normalized_source_ref_records_policy_span_reasons() {
 		source_ref: source_ref_map,
 		doc_type: DocType::Knowledge,
 		scope: "project_shared",
+		actor_agent_id: "owner",
 		title: None,
 		content_hash: "stored-hash",
 		raw_content_hash: "raw-hash",
@@ -137,6 +143,8 @@ fn normalized_source_ref_records_policy_span_reasons() {
 	assert_eq!(capture.policy_spans[1].status, "redacted");
 	assert_eq!(capture.policy_spans[1].reason_code.as_deref(), Some("WRITE_POLICY_REDACTION"));
 	assert_eq!(normalized["source_record_id"], doc_id.to_string());
+	assert_eq!(normalized["lifecycle"]["status"], "active");
+	assert_eq!(normalized["lifecycle"]["freshness"], "current");
 	assert_eq!(normalized["origin"], "file:///tmp/source.txt");
 	assert_eq!(normalized["captured_at"], "2026-02-25T12:15:00Z");
 	assert_eq!(normalized["content_hash"], "stored-hash");
@@ -144,6 +152,33 @@ fn normalized_source_ref_records_policy_span_reasons() {
 	assert_eq!(normalized["source_type"], "knowledge");
 	assert_eq!(normalized["policy_spans"][0]["reason_code"], "WRITE_POLICY_EXCLUSION");
 	assert_eq!(normalized["policy_spans"][1]["reason_code"], "WRITE_POLICY_REDACTION");
+}
+
+#[test]
+fn deleted_source_ref_records_tombstone_lifecycle() {
+	let now = OffsetDateTime::parse("2026-02-25T12:15:00Z", &Rfc3339)
+		.expect("Expected test timestamp to parse.");
+	let source_ref = serde_json::json!({
+		"schema": "doc_source_ref/v1",
+		"source_record_id": "11111111-1111-4111-8111-111111111111",
+		"origin": "file:///tmp/source.txt",
+		"lifecycle": {
+			"schema": "elf.source_lifecycle/v1",
+			"status": "active",
+			"freshness": "current"
+		}
+	});
+	let deleted = docs::source_ref_with_deleted_lifecycle(&source_ref, "agent-a", now)
+		.expect("Expected source_ref tombstone metadata.");
+
+	assert_eq!(deleted["source_record_id"], source_ref["source_record_id"]);
+	assert_eq!(deleted["lifecycle"]["schema"], "elf.source_lifecycle/v1");
+	assert_eq!(deleted["lifecycle"]["status"], "deleted");
+	assert_eq!(deleted["lifecycle"]["freshness"], "tombstoned");
+	assert_eq!(deleted["lifecycle"]["actor_agent_id"], "agent-a");
+	assert_eq!(deleted["lifecycle"]["reason_code"], "SOURCE_LIBRARY_DELETE");
+	assert_eq!(deleted["lifecycle"]["deleted_at"], "2026-02-25T12:15:00Z");
+	assert_eq!(deleted["lifecycle"]["tombstone_ref"]["reason_code"], "SOURCE_LIBRARY_DELETE");
 }
 
 #[test]

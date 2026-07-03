@@ -16,7 +16,8 @@ pub use api::{
 	DocsExcerptsGetRequest, DocsGetRequest, DocsGetResponse, DocsPutRequest, DocsPutResponse,
 	DocsSearchL0Item, DocsSearchL0ItemHashes, DocsSearchL0ItemLocator, DocsSearchL0ItemPointer,
 	DocsSearchL0ItemReference, DocsSearchL0ItemState, DocsSearchL0Request, DocsSearchL0Response,
-	DocsSourceCaptureSummary, DocsSourceSpanRef, TextPositionSelector, TextQuoteSelector,
+	DocsSourceCaptureSummary, DocsSourceLifecycle, DocsSourceSpanRef, TextPositionSelector,
+	TextQuoteSelector,
 };
 
 use std::{
@@ -65,7 +66,8 @@ use search_support::{
 };
 use source_capture::{
 	build_doc_chunk_rows, build_source_capture_summary, doc_chunk_id_for,
-	normalize_source_ref_for_capture, source_record_id_for, source_span_id,
+	normalize_source_ref_for_capture, source_record_id_for, source_ref_with_deleted_lifecycle,
+	source_span_id,
 };
 use types::{
 	ByteChunk, DEFAULT_DOC_MAX_BYTES, DEFAULT_L0_MAX_BYTES, DEFAULT_L1_MAX_BYTES,

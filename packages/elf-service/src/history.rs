@@ -34,8 +34,28 @@ pub(crate) fn note_snapshot(note: &MemoryNote) -> Value {
 		"expires_at": note.expires_at,
 		"embedding_version": note.embedding_version,
 		"source_ref": note.source_ref,
+		"freshness": memory_freshness(note),
 		"hit_count": note.hit_count,
 		"last_hit_at": note.last_hit_at,
+	})
+}
+
+pub(crate) fn memory_freshness(note: &MemoryNote) -> Value {
+	let (status, reason_code) = match note.status.as_str() {
+		"active" if note.expires_at.is_some() => ("current", "TTL_ACTIVE"),
+		"active" => ("current", "ACTIVE_MEMORY"),
+		"deprecated" => ("superseded", "MEMORY_SUPERSEDED"),
+		"deleted" => ("tombstoned", "MEMORY_DELETED"),
+		other => (other, "UNKNOWN_MEMORY_STATUS"),
+	};
+
+	serde_json::json!({
+		"schema": "elf.memory_freshness/v1",
+		"status": status,
+		"reason_code": reason_code,
+		"lifecycle_status": note.status,
+		"updated_at": note.updated_at,
+		"expires_at": note.expires_at,
 	})
 }
 

@@ -11,6 +11,7 @@ pub(in crate::docs) struct SourceCaptureSummaryInput<'a> {
 	pub(in crate::docs) source_ref: &'a Map<String, Value>,
 	pub(in crate::docs) doc_type: DocType,
 	pub(in crate::docs) scope: &'a str,
+	pub(in crate::docs) actor_agent_id: &'a str,
 	pub(in crate::docs) title: Option<&'a str>,
 	pub(in crate::docs) content_hash: &'a str,
 	pub(in crate::docs) raw_content_hash: &'a str,

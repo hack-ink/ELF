@@ -110,6 +110,22 @@ fn correction_source_ref_preserves_prior_and_review_evidence() {
 
 	assert_eq!(correction["schema"], "elf.memory_correction/v1");
 	assert_eq!(correction["action"], "supersede");
+	assert_eq!(correction["lifecycle"]["schema"], "elf.memory_authority_lifecycle/v1");
+	assert_eq!(correction["lifecycle"]["status"], "deprecated");
+	assert_eq!(correction["lifecycle"]["freshness"], "superseded");
+	assert_eq!(correction["lifecycle"]["reason_code"], "MEMORY_SUPERSEDED_BY_CORRECTION");
 	assert_eq!(correction["prior_source_ref"]["schema"], "prior");
 	assert_eq!(correction["correction_source_ref"]["schema"], "review");
+}
+
+#[test]
+fn memory_snapshots_include_freshness_state_for_lifecycle_readback() {
+	let active = crate::note_snapshot(&note("active"));
+	let superseded = crate::note_snapshot(&note("deprecated"));
+	let tombstoned = crate::note_snapshot(&note("deleted"));
+
+	assert_eq!(active["freshness"]["schema"], "elf.memory_freshness/v1");
+	assert_eq!(active["freshness"]["status"], "current");
+	assert_eq!(superseded["freshness"]["status"], "superseded");
+	assert_eq!(tombstoned["freshness"]["status"], "tombstoned");
 }
