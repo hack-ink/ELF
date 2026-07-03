@@ -25,6 +25,7 @@ fn registers_all_tools() {
 		"elf_space_grant_revoke",
 		"elf_admin_traces_recent_list",
 		"elf_dreaming_review_queue",
+		"elf_context_pack_build",
 		"elf_recall_debug_panel",
 		"elf_work_journal_entry_create",
 		"elf_work_journal_entry_get",
