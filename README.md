@@ -2,7 +2,7 @@
 
 # ELF
 
-Evidence-linked fact memory for agents.
+Open-source, source-backed project memory for AI agents.
 
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Language Checks](https://github.com/hack-ink/ELF/actions/workflows/language.yml/badge.svg?branch=main)](https://github.com/hack-ink/ELF/actions/workflows/language.yml)
@@ -15,7 +15,7 @@ Evidence-linked fact memory for agents.
 
 ## What Is ELF?
 
-ELF is a memory service for LLM agents that stores short, evidence-linked facts and retrieves them with chunk-first hybrid search. Postgres with pgvector is the source of truth for notes and embeddings. Qdrant is a derived, rebuildable index for fast candidate retrieval. ELF can also persist evidence-bound entity/relation facts and optionally attach them as `relation_context` in search explain output. ELF exposes both HTTP and MCP interfaces.
+ELF is an open-source source-backed project memory service for AI agents. It lets agents remember project materials, decisions, progress, constraints, preferences, and long-term context without requiring users to re-explain the project. Important memories keep source provenance, lifecycle state, correction and rollback history, and recall-debug evidence. Postgres with pgvector is the source of truth for notes and embeddings. Qdrant is a derived, rebuildable index for fast candidate retrieval. ELF also supports derived knowledge pages, work-journal continuity, reviewable dreaming proposals, context packs, relation context, and HTTP/MCP interfaces.
 
 ## Project Goals
 
@@ -27,12 +27,12 @@ ELF is a memory service for LLM agents that stores short, evidence-linked facts 
 
 ## Why Choose ELF
 
-- Evidence-linked memory with strict provenance requirements.
+- Source-backed project memory with strict provenance requirements.
 - Deterministic `add_note` and LLM-driven `add_event` separation.
 - Postgres source-of-truth plus rebuildable retrieval index.
 - Chunk-first hybrid retrieval with expansion and rerank controls.
 - Multi-tenant scoped APIs for service-style integration.
-- Evaluation tooling (`elf-eval`) for retrieval quality and replay analysis.
+- Evaluation tooling (`elf-eval`) for source-backed memory quality, lifecycle behavior, and replay analysis.
 
 ## Quickstart
 

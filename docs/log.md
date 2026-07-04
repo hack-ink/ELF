@@ -153,6 +153,14 @@ logs.
 
 ## 2026-07-03
 
+- Added `docs/reference/plans/2026-07-03-source-backed-memory-knowledge-roadmap.md`
+  to retain the research-backed final roadmap for source-backed project memory,
+  Knowledge Workspace scope management, Work Journal diary behavior, Dreaming Review,
+  model-tier policy, competitor absorption, benchmark metrics, and Decodex execution
+  sequencing.
+- Updated the README positioning copy so the public entry point matches the July 2026
+  source-backed project memory contract instead of the older evidence-linked fact
+  memory phrasing.
 - Updated `docs/spec/agent_memory_knowledge_system_v1.md` for XY-1151 to codify ELF
   as open-source, source-backed project memory for AI agents. The revised contract
   treats Source Library, Memory Authority, Source-to-Memory Authority loop, Knowledge
@@ -210,3 +218,8 @@ logs.
 - Added the R1 local background organizer benchmark evidence report and linked the
   model ladder boundary from the source-backed product, consolidation, memory
   summary, and Work Journal specs.
+- Refined the retained source-backed memory roadmap after bounded research on
+  local model extraction, Work Journal/Dreaming boundaries, competitor adapters, and
+  reproducible benchmark design. The update records local-model gating, Docker
+  digest versus image-ID provenance, journal-to-dreaming promotion checks, and the
+  explicit diary/work-journal competitor pattern without changing normative specs.
