@@ -99,6 +99,7 @@ pub(super) fn report_summary_impl(jobs: &[JobReport], suites: &[SuiteReport]) ->
 			.map(|debug| debug.ux_gaps.len())
 			.sum(),
 		consolidation: summary::consolidation_summary(jobs),
+		local_organizer: summary::local_organizer_summary(jobs),
 		memory_summary: summary::memory_summary_summary(jobs),
 		proactive_brief: summary::proactive_brief_summary(jobs),
 		scheduled_memory: summary::scheduled_memory_summary(jobs),

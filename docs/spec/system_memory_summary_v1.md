@@ -6,13 +6,14 @@ resource: docs/spec/system_memory_summary_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-18
+last_verified: 2026-07-04
 tags:
   - docs
   - spec
 source_refs: []
 code_refs: []
-related: []
+related:
+  - docs/spec/system_model_ladder_background_organizer_v1.md
 drift_watch:
   - docs/spec/system_memory_summary_v1.md
 ---
@@ -61,6 +62,12 @@ Required fields:
 The artifact may include provider metadata in future lanes, but v1 summary readback
 does not require provider execution and must not hide source selection behind provider
 state.
+
+When a local/background organizer drafts summary candidates, the model ladder in
+`docs/spec/system_model_ladder_background_organizer_v1.md` applies. L2 output may
+produce reviewable summary proposals only. Current top-of-mind summaries,
+contradiction repair, multi-source synthesis, or public benchmark judging require an
+L3 strong-model or L4 explicit policy/reviewer gate before authority-changing use.
 
 ## Entry Categories
 

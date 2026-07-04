@@ -196,3 +196,17 @@ logs.
   Journal, Dreaming Review, Context Pack, routing, Recall Engine, Recall Debug,
   benchmark validity, competitor claim boundaries, and Decodex lifecycle/status
   accuracy into one review-readiness evidence surface.
+
+## 2026-07-04
+
+- Added `docs/spec/system_model_ladder_background_organizer_v1.md` for XY-1163,
+  defining the L0/L1/L2/L3/L4 model ladder, model profiles, local/background
+  organizer authority boundaries, and strong-model or explicit policy gates for
+  authority-changing work.
+- Added `cargo make real-world-memory-r1-local-organizer`, the
+  `local_background_organizer` real-world fixture, benchmark report fields, and gate
+  validation for proposal-only local organizer output before any source or Memory
+  Authority mutation.
+- Added the R1 local background organizer benchmark evidence report and linked the
+  model ladder boundary from the source-backed product, consolidation, memory
+  summary, and Work Journal specs.

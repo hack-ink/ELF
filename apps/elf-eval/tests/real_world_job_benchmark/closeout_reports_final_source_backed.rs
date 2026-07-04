@@ -53,7 +53,7 @@ fn final_source_backed_closeout_report_preserves_claim_boundaries_and_docs_links
 
 	assert!(index.contains("2026-07-03-final-source-backed-project-memory-closeout-report.md"));
 	assert!(readme.contains("Final Source-Backed Project Memory Closeout Report - July 3, 2026"));
-	assert!(readme.contains("Latest real-world benchmark report: July 3, 2026"));
+	assert!(readme.contains("Latest real-world benchmark report: July 4, 2026"));
 
 	Ok(())
 }

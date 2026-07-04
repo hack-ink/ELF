@@ -44,18 +44,20 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use artifacts::{
 	AuthorityRecordCount, AuthorityRecoveryDrillArtifact, ConsolidationFixture,
 	ConsolidationProposalFixture, CostReport, DerivedPageArtifact, DerivedPageRebuild,
-	DerivedPageSection, MemorySummaryArtifact, MemorySummaryEntry, MemorySummarySourceTrace,
-	ProactiveBriefArtifact, ProactiveSuggestion, ProducedAnswer, ProducedClaim, RecoveryBackupPitr,
-	RecoveryDeadLetterHandling, RecoveryDegradedRead, RecoveryDrillTopology, RecoveryMeasurement,
-	RecoveryMigrationRepair, RecoveryOutboxReplay, RecoveryQdrantRebuild,
-	ScheduledMemoryExecutionTrace, ScheduledMemoryOutput, ScheduledMemoryTaskArtifact,
-	WorkContinuityObserved, WorkJournalEntryArtifact, WorkJournalJanitorCandidateArtifact,
-	WorkJournalNextStepArtifact, WorkJournalReadbackArtifact, WorkJournalRejectedOptionArtifact,
+	DerivedPageSection, LocalOrganizerFixture, LocalOrganizerJobReport,
+	LocalOrganizerSummaryReport, LocalOrganizerTierReport, MemorySummaryArtifact,
+	MemorySummaryEntry, MemorySummarySourceTrace, ProactiveBriefArtifact, ProactiveSuggestion,
+	ProducedAnswer, ProducedClaim, RecoveryBackupPitr, RecoveryDeadLetterHandling,
+	RecoveryDegradedRead, RecoveryDrillTopology, RecoveryMeasurement, RecoveryMigrationRepair,
+	RecoveryOutboxReplay, RecoveryQdrantRebuild, ScheduledMemoryExecutionTrace,
+	ScheduledMemoryOutput, ScheduledMemoryTaskArtifact, WorkContinuityObserved,
+	WorkJournalEntryArtifact, WorkJournalJanitorCandidateArtifact, WorkJournalNextStepArtifact,
+	WorkJournalReadbackArtifact, WorkJournalRejectedOptionArtifact,
 	WorkJournalWhereStoppedArtifact,
 };
 use cli::{
 	Args, Command, ExportQuantitativeAuditManifestArgs, ExportQuantitativeProductManifestArgs,
-	PublishArgs, RunArgs, ValidateSourceBackedQualityArgs,
+	PublishArgs, RunArgs, ValidateLocalOrganizerArgs, ValidateSourceBackedQualityArgs,
 };
 use diagnostic_reports::{
 	OperatorDebugEvidence, OperatorUxGap, TraceExplainability, TraceStageExplainability,
@@ -165,6 +167,7 @@ const SUITES: &[&str] = &[
 	"operator_debugging_ux",
 	"capture_integration",
 	"work_continuity",
+	"local_background_organizer",
 	"production_ops",
 	"personalization",
 	"core_archival_memory",
@@ -194,6 +197,7 @@ fn main() -> Result<()> {
 			commands::export_quantitative_product_manifest_command(args),
 		Command::Run(args) => commands::run_command(args),
 		Command::Publish(args) => commands::publish_command(args),
+		Command::ValidateLocalOrganizer(args) => commands::validate_local_organizer_command(args),
 		Command::ValidateSourceBackedQuality(args) =>
 			commands::validate_source_backed_quality_command(args),
 	}

@@ -40,6 +40,7 @@ pub(in crate::scoring) fn wrong_result_count(counts: &FailureCounts) -> usize {
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
 		+ counts.page_usefulness_failures
+		+ local_organizer_wrong_result_count(counts)
 }
 
 pub(in crate::scoring) fn wrong_result_signal_count(counts: &FailureCounts) -> usize {
@@ -82,6 +83,7 @@ pub(in crate::scoring) fn wrong_result_signal_count(counts: &FailureCounts) -> u
 		+ counts.missed_stale_findings
 		+ counts.rebuild_failures
 		+ counts.page_usefulness_failures
+		+ local_organizer_wrong_result_count(counts)
 }
 
 fn work_continuity_wrong_result_count(counts: &FailureCounts) -> usize {
@@ -98,4 +100,12 @@ fn work_continuity_wrong_result_count(counts: &FailureCounts) -> usize {
 		+ counts.work_continuity_sensitive_marker_persistence
 		+ counts.work_continuity_janitor_false_promotion
 		+ counts.work_continuity_journal_only_authority_claim
+}
+
+fn local_organizer_wrong_result_count(counts: &FailureCounts) -> usize {
+	counts.local_organizer_schema_failures
+		+ counts.local_organizer_provenance_failures
+		+ counts.local_organizer_unsupported_claims
+		+ counts.local_organizer_lifecycle_failures
+		+ counts.local_organizer_escalation_failures
 }

@@ -2,6 +2,7 @@ mod answer;
 mod consolidation;
 mod cost;
 mod knowledge;
+mod local_organizer;
 mod memory;
 mod proactive;
 mod recovery;
@@ -13,6 +14,10 @@ pub(super) use self::{
 	consolidation::{ConsolidationFixture, ConsolidationProposalFixture},
 	cost::CostReport,
 	knowledge::{DerivedPageArtifact, DerivedPageRebuild, DerivedPageSection},
+	local_organizer::{
+		LocalOrganizerFixture, LocalOrganizerJobReport, LocalOrganizerSummaryReport,
+		LocalOrganizerTierReport,
+	},
 	memory::{MemorySummaryArtifact, MemorySummaryEntry, MemorySummarySourceTrace},
 	proactive::{ProactiveBriefArtifact, ProactiveSuggestion},
 	recovery::{

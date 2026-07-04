@@ -6,7 +6,7 @@ resource: docs/spec/system_version_registry.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-23
+last_verified: 2026-07-04
 tags:
   - docs
   - spec
@@ -38,6 +38,29 @@ This document is normative. When a new versioned identifier is introduced, it mu
 - Bump rule: Introduce a new identifier only when product phases, phase-gate
   semantics, authority-layer boundaries, or claim-boundary rules become incompatible
   with this contract.
+
+### Model ladder schema
+
+- Identifier: `elf.model_ladder/v1`.
+- Type: Model-tier authority contract for deterministic, local/small, strong-model,
+  and explicit policy gate use.
+- Defined in: `docs/spec/system_model_ladder_background_organizer_v1.md`.
+- Consumers: model profile configuration, background organizer benchmarks, proposal
+  review policy, and agents deciding whether local/small model output is authority
+  changing or proposal-only.
+- Bump rule: Introduce a new identifier only when tier names, allowed tier authority,
+  or required escalation semantics become incompatible.
+
+### Local background organizer benchmark schema
+
+- Identifier: `elf.local_background_organizer_benchmark/v1`.
+- Type: R1 proposal-only local/background organizer benchmark gate.
+- Defined in: `docs/spec/system_model_ladder_background_organizer_v1.md`.
+- Consumers: `cargo make real-world-memory-r1-local-organizer`,
+  `apps/elf-eval/src/bin/real_world_job_benchmark/`, and checked-in benchmark
+  evidence reports.
+- Bump rule: Introduce a new identifier only when required reported metrics, gate
+  semantics, or proposal-only claim boundaries become incompatible.
 
 ### Agent memory quantitative scoreboard schema
 

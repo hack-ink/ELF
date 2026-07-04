@@ -2,11 +2,11 @@ use crate::{
 	AdapterReport, BTreeSet, CaptureIntegrationReport, CorpusProfile,
 	ExportQuantitativeAuditManifestArgs, ExportQuantitativeProductManifestArgs, OffsetDateTime,
 	Path, PathBuf, PrivateCorpusRedaction, PublishArgs, QuantitativeReportInput, REPORT_SCHEMA,
-	RealWorldJob, RealWorldReport, Result, Rfc3339, RunArgs, TypedStatus, VERSION,
-	ValidateSourceBackedQualityArgs, eyre, fs,
+	RealWorldJob, RealWorldReport, Rfc3339, RunArgs, TypedStatus, VERSION,
+	ValidateLocalOrganizerArgs, ValidateSourceBackedQualityArgs, eyre, fs,
 };
 
-pub(super) fn run_command(args: RunArgs) -> Result<()> {
+pub(super) fn run_command(args: RunArgs) -> crate::Result<()> {
 	let jobs = load_jobs(&args.fixtures)?;
 	let report = build_report(&jobs, &args)?;
 	let json = serde_json::to_string_pretty(&report)?;
@@ -14,7 +14,7 @@ pub(super) fn run_command(args: RunArgs) -> Result<()> {
 	write_or_print(args.out.as_deref(), json.as_str())
 }
 
-pub(super) fn publish_command(args: PublishArgs) -> Result<()> {
+pub(super) fn publish_command(args: PublishArgs) -> crate::Result<()> {
 	let raw = fs::read_to_string(&args.report)?;
 	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
 	let markdown = crate::render_markdown(&report, &args.report);
@@ -24,7 +24,7 @@ pub(super) fn publish_command(args: PublishArgs) -> Result<()> {
 
 pub(super) fn validate_source_backed_quality_command(
 	args: ValidateSourceBackedQualityArgs,
-) -> Result<()> {
+) -> crate::Result<()> {
 	let raw = fs::read_to_string(&args.report)?;
 	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
 
@@ -33,9 +33,19 @@ pub(super) fn validate_source_backed_quality_command(
 	})
 }
 
+pub(super) fn validate_local_organizer_command(
+	args: ValidateLocalOrganizerArgs,
+) -> crate::Result<()> {
+	let raw = fs::read_to_string(&args.report)?;
+	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
+
+	validate_local_organizer_gate(&report)
+		.map_err(|failures| eyre::eyre!("local organizer gate failed: {}", failures.join(", ")))
+}
+
 pub(super) fn export_quantitative_product_manifest_command(
 	args: ExportQuantitativeProductManifestArgs,
-) -> Result<()> {
+) -> crate::Result<()> {
 	let raw = fs::read_to_string(&args.report)?;
 	let report = serde_json::from_str::<RealWorldReport>(&raw)?;
 	let manifest = crate::quantitative_product_manifest_from_report(&report, &args)?;
@@ -46,7 +56,7 @@ pub(super) fn export_quantitative_product_manifest_command(
 
 pub(super) fn export_quantitative_audit_manifest_command(
 	args: ExportQuantitativeAuditManifestArgs,
-) -> Result<()> {
+) -> crate::Result<()> {
 	let jobs = load_jobs(&args.fixtures)?;
 	let manifest = crate::quantitative_audit_manifest_from_jobs(jobs.as_slice(), &args)?;
 	let json = serde_json::to_string_pretty(&manifest)?;
@@ -54,7 +64,7 @@ pub(super) fn export_quantitative_audit_manifest_command(
 	write_or_print(args.out.as_deref(), json.as_str())
 }
 
-fn load_jobs(path: &Path) -> Result<Vec<RealWorldJob>> {
+fn load_jobs(path: &Path) -> crate::Result<Vec<RealWorldJob>> {
 	let paths = fixture_paths(path)?;
 	let mut jobs = Vec::with_capacity(paths.len());
 
@@ -71,7 +81,7 @@ fn load_jobs(path: &Path) -> Result<Vec<RealWorldJob>> {
 	Ok(jobs)
 }
 
-fn fixture_paths(path: &Path) -> Result<Vec<PathBuf>> {
+fn fixture_paths(path: &Path) -> crate::Result<Vec<PathBuf>> {
 	if path.is_file() {
 		return Ok(vec![path.to_path_buf()]);
 	}
@@ -92,7 +102,7 @@ fn fixture_paths(path: &Path) -> Result<Vec<PathBuf>> {
 	Ok(paths)
 }
 
-fn collect_fixture_paths(path: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
+fn collect_fixture_paths(path: &Path, paths: &mut Vec<PathBuf>) -> crate::Result<()> {
 	for entry in fs::read_dir(path)? {
 		let entry = entry?;
 		let entry_path = entry.path();
@@ -107,7 +117,7 @@ fn collect_fixture_paths(path: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
 	Ok(())
 }
 
-fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport> {
+fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> crate::Result<RealWorldReport> {
 	if jobs.is_empty() {
 		return Err(eyre::eyre!("At least one real_world_job fixture is required."));
 	}
@@ -176,6 +186,100 @@ fn build_report(jobs: &[RealWorldJob], args: &RunArgs) -> Result<RealWorldReport
 	})
 }
 
+fn validate_local_organizer_gate(report: &RealWorldReport) -> std::result::Result<(), Vec<String>> {
+	let Some(summary) = &report.summary.local_organizer else {
+		return Err(vec!["missing local_organizer summary".to_string()]);
+	};
+	let mut failures = Vec::new();
+
+	if summary.job_count == 0 {
+		failures.push("local_organizer job_count must be greater than zero".to_string());
+	}
+	if summary.json_schema_valid_count != summary.job_count {
+		failures.push("every local organizer output must be valid JSON/schema".to_string());
+	}
+	if summary.citation_source_ref_coverage < 1.0 {
+		failures.push("citation/source-ref coverage must be 1.0".to_string());
+	}
+	if summary.unsupported_claim_rate > 0.0 {
+		failures.push("unsupported claim rate must be 0.0".to_string());
+	}
+	if summary.stale_correction_delete_score < 1.0 {
+		failures.push("stale/correction/delete score must be 1.0".to_string());
+	}
+	if summary.source_mutation_count > 0 {
+		failures.push("source mutation count must be zero".to_string());
+	}
+	if summary.silent_memory_authority_mutation_count > 0 {
+		failures.push("silent Memory Authority mutation count must be zero".to_string());
+	}
+	if summary.escalation_rate < 1.0 {
+		failures.push("required L2 to L3/L4 escalations must complete".to_string());
+	}
+	if summary.mean_latency_ms.is_none() || summary.p95_latency_ms.is_none() {
+		failures.push("mean and p95 latency must be reported".to_string());
+	}
+	if summary.tiers.is_empty() {
+		failures.push("cost/resource footprint by model tier must be reported".to_string());
+	}
+
+	for tier in &summary.tiers {
+		if tier.mean_latency_ms.is_none() || tier.p95_latency_ms.is_none() {
+			failures.push(format!("tier {} must report mean and p95 latency", tier.model_tier));
+		}
+		if tier.total_cost.as_ref().is_none_or(|cost| {
+			cost.currency.as_deref().is_none_or(str::is_empty)
+				&& cost.amount.is_none()
+				&& cost.input_tokens.is_none()
+				&& cost.output_tokens.is_none()
+		}) {
+			failures.push(format!("tier {} must report cost footprint", tier.model_tier));
+		}
+		if tier.resource_footprints.is_empty() {
+			failures.push(format!("tier {} must report resource footprint", tier.model_tier));
+		}
+	}
+	for job in &report.jobs {
+		let Some(local) = &job.local_organizer else {
+			continue;
+		};
+
+		if job.status != TypedStatus::Pass {
+			failures.push(format!("local organizer job {} did not pass", job.job_id));
+		}
+		if local.model_tier == "L2" && local.required_escalation_count == 0 {
+			failures.push(format!(
+				"local organizer job {} must encode at least one required L2 to L3/L4 escalation",
+				job.job_id
+			));
+		}
+		if local.completed_escalation_count < local.required_escalation_count {
+			failures.push(format!(
+				"local organizer job {} must complete all required L2 to L3/L4 escalations",
+				job.job_id
+			));
+		}
+		if local.extraction_f1.is_none()
+			&& local.extraction_f1_blocker.as_deref().is_none_or(str::is_empty)
+		{
+			failures.push(format!(
+				"local organizer job {} must report extraction_f1 or a not-encoded blocker",
+				job.job_id
+			));
+		}
+		if local.runtime_commit.as_deref().is_none_or(str::is_empty)
+			|| local.reproducibility_provenance.is_empty()
+		{
+			failures.push(format!(
+				"local organizer job {} must report runtime commit and reproducibility provenance",
+				job.job_id
+			));
+		}
+	}
+
+	if failures.is_empty() { Ok(()) } else { Err(failures) }
+}
+
 fn corpus_profile(jobs: &[RealWorldJob]) -> String {
 	let profiles = jobs.iter().map(|job| job.corpus.profile.as_str()).collect::<BTreeSet<_>>();
 
@@ -186,7 +290,7 @@ fn corpus_profile(jobs: &[RealWorldJob]) -> String {
 	}
 }
 
-fn adapter_report(args: &RunArgs) -> Result<AdapterReport> {
+fn adapter_report(args: &RunArgs) -> crate::Result<AdapterReport> {
 	Ok(AdapterReport {
 		adapter_id: args.adapter_id.clone(),
 		name: args.adapter_name.clone(),
@@ -203,7 +307,7 @@ fn adapter_report(args: &RunArgs) -> Result<AdapterReport> {
 	})
 }
 
-fn typed_status_from_arg(raw: &str, flag: &str) -> Result<TypedStatus> {
+fn typed_status_from_arg(raw: &str, flag: &str) -> crate::Result<TypedStatus> {
 	match raw {
 		"pass" => Ok(TypedStatus::Pass),
 		"wrong_result" => Ok(TypedStatus::WrongResult),
@@ -269,7 +373,7 @@ fn private_corpus_redaction(jobs: &[RealWorldJob]) -> PrivateCorpusRedaction {
 	PrivateCorpusRedaction { policy, private_fixture_count }
 }
 
-fn write_or_print(path: Option<&Path>, content: &str) -> Result<()> {
+fn write_or_print(path: Option<&Path>, content: &str) -> crate::Result<()> {
 	if let Some(path) = path {
 		if let Some(parent) = path.parent()
 			&& !parent.as_os_str().is_empty()

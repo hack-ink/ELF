@@ -90,6 +90,81 @@ args = [
 	"tmp/source-backed-memory-quality/report.md",
 ]
 
+[tasks.real-world-memory-r1-local-organizer]
+workspace = false
+dependencies = [
+	"real-world-memory-r1-local-organizer-report",
+]
+
+[tasks.real-world-memory-r1-local-organizer-json]
+workspace = false
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"run",
+	"--fixtures",
+	"apps/elf-eval/fixtures/real_world_memory/local_background_organizer",
+	"--out",
+	"tmp/real-world-memory/r1-local-organizer/report.json",
+	"--run-id",
+	"real-world-memory-r1-local-organizer",
+	"--adapter-id",
+	"fixture_local_background_organizer",
+	"--adapter-name",
+	"ELF R1 local background organizer fixture",
+	"--adapter-behavior",
+	"proposal_only_schema_constrained_local_fixture",
+	"--adapter-storage-status",
+	"pass",
+	"--adapter-runtime-status",
+	"pass",
+	"--adapter-notes",
+	"Fixture-backed local/background organizer slice scores proposal-only extraction, schema, provenance, lifecycle, escalation, latency, cost, and resource metrics before any Memory Authority mutation.",
+]
+
+[tasks.real-world-memory-r1-local-organizer-validate]
+workspace = false
+dependencies = [
+	"real-world-memory-r1-local-organizer-json",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"validate-local-organizer",
+	"--report",
+	"tmp/real-world-memory/r1-local-organizer/report.json",
+]
+
+[tasks.real-world-memory-r1-local-organizer-report]
+workspace = false
+dependencies = [
+	"real-world-memory-r1-local-organizer-validate",
+]
+command = "cargo"
+args = [
+	"run",
+	"-p",
+	"elf-eval",
+	"--bin",
+	"real_world_job_benchmark",
+	"--",
+	"publish",
+	"--report",
+	"tmp/real-world-memory/r1-local-organizer/report.json",
+	"--out",
+	"tmp/real-world-memory/r1-local-organizer/report.md",
+]
+
 [tasks.real-world-memory-knowledge]
 workspace = false
 dependencies = [

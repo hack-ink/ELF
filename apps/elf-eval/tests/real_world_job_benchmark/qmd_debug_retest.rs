@@ -175,6 +175,6 @@ fn assert_qmd_debug_retest_markdown_and_indexes(
 	);
 	assert!(readme.contains("qmd Debug-Ergonomics Dreaming Retest Report - June 19, 2026"));
 	assert!(readme.contains("Temporal and Trajectory Adapter Coverage Report - June 23, 2026"));
-	assert!(readme.contains("Latest real-world benchmark report: July 3, 2026"));
+	assert!(readme.contains("Latest real-world benchmark report: July 4, 2026"));
 	assert!(readme.contains("keeps the qmd edge unchanged"));
 }

@@ -2,8 +2,9 @@ use crate::{
 	AuthorityRecoveryDrillArtifact, CostReport, Deserialize, OperatorDebugEvidence, Serialize,
 	TraceExplainability, TypedStatus,
 	job_reports::{
-		ConsolidationJobReport, EvolutionJobReport, KnowledgeJobMetrics, MemorySummaryJobMetrics,
-		ProactiveBriefJobMetrics, ScheduledMemoryJobMetrics, WorkContinuityJobMetrics,
+		ConsolidationJobReport, EvolutionJobReport, KnowledgeJobMetrics, LocalOrganizerJobReport,
+		MemorySummaryJobMetrics, ProactiveBriefJobMetrics, ScheduledMemoryJobMetrics,
+		WorkContinuityJobMetrics,
 	},
 };
 
@@ -84,6 +85,8 @@ pub(crate) struct JobReport {
 	pub(crate) evolution: Option<EvolutionJobReport>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(crate) consolidation: Option<ConsolidationJobReport>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(crate) local_organizer: Option<LocalOrganizerJobReport>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
