@@ -6,13 +6,14 @@ resource: docs/spec/system_consolidation_proposals_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-22
+last_verified: 2026-07-04
 tags:
   - docs
   - spec
 source_refs: []
 code_refs: []
-related: []
+related:
+  - docs/spec/system_model_ladder_background_organizer_v1.md
 drift_watch:
   - docs/spec/system_consolidation_proposals_v1.md
 ---
@@ -376,3 +377,10 @@ snapshots, lineage, diff, confidence, contradiction markers, and staleness marke
 Future derived knowledge pages may use approved proposals as input, but those pages
 remain rebuildable derived output. They must retain source pointers and must not become
 a hidden replacement for evidence-bound ELF Core memory.
+
+Local/background organizer proposals are governed by
+`docs/spec/system_model_ladder_background_organizer_v1.md`. L2 local/small model
+outputs may enter this proposal contract only as reviewable `no_op`, tag,
+duplicate-merge, summary, stale-marker, or memory-candidate proposals. They must not
+apply Memory Authority mutations unless a strong-model or explicit policy/reviewer gate
+accepts the transition through this spec's review lifecycle.

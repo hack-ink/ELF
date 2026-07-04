@@ -2,8 +2,8 @@ use crate::{
 	TypedStatus,
 	job_reports::{
 		ConsolidationJobReport, DimensionScoreReport, EvolutionJobReport, KnowledgeJobMetrics,
-		MemorySummaryJobMetrics, ProactiveBriefJobMetrics, ScheduledMemoryJobMetrics,
-		UnsupportedClaimReport, WorkContinuityJobMetrics,
+		LocalOrganizerJobReport, MemorySummaryJobMetrics, ProactiveBriefJobMetrics,
+		ScheduledMemoryJobMetrics, UnsupportedClaimReport, WorkContinuityJobMetrics,
 	},
 };
 
@@ -20,6 +20,7 @@ pub(crate) struct JobScoring {
 	pub(crate) reason: String,
 	pub(crate) evolution: Option<EvolutionJobReport>,
 	pub(crate) consolidation: Option<ConsolidationJobReport>,
+	pub(crate) local_organizer: Option<LocalOrganizerJobReport>,
 	pub(crate) memory_summary: Option<MemorySummaryJobMetrics>,
 	pub(crate) proactive_brief: Option<ProactiveBriefJobMetrics>,
 	pub(crate) scheduled_memory: Option<ScheduledMemoryJobMetrics>,
@@ -84,6 +85,12 @@ pub(crate) struct FailureCounts {
 	pub(crate) missed_stale_findings: usize,
 	pub(crate) rebuild_failures: usize,
 	pub(crate) page_usefulness_failures: usize,
+	pub(crate) local_organizer_schema_failures: usize,
+	pub(crate) local_organizer_provenance_failures: usize,
+	pub(crate) local_organizer_unsupported_claims: usize,
+	pub(crate) local_organizer_lifecycle_failures: usize,
+	pub(crate) local_organizer_authority_mutations: usize,
+	pub(crate) local_organizer_escalation_failures: usize,
 }
 
 #[derive(Debug, Default)]

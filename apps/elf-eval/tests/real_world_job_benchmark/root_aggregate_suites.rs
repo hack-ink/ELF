@@ -21,6 +21,7 @@ pub(crate) fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 		"adversarial_quality",
 		"core_archival_memory",
 		"work_continuity",
+		"local_background_organizer",
 	] {
 		let suite = support::find_by_field(suites, "/suite_id", suite_id)?;
 
@@ -82,6 +83,12 @@ pub(crate) fn assert_root_aggregate_suites(report: &Value) -> Result<()> {
 
 	assert_eq!(work_continuity.pointer("/status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(work_continuity.pointer("/encoded_job_count").and_then(Value::as_u64), Some(8));
+
+	let local_organizer =
+		support::find_by_field(suites, "/suite_id", "local_background_organizer")?;
+
+	assert_eq!(local_organizer.pointer("/status").and_then(Value::as_str), Some("pass"));
+	assert_eq!(local_organizer.pointer("/encoded_job_count").and_then(Value::as_u64), Some(1));
 
 	Ok(())
 }

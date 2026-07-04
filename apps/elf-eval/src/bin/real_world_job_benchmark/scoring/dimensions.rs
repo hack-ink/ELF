@@ -123,7 +123,10 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.work_continuity_inferred_step_as_instruction > 0
 				|| counts.work_continuity_janitor_false_promotion > 0
 				|| counts.work_continuity_journal_only_authority_claim > 0
-				|| counts.page_usefulness_failures > 0,
+				|| counts.page_usefulness_failures > 0
+				|| counts.local_organizer_schema_failures > 0
+				|| counts.local_organizer_lifecycle_failures > 0
+				|| counts.local_organizer_escalation_failures > 0,
 		"evidence_grounding" =>
 			counts.missing_evidence > 0
 				|| counts.unsupported_claims > 0
@@ -136,7 +139,8 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.work_continuity_handoff_source_ref_missing > 0
 				|| counts.work_continuity_redaction_missing > 0
 				|| counts.work_continuity_sensitive_marker_persistence > 0
-				|| counts.untraced_page_sections > 0,
+				|| counts.untraced_page_sections > 0
+				|| counts.local_organizer_provenance_failures > 0,
 		"trap_avoidance" =>
 			counts.trap_uses > 0
 				|| counts.memory_summary_invalid_current_entries > 0
@@ -146,13 +150,15 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.scheduled_memory_tombstone_violations > 0
 				|| counts.work_continuity_rejected_option_resurrection > 0
 				|| counts.work_continuity_sensitive_marker_persistence > 0
-				|| counts.missed_stale_findings > 0,
+				|| counts.missed_stale_findings > 0
+				|| counts.local_organizer_authority_mutations > 0,
 		"uncertainty_handling" =>
 			counts.unsupported_claims > 0
 				|| counts.memory_summary_unsupported_current_entries > 0
 				|| counts.proactive_brief_unsupported_current_suggestions > 0
 				|| counts.scheduled_memory_unsupported_current_outputs > 0
-				|| counts.work_continuity_journal_only_authority_claim > 0,
+				|| counts.work_continuity_journal_only_authority_claim > 0
+				|| counts.local_organizer_unsupported_claims > 0,
 		"lifecycle_behavior" =>
 			counts.stale_answers > 0
 				|| counts.conflict_detection_missing > 0
@@ -177,8 +183,11 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.work_continuity_inferred_step_as_instruction > 0
 				|| counts.work_continuity_janitor_false_promotion > 0
 				|| counts.work_continuity_journal_only_authority_claim > 0
-				|| counts.rebuild_failures > 0,
-		"source_immutability" => counts.source_mutations > 0,
+				|| counts.rebuild_failures > 0
+				|| counts.local_organizer_lifecycle_failures > 0
+				|| counts.local_organizer_authority_mutations > 0,
+		"source_immutability" =>
+			counts.source_mutations > 0 || counts.local_organizer_authority_mutations > 0,
 		"proposal_usefulness" => counts.proposal_usefulness_failures > 0,
 		"lineage_completeness" => counts.lineage_failures > 0,
 		"review_action_correctness" => counts.review_action_failures > 0,
@@ -189,7 +198,8 @@ fn dimension_score(dimension_id: &str, max_points: f64, counts: &FailureCounts) 
 				|| counts.operator_debug_raw_sql > 0
 				|| counts.operator_debug_trace_gaps > 0
 				|| counts.scheduled_memory_missing_trace > 0
-				|| counts.work_continuity_reset_resume_missing > 0,
+				|| counts.work_continuity_reset_resume_missing > 0
+				|| counts.local_organizer_schema_failures > 0,
 		"trace_readback" => counts.scheduled_memory_missing_trace > 0,
 		"latency_resource" => counts.latency_violations > 0,
 		"personalization_fit" | "ownership_correctness" =>

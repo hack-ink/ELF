@@ -1,5 +1,6 @@
 mod consolidation;
 mod knowledge;
+mod local_organizer;
 mod memory;
 mod metrics;
 mod proactive;
@@ -10,9 +11,9 @@ mod work;
 
 use crate::{
 	ConsolidationSummaryReport, CostReport, EvolutionSummary, FollowUpReport, JobReport,
-	KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport, RealWorldJob,
-	ReportSummary, ScheduledMemorySummaryReport, SuiteReport, TypedStatus,
-	WorkContinuitySummaryReport,
+	KnowledgeSummary, LocalOrganizerSummaryReport, MemorySummaryReport,
+	ProactiveBriefSummaryReport, RealWorldJob, ReportSummary, ScheduledMemorySummaryReport,
+	SuiteReport, TypedStatus, WorkContinuitySummaryReport,
 };
 
 pub(super) fn suite_reports(jobs: &[JobReport]) -> Vec<SuiteReport> {
@@ -85,6 +86,10 @@ fn mean_latency(jobs: &[JobReport]) -> Option<f64> {
 
 fn consolidation_summary(jobs: &[JobReport]) -> ConsolidationSummaryReport {
 	consolidation::consolidation_summary_impl(jobs)
+}
+
+fn local_organizer_summary(jobs: &[JobReport]) -> Option<LocalOrganizerSummaryReport> {
+	local_organizer::local_organizer_summary_impl(jobs)
 }
 
 fn memory_summary_summary(jobs: &[JobReport]) -> Option<MemorySummaryReport> {

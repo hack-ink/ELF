@@ -31,6 +31,8 @@ The split below is by question type, not by human-versus-agent audience.
 - Need the source-backed project memory product boundary, P0-P5 roadmap,
   Decodex phase gate, Context Pack/recall boundaries, or competitor absorption rules ->
   `docs/spec/agent_memory_knowledge_system_v1.md`
+- Need the model ladder, model profiles, or proposal-only local/background organizer
+  gate -> `docs/spec/system_model_ladder_background_organizer_v1.md`
 - Need runbooks, migrations, validation steps, troubleshooting, or operational sequences ->
   `docs/runbook/`
 - Need one-command local setup, the minimal memory+knowledge demo loop, or
