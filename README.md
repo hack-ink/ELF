@@ -340,10 +340,21 @@ provider-backed ELF evidence was required.
   non-pass rows; PageIndex/OpenKB use existing fixture/source provenance, while
   Honcho remains a source-provenance research gate until product-runtime evidence is
   checked in.
-  The full ELF fixture run scores 75 pass, 0 wrong_result, 0 unsupported claims, and
+  The full ELF fixture run scores 77 pass, 0 wrong_result, 0 unsupported claims, and
   7 blocked jobs with aggregate evidence/source-ref/quote coverage at 1.000, while
   every public product row remains non-comparable until held-out, leakage-audited,
   digest-identified product-runtime evidence exists.
+- R1 model ladder and local background organizer gate after XY-1163: the July 4
+  follow-up adds `cargo make real-world-memory-r1-local-organizer`, defines the
+  L0/L1/L2/L3/L4 model ladder, and scores one fixture-backed proposal-only local
+  organizer job. The gate reports extraction F1 as explicitly `not_encoded` until a
+  labeled extraction set exists, validates JSON/schema, citation/source-ref coverage,
+  unsupported-claim rate, stale/correction/delete behavior, zero source mutation,
+  zero silent Memory Authority mutation, escalation rate, mean/p95 latency, and
+  tier-level cost/resource/runtime provenance. This is not evidence that small/local
+  models are safe defaults for Memory Authority writes or that ELF has Dreaming,
+  Letta, LangMem/LangChain, mem0/OpenMemory, Graphiti/Zep, or hosted managed-memory
+  parity.
 - Operator-approved public-proxy addendum after XY-930: the June 19 follow-up runs
   `cargo make baseline-production-private-addendum` with a simulated/public-proxy
   production corpus manifest approved for this stage. The run records 12 documents,
@@ -493,6 +504,7 @@ Detailed evidence and interpretation:
 - [Source-Backed Memory Quality Benchmark Harness - July 3, 2026](docs/evidence/benchmarking/2026-07-03-source-backed-quality-benchmark-harness.md)
 - [qmd Candidate-Replay Comparability Gate - July 3, 2026](docs/evidence/benchmarking/2026-07-03-qmd-candidate-replay-comparability-gate.md)
 - [Final Source-Backed Project Memory Closeout Report - July 3, 2026](docs/evidence/benchmarking/2026-07-03-final-source-backed-project-memory-closeout-report.md)
+- [R1 Local Background Organizer Benchmark Gate - July 4, 2026](docs/evidence/benchmarking/2026-07-04-r1-local-background-organizer-benchmark-gate.md)
 - [Live Baseline Benchmark Runbook](docs/runbook/benchmarking/live_baseline_benchmark.md)
 - [Single-User Production Runbook](docs/runbook/single_user_production.md)
 - Benchmark contract:
@@ -603,7 +615,7 @@ Detailed comparison, mechanism-level analysis, and source map:
 - [Derived Knowledge Page Follow-Up Research](docs/research/derived_knowledge_page_followup.md)
 - [Dreaming Product Surface Follow-Up Research](docs/research/dreaming_product_surface_followup.md)
 
-Latest real-world benchmark report: July 3, 2026. Latest external research refresh:
+Latest real-world benchmark report: July 4, 2026. Latest external research refresh:
 June 11, 2026; June 20 adds the Agent Knowledge OS Closeout Benchmark Report,
 the Graph Topic-Map Report - June 20, 2026, Knowledge Workspace Version-Diff
 Report - June 20, 2026, and the Live Knowledge-Page Rebuild/Lint Report - June 20,
@@ -622,6 +634,8 @@ June 27 adds the public quantitative competitor scoreboard report with row-level
 comparability gates and no universal leaderboard claim. July 3 adds the
 source-backed memory quality benchmark harness, the qmd candidate-replay
 comparability gate, and the final source-backed project memory closeout report.
+July 4 adds the R1 model ladder and proposal-only local background organizer
+benchmark gate.
 
 ## Documentation
 

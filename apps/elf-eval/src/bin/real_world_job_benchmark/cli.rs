@@ -77,6 +77,13 @@ pub(super) struct ValidateSourceBackedQualityArgs {
 }
 
 #[derive(Debug, Parser)]
+pub(super) struct ValidateLocalOrganizerArgs {
+	/// Generated real_world_job JSON report to gate.
+	#[arg(long, value_name = "FILE", default_value = DEFAULT_REPORT_PATH)]
+	pub(super) report: PathBuf,
+}
+
+#[derive(Debug, Parser)]
 pub(super) struct ExportQuantitativeProductManifestArgs {
 	/// Generated real_world_job JSON report to export.
 	#[arg(long, value_name = "FILE", default_value = DEFAULT_REPORT_PATH)]
@@ -143,6 +150,8 @@ pub(super) enum Command {
 	Run(RunArgs),
 	/// Render Markdown from a generated real_world_job JSON report.
 	Publish(PublishArgs),
+	/// Fail unless the R1 local background organizer benchmark gate passes.
+	ValidateLocalOrganizer(ValidateLocalOrganizerArgs),
 	/// Fail unless the generated source-backed quality benchmark gate passes.
 	ValidateSourceBackedQuality(ValidateSourceBackedQualityArgs),
 }

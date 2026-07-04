@@ -73,6 +73,7 @@ pub(super) fn job_report(job: &RealWorldJob, scoring: JobScoring) -> JobReport {
 		operator_debug: job.operator_debug.clone(),
 		evolution: scoring.evolution,
 		consolidation: scoring.consolidation,
+		local_organizer: scoring.local_organizer,
 	}
 }
 

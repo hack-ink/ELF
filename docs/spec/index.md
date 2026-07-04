@@ -47,6 +47,7 @@ Question this index answers: "what must remain true?"
 - `system_graph_memory_postgres_v1.md`: Graph Memory Postgres v1.0 Specification.
 - `system_knowledge_pages_v1.md`: Derived Knowledge Pages v1 Specification.
 - `system_memory_summary_v1.md`: Reviewable Memory Summary v1 Specification.
+- `system_model_ladder_background_organizer_v1.md`: Model Ladder and Background Organizer v1.
 - `system_provenance_mapping_v1.md`: System: Note Provenance Mapping (v1).
 - `system_recall_debug_panel_v1.md`: Recall Debug Panel v1 Specification.
 - `system_search_filter_expr_v1.md`: System: Search Filter Expression Contract v1.

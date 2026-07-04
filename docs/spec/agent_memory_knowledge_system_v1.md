@@ -6,7 +6,7 @@ resource: docs/spec/agent_memory_knowledge_system_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-07-03
+last_verified: 2026-07-04
 tags:
   - docs
   - spec
@@ -29,11 +29,13 @@ related:
   - docs/spec/system_graph_memory_postgres_v1.md
   - docs/spec/system_memory_summary_v1.md
   - docs/spec/system_work_journal_v1.md
+  - docs/spec/system_model_ladder_background_organizer_v1.md
   - docs/evidence/benchmarking/2026-07-03-source-backed-quality-benchmark-harness.md
   - docs/evidence/benchmarking/2026-07-03-qmd-candidate-replay-comparability-gate.md
   - docs/evidence/benchmarking/2026-07-03-final-source-backed-project-memory-closeout-report.md
 drift_watch:
   - docs/spec/agent_memory_knowledge_system_v1.md
+  - docs/spec/system_model_ladder_background_organizer_v1.md
   - docs/evidence/benchmarking/2026-06-23-p4-quality-hardening-productization-readiness-report.md
   - docs/evidence/benchmarking/2026-07-03-source-backed-quality-benchmark-harness.md
   - docs/evidence/benchmarking/2026-07-03-qmd-candidate-replay-comparability-gate.md
@@ -212,6 +214,21 @@ implement every item in a phase at once.
 | P3 | Context and Recall | Deliver Context Pack v1, Automatic Context Routing, Recall Engine behavior, and Recall Debug traces. | Packs are bounded and cited, routing exposes rationale, recall labels authority and freshness, and debug traces preserve selected/dropped/blocked/not-requested evidence. |
 | P4 | Benchmark and quality hardening | Expand executable benchmarks, qmd candidate-replay comparability, adversarial jobs, public comparison grammar, quality metrics, latency/cost/resource reporting, and unsupported-claim detection. | Reports preserve job/suite/project typed states, expected evidence recall, irrelevant context ratio, unsupported claims, qmd replay comparability, and resource metrics. |
 | P5 | Productization | Improve local setup, agent/MCP recipes, operator UI, privacy/delete/export boundaries, and production-quality workflows. | Operator workflows have documented setup, privacy/delete/export semantics, and validation evidence without weakening source authority. |
+
+### R1 Model Ladder Constraint
+
+R1 introduces the model ladder and the first local/background organizer benchmark
+gate. The R1 slice is narrower than a product phase: it proves only a proposal-only
+local organizer path. It must not make small/local models authoritative for Memory
+Authority writes.
+
+R1 is governed by `docs/spec/system_model_ladder_background_organizer_v1.md` and
+validated by `cargo make real-world-memory-r1-local-organizer`. A passing R1 report
+may claim only that ELF defines L0/L1/L2/L3/L4 tiers and that L2 local/small models
+can draft low-risk structured proposals under schema, provenance, lifecycle,
+escalation, latency, cost, and source-immutability gates. Strong models or explicit
+policy gates remain required for conflict resolution, multi-source synthesis,
+promotion review, important corrections, benchmark judging, and public claims.
 
 ### First Implementation Phase Constraint
 

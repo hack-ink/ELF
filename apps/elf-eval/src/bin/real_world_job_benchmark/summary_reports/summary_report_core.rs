@@ -1,5 +1,5 @@
 use crate::{
-	CostReport, Deserialize, Serialize,
+	CostReport, Deserialize, LocalOrganizerSummaryReport, Serialize,
 	summary_reports::{
 		KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport,
 		ScheduledMemorySummaryReport, WorkContinuitySummaryReport,
@@ -83,6 +83,8 @@ pub(crate) struct ReportSummary {
 	pub(crate) operator_ux_gap_count: usize,
 	#[serde(default)]
 	pub(crate) consolidation: ConsolidationSummaryReport,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(crate) local_organizer: Option<LocalOrganizerSummaryReport>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(crate) memory_summary: Option<MemorySummaryReport>,
 	#[serde(skip_serializing_if = "Option::is_none")]

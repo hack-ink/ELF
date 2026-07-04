@@ -80,7 +80,7 @@ fn assert_root_scoreboard_rows(report: &Value) -> Result<()> {
 	assert_eq!(elf.pointer("/metrics/retrieval/recall_at_k").and_then(Value::as_f64), Some(0.989));
 	assert_eq!(
 		elf.pointer("/metrics/retrieval/precision_at_k").and_then(Value::as_f64),
-		Some(0.414)
+		Some(0.417)
 	);
 	assert_eq!(elf.pointer("/metrics/retrieval/mrr").and_then(Value::as_f64), Some(0.988));
 	assert_eq!(elf.pointer("/metrics/retrieval/ndcg").and_then(Value::as_f64), Some(0.985));
