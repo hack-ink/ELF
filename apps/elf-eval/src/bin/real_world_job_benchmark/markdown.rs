@@ -45,6 +45,7 @@ pub(super) fn render_markdown(report: &RealWorldReport, report_path: &Path) -> S
 	self::evolution::render_markdown_evolution(&mut out, report);
 	self::trace::render_markdown_trace_explainability(&mut out, report);
 	self::domain_metrics::render_markdown_consolidation(&mut out, report);
+	self::domain_metrics::render_markdown_local_organizer(&mut out, report);
 	self::domain_metrics::render_markdown_memory_summary(&mut out, report);
 	self::domain_metrics::render_markdown_proactive_brief(&mut out, report);
 	self::domain_metrics::render_markdown_scheduled_memory(&mut out, report);

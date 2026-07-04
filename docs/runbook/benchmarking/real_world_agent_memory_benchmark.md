@@ -6,7 +6,7 @@ resource: docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
 status: active
 authority: procedural
 owner: runbook
-last_verified: 2026-06-27
+last_verified: 2026-07-04
 tags:
   - docs
   - runbook
@@ -209,6 +209,11 @@ including the retrieval-quality slice below. The suite currently encodes:
   stage-level trace readback for the same-corpus gate, missing staged artifact,
   selected hierarchy/rejected sibling gate, and recursive expansion/pruned-branch
   gate so a blocker is reviewable instead of a prose-only limitation.
+- `local_background_organizer`: R1 model-ladder and proposal-only local organizer
+  scoring for schema validity, citation/source-ref coverage, unsupported-claim rate,
+  stale/correction/delete behavior, source immutability, Memory Authority
+  immutability, escalation, latency, cost, resource footprint, and runtime
+  provenance.
 - `adversarial_quality`: stale-fact suppression, unsupported-claim refusal,
   conflicting source authority selection, private/excluded span suppression, and
   correction persistence. These fixtures gate the quality scoreboard grammar so
@@ -391,8 +396,8 @@ The public quality scoreboard renders the existing manifest evidence bucket
 external adapter manifest is loaded, the scoreboard's typed non-pass count includes
 adapter coverage and scenario rows as well as fixture jobs.
 
-Current fixture state: `cargo make real-world-memory-json` covers 81 jobs across 19
-suites, with 74 pass and 7 blocked. The adversarial quality slice contributes five
+Current fixture state: `cargo make real-world-memory-json` covers 84 jobs across 20
+suites, with 77 pass and 7 blocked. The adversarial quality slice contributes five
 passing fixture-backed jobs that exercise stale fact suppression, unsupported-claim
 refusal, source-authority conflicts, private-span exclusion, and correction
 persistence. The P1 closeout fixture slice contributes four passing jobs for
@@ -405,6 +410,10 @@ background, stale, superseded, tombstoned, and derived project-profile entries. 
 `work_continuity` suite contributes eight passing fixture-backed Work Journal rows
 for reset/resume, rationale, rejected-option, explicit/inferred next-step, handoff
 source-ref, redaction, and janitor false-promotion boundaries. The
+`local_background_organizer` suite contributes one passing R1 proposal-only model
+ladder fixture with extraction F1 explicitly `not_encoded` until a labeled extraction
+set exists, plus schema, provenance, stale/correction/delete, mutation, escalation,
+latency, cost, resource, runtime-commit, and reproducibility metrics. The
 `proactive_brief` suite contributes four passing source-linked proactive suggestions
 and one typed private-corpus refresh blocker tied to XY-930. The blocked jobs are
 production-ops operator boundaries, the private-corpus refresh blocker, the
@@ -414,6 +423,21 @@ The `scheduled_memory` suite contributes four passing source-linked scheduled ta
 readbacks plus one typed private/provider scheduler blocker tied to XY-930; it is not
 hosted scheduler, ChatGPT Tasks, Pulse, notification, or provider-backed private-corpus
 parity evidence.
+
+### R1 Local Background Organizer
+
+Use this task when validating the first model-ladder/background-organizer slice:
+
+```sh
+cargo make real-world-memory-r1-local-organizer
+```
+
+The task writes `tmp/real-world-memory/r1-local-organizer/report.json`, validates the
+local organizer gate with `validate-local-organizer`, and renders
+`tmp/real-world-memory/r1-local-organizer/report.md`. This is fixture-backed
+proposal-only evidence. It does not authorize local/small models to write Memory
+Authority records or support Dreaming, Letta, LangMem/LangChain, mem0/OpenMemory,
+Graphiti/Zep, or hosted managed-memory parity claims.
 
 Current live-adapter state: the `elf_live_real_world` and `qmd_live_real_world` adapters run a full
 checked-in suite sweep through `cargo make real-world-memory-live-adapters`. Each adapter

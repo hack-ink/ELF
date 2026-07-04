@@ -1,6 +1,6 @@
 use crate::scoring::{
-	ConsolidationJobReport, DimensionScoreReport, EvolutionJobReport, JobScoring, RealWorldJob,
-	TypedStatus,
+	ConsolidationJobReport, DimensionScoreReport, EvolutionJobReport, JobScoring,
+	LocalOrganizerJobReport, RealWorldJob, TypedStatus,
 };
 
 pub(in crate::scoring) fn score_declared_job(
@@ -9,6 +9,7 @@ pub(in crate::scoring) fn score_declared_job(
 	trap_ids_used: Vec<String>,
 	evolution: Option<EvolutionJobReport>,
 	consolidation: Option<ConsolidationJobReport>,
+	local_organizer: Option<LocalOrganizerJobReport>,
 ) -> JobScoring {
 	JobScoring {
 		status,
@@ -26,6 +27,7 @@ pub(in crate::scoring) fn score_declared_job(
 			.unwrap_or_else(|| "Job did not reach a runnable scoring state.".to_string()),
 		evolution,
 		consolidation,
+		local_organizer,
 		memory_summary: None,
 		proactive_brief: None,
 		scheduled_memory: None,

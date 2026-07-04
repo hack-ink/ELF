@@ -13,6 +13,7 @@
 #[path = "real_world_job_benchmark/dreaming_reports.rs"] mod dreaming_reports;
 #[path = "real_world_job_benchmark/external_adapters.rs"] mod external_adapters;
 #[path = "real_world_job_benchmark/live_adapter_tasks.rs"] mod live_adapter_tasks;
+#[path = "real_world_job_benchmark/local_organizer.rs"] mod local_organizer;
 #[path = "real_world_job_benchmark/markdown_rendering.rs"] mod markdown_rendering;
 #[path = "real_world_job_benchmark/memory_evolution.rs"] mod memory_evolution;
 #[path = "real_world_job_benchmark/memory_summary.rs"] mod memory_summary;

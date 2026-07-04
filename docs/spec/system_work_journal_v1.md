@@ -6,7 +6,7 @@ resource: docs/spec/system_work_journal_v1.md
 status: active
 authority: normative
 owner: spec
-last_verified: 2026-06-27
+last_verified: 2026-07-04
 tags:
   - docs
   - spec
@@ -23,6 +23,7 @@ related:
   - docs/spec/system_elf_memory_service_v2.md
   - docs/spec/system_consolidation_proposals_v1.md
   - docs/spec/system_recall_debug_panel_v1.md
+  - docs/spec/system_model_ladder_background_organizer_v1.md
 drift_watch:
   - packages/elf-service/src/work_journal.rs
   - sql/tables/042_work_journal_entries.sql
@@ -49,6 +50,12 @@ Work Journal rows must not:
 - create Qdrant points;
 - answer current-fact questions as authoritative memory unless the response also
   carries an accepted Memory Authority or Dreaming Review promotion reference.
+
+Local/background organizer reads over Work Journal rows are governed by
+`docs/spec/system_model_ladder_background_organizer_v1.md`. L2 local/small model
+organizers may draft journal-to-proposal candidates with source refs, but journal rows
+must not become current Memory Authority unless the candidate is accepted through the
+Memory Authority or Dreaming Review promotion boundary.
 
 ## Storage
 

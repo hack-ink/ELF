@@ -1,7 +1,7 @@
 use crate::{
 	BTreeMap, CaptureIntegrationReport, ConsolidationFixture, CorpusProfile, Deserialize,
-	EvidenceLink, ExpectedClaim, OperatorDebugEvidence, ProducedAnswer, Serialize, TypedStatus,
-	Value,
+	EvidenceLink, ExpectedClaim, LocalOrganizerFixture, OperatorDebugEvidence, ProducedAnswer,
+	Serialize, TypedStatus, Value,
 };
 
 #[derive(Debug, Deserialize)]
@@ -278,6 +278,7 @@ pub(super) struct AdapterResponse {
 	pub(super) adapter_id: Option<String>,
 	pub(super) answer: ProducedAnswer,
 	pub(super) consolidation: Option<ConsolidationFixture>,
+	pub(super) local_organizer: Option<LocalOrganizerFixture>,
 }
 
 fn default_relevance_grade() -> f64 {

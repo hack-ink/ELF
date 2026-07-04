@@ -4,6 +4,7 @@ mod common;
 mod consolidation;
 mod expectations;
 mod job_rules;
+mod local_organizer;
 mod memory_summary;
 mod page;
 mod proactive;
@@ -67,6 +68,7 @@ pub(super) fn validate_job(job: &RealWorldJob, path: &Path) -> Result<()> {
 	self::basics::validate_expected_answer(job, path)?;
 	self::basics::validate_required_evidence(job, path)?;
 	self::consolidation::validate_consolidation_fixture(job, path)?;
+	self::local_organizer::validate_local_organizer_fixture(job, path)?;
 	self::adapter::validate_adapter_response(job, path)?;
 	self::job_rules::validate_scoring_rubric(job, path)?;
 	self::job_rules::validate_allowed_uncertainty(job, path)?;
