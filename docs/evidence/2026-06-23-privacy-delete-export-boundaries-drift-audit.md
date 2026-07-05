@@ -12,9 +12,9 @@ tags:
   - evidence
   - privacy
   - retention
-source_refs:
-  - docs/runbook/privacy_delete_export.md
+source_refs: []
 code_refs:
+  - docs/runbook/privacy_delete_export.md
   - apps/elf-api/src/routes.rs
   - apps/elf-mcp/src/app/server/tools/docs.rs
   - packages/elf-service/src/docs.rs
@@ -59,7 +59,7 @@ benchmark report.
 Evidence for: `docs/runbook/privacy_delete_export.md` and the related Source
 Library, Knowledge Workspace, graph memory, and core service specs.
 
-## Claims Checked
+## Watched Claims
 
 - Source Library direct and derived readback uses current active source rows for
   recallable snippets.
@@ -75,7 +75,7 @@ Library, Knowledge Workspace, graph memory, and core service specs.
 - Export docs route through authorized read APIs and do not describe a bypass around
   scope, payload level, or write-policy spans.
 
-## Implementation Evidence
+## Evidence Anchors
 
 - `apps/elf-api/src/routes.rs` exposes `DELETE /v2/docs/{doc_id}` through the public
   docs router and OpenAPI path list.
@@ -97,7 +97,7 @@ Library, Knowledge Workspace, graph memory, and core service specs.
   active, unexpired, readable notes and drops malformed relation rows with no
   evidence ids.
 
-## Test Evidence
+Additional test evidence:
 
 - `packages/elf-service/src/knowledge.rs` has pure coverage for deleted, ignored,
   missing, and non-captured source refs.
@@ -115,6 +115,34 @@ Library, Knowledge Workspace, graph memory, and core service specs.
   integration case for Source Library document deletion suppressing page search.
 - `packages/elf-service/tests/acceptance/graph_ingestion.rs` adds an ignored
   integration case for memory-note delete suppressing graph query readback.
+
+## Reverse Checks
+
+- Run `cargo make check-docs` after documentation changes.
+- Run the service acceptance tests named in `code_refs` when changing delete,
+  privacy, export, graph evidence, Knowledge Workspace, or relation-context
+  behavior.
+
+## Verdict
+
+pass
+
+## Required Updates
+
+- If current-recall suppression, retained provenance, Source Library deletion,
+  Knowledge Workspace search, graph evidence, relation context, export, or
+  provider-retention behavior changes, update the runbook, affected specs, tests,
+  and this drift audit together.
+
+## Citations
+
+- `docs/runbook/privacy_delete_export.md`
+- `apps/elf-api/src/routes.rs`
+- `packages/elf-service/src/docs.rs`
+- `packages/elf-service/src/knowledge.rs`
+- `packages/elf-service/src/graph_query.rs`
+- `packages/elf-service/src/graph_report.rs`
+- `packages/elf-service/src/search.rs`
 
 ## Residual Boundaries
 

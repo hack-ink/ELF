@@ -12,15 +12,15 @@ tags:
   - evidence
   - benchmarking
   - p4-quality-hardening
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-23-p4-quality-hardening-productization-readiness-report.json
-  - apps/elf-eval/fixtures/real_world_memory/adversarial_quality/
-  - apps/elf-eval/fixtures/real_world_memory/source_library/
-  - apps/elf-eval/fixtures/real_world_memory/knowledge/
-  - apps/elf-eval/fixtures/real_world_memory/production_ops/
+source_refs: []
 code_refs:
   - Makefile.toml
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-23-p4-quality-hardening-productization-readiness-report.json
+  - apps/elf-eval/fixtures/real_world_memory/adversarial_quality/unsupported_claim_refusal.json
+  - apps/elf-eval/fixtures/real_world_memory/source_library/long_document_source_library.json
+  - apps/elf-eval/fixtures/real_world_memory/knowledge/changed_source_watch_rebuild.json
+  - apps/elf-eval/fixtures/real_world_memory/production_ops/backup_restore_cold_start_readback.json
 related:
   - docs/spec/agent_memory_knowledge_system_v1.md
   - docs/spec/real_world_agent_memory_benchmark_v1.md

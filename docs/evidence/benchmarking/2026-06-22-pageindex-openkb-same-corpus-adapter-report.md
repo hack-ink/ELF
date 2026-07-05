@@ -13,11 +13,12 @@ tags:
   - benchmarking
   - pageindex
   - openkb
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-pageindex-openkb-same-corpus-adapter-report.json
-  - apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/
+source_refs: []
 code_refs:
   - Makefile.toml
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-pageindex-openkb-same-corpus-adapter-report.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/openkb_wiki_recompile_blocked.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/pageindex_long_document_tree_blocked.json
 related:
   - docs/evidence/benchmarking/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.md
   - docs/spec/agent_memory_knowledge_system_v1.md

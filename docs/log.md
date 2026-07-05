@@ -223,3 +223,13 @@ logs.
   reproducible benchmark design. The update records local-model gating, Docker
   digest versus image-ID provenance, journal-to-dreaming promotion checks, and the
   explicit diary/work-journal competitor pattern without changing normative specs.
+
+## 2026-07-05
+
+- Repaired historical OKF evidence metadata so `decodex docs check` passes for the
+  full docs bundle: local fixture/report paths now live in `code_refs`, directory
+  refs were replaced with concrete fixture files, moved benchmark runner refs point
+  at current module files, two July 3 benchmark reports now have Evidence
+  frontmatter, the privacy/delete/export drift audit uses the required Drift Audit
+  headings, and the external memory radar renderer now emits current module-file
+  `code_refs` for regenerated summaries.

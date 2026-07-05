@@ -12,14 +12,14 @@ tags:
   - evidence
   - benchmarking
   - p3-closeout
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-23-p3-competitor-strength-absorption-report.json
+source_refs: []
 code_refs:
   - Makefile.toml
-  - apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/
-  - apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/
-  - apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/
-  - apps/elf-eval/fixtures/real_world_memory/context_trajectory/
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-23-p3-competitor-strength-absorption-report.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/pageindex_openkb/pageindex_long_document_tree_blocked.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/mem0_sdk_history_export.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/graph_rag/graphiti_temporal_validity_blocked.json
+  - apps/elf-eval/fixtures/real_world_memory/context_trajectory/openviking_staged_retrieval_blocked.json
 related:
   - docs/spec/agent_memory_knowledge_system_v1.md
   - docs/evidence/benchmarking/2026-06-19-qmd-debug-ergonomics-dreaming-retest-report.md

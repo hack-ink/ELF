@@ -12,11 +12,14 @@ tags:
   - evidence
   - benchmarking
   - agent-memory
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-p1-memory-authority-closeout-report.json
+source_refs: []
 code_refs:
   - Makefile.toml
-  - apps/elf-eval/fixtures/real_world_memory/p1_closeout/
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-p1-memory-authority-closeout-report.json
+  - apps/elf-eval/fixtures/real_world_memory/p1_closeout/correction_persistence_rollback.json
+  - apps/elf-eval/fixtures/real_world_memory/p1_closeout/source_candidate_approval_recall.json
+  - apps/elf-eval/fixtures/real_world_memory/p1_closeout/stale_decision_suppression.json
+  - apps/elf-eval/fixtures/real_world_memory/p1_closeout/unsupported_claim_refusal_work_resume.json
 related:
   - docs/spec/agent_memory_knowledge_system_v1.md
   - docs/spec/real_world_agent_memory_benchmark_v1.md

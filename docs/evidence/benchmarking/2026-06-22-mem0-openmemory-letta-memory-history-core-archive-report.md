@@ -14,11 +14,14 @@ tags:
   - mem0
   - openmemory
   - letta
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.json
-  - apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/
+source_refs: []
 code_refs:
   - Makefile.toml
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-mem0-openmemory-letta-memory-history-core-archive-report.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/letta_archival_readback_blocked.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/letta_core_blocks_blocked.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/mem0_sdk_history_export.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/mem0_openmemory_letta/openmemory_ui_export_blocked.json
 related:
   - docs/evidence/benchmarking/2026-06-11-mem0-openmemory-history-ui-export-report.md
   - docs/evidence/benchmarking/2026-06-19-openmemory-ui-export-product-readback-report.md

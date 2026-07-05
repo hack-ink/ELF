@@ -23,11 +23,13 @@ pub(super) fn render_summary(cursor: &RadarCursor) -> Result<String> {
 	out.push_str("source_refs: []\n");
 	out.push_str("code_refs:\n");
 	out.push_str("  - apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json\n");
-	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar.rs\n");
+	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar/main.rs\n");
+	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar/render.rs\n");
 	out.push_str("related: []\n");
 	out.push_str("drift_watch:\n");
 	out.push_str("  - apps/elf-eval/fixtures/external_memory_pattern_radar/cursor.json\n");
-	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar.rs\n");
+	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar/main.rs\n");
+	out.push_str("  - apps/elf-eval/src/bin/external_memory_pattern_radar/render.rs\n");
 	out.push_str("---\n\n");
 	out.push_str("# External Memory Pattern Radar Summary\n\n");
 	out.push_str("Goal: Preserve the latest weekly ELF external memory pattern radar outcome.\n");

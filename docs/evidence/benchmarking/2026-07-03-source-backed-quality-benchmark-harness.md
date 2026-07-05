@@ -1,3 +1,37 @@
+---
+type: Evidence
+title: "Source-Backed Memory Quality Benchmark Harness"
+description: "Evidence report for the XY-1155 source-backed memory quality benchmark harness, gate metrics, and review result."
+resource: docs/evidence/benchmarking/2026-07-03-source-backed-quality-benchmark-harness.md
+status: active
+authority: evidence
+owner: benchmarking
+last_verified: 2026-07-03
+tags:
+  - docs
+  - evidence
+  - benchmarking
+  - source-backed-memory
+source_refs: []
+code_refs:
+  - Makefile.toml
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/source_backed_quality.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/markdown/source_backed_quality.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/source_backed_quality_reports.rs
+  - docs/spec/agent_memory_knowledge_system_v1.md
+  - docs/spec/real_world_agent_memory_benchmark_v1.md
+related:
+  - docs/evidence/benchmarking/2026-07-03-final-source-backed-project-memory-closeout-report.md
+  - docs/spec/agent_memory_knowledge_system_v1.md
+drift_watch:
+  - Makefile.toml
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/source_backed_quality.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/markdown/source_backed_quality.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/source_backed_quality_reports.rs
+  - docs/spec/agent_memory_knowledge_system_v1.md
+---
 # Source-Backed Memory Quality Benchmark Harness - July 3, 2026
 
 ## Purpose
