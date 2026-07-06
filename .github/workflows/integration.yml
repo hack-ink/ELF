@@ -72,12 +72,12 @@ jobs:
           rustflags: ''
 
       - name: Install nextest
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5
+        uses: taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3
         with:
           tool: nextest
 
       - name: Install cargo-make
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5
+        uses: taiki-e/install-action@4684b8405694ae9dd42c9f39ba901a70ae83f4a3
         with:
           tool: cargo-make
 
