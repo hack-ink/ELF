@@ -2,7 +2,7 @@ use std::fs;
 
 use color_eyre::Result;
 
-use crate::{support, trace_replay_reports::trace_replay_reports_source_scan};
+use crate::{support, trace_replay_reports::source_scan};
 
 #[test]
 fn graph_topic_map_report_wires_source_backed_graph_lite_readback() -> Result<()> {
@@ -10,10 +10,9 @@ fn graph_topic_map_report_wires_source_backed_graph_lite_readback() -> Result<()
 	let benchmarking_index = fs::read_to_string(support::benchmarking_index_path()?)?;
 	let readme = fs::read_to_string(support::readme_path()?)?;
 	let workspace = support::workspace_root()?;
-	let graph_report_service =
-		trace_replay_reports_source_scan::graph_report_service_sources(&workspace)?;
-	let api_routes = trace_replay_reports_source_scan::api_route_sources(&workspace)?;
-	let mcp_server = trace_replay_reports_source_scan::mcp_server_sources(&workspace)?;
+	let graph_report_service = source_scan::graph_report_service_sources(&workspace)?;
+	let api_routes = source_scan::api_route_sources(&workspace)?;
+	let mcp_server = source_scan::mcp_server_sources(&workspace)?;
 	let graph_spec = fs::read_to_string(
 		support::workspace_root()?.join("docs/spec/system_graph_memory_postgres_v1.md"),
 	)?;

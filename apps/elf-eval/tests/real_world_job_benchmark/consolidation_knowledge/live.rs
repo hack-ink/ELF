@@ -3,7 +3,7 @@ use std::fs;
 use color_eyre::Result;
 use serde_json::Value;
 
-use crate::{consolidation_knowledge::consolidation_knowledge_tests_helpers, support};
+use crate::{consolidation_knowledge::helpers, support};
 
 #[test]
 fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<()> {
@@ -25,8 +25,7 @@ fn live_consolidation_report_preserves_reviewable_output_boundaries() -> Result<
 	let makefile = support::make_task_catalog()?;
 	let live_script =
 		fs::read_to_string(workspace.join("scripts/real-world-consolidation-live-adapter.sh"))?;
-	let live_adapter =
-		consolidation_knowledge_tests_helpers::real_world_live_adapter_sources(&workspace)?;
+	let live_adapter = helpers::real_world_live_adapter_sources(&workspace)?;
 
 	assert_eq!(
 		report.pointer("/schema").and_then(Value::as_str),
@@ -140,8 +139,7 @@ fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
 	let docker_script = fs::read_to_string(workspace.join("scripts/real-world-docker.sh"))?;
 	let live_script =
 		fs::read_to_string(workspace.join("scripts/real-world-knowledge-live-adapter.sh"))?;
-	let live_adapter =
-		consolidation_knowledge_tests_helpers::real_world_live_adapter_sources(&workspace)?;
+	let live_adapter = helpers::real_world_live_adapter_sources(&workspace)?;
 	let knowledge_spec = fs::read_to_string(
 		workspace.join("docs").join("spec").join("system_knowledge_pages_v1.md"),
 	)?;
@@ -191,8 +189,7 @@ fn live_knowledge_page_rebuild_lint_has_dedicated_docker_task() -> Result<()> {
 	assert!(live_adapter.contains("KnowledgePageLintRequest"));
 	assert!(live_adapter.contains("KnowledgePageSearchRequest"));
 	assert!(
-		consolidation_knowledge_tests_helpers::real_world_job_benchmark_sources(&workspace)?
-			.contains("version_diff_coverage")
+		helpers::real_world_job_benchmark_sources(&workspace)?.contains("version_diff_coverage")
 	);
 	assert!(knowledge_spec.contains("elf.knowledge_page.version_diff/v1"));
 	assert!(

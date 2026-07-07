@@ -10,7 +10,7 @@ mod graph_ingestion;
 mod idempotency;
 mod knowledge_pages;
 mod memory_history;
-mod outbox_eventual_consistency;
+mod outbox_consistency;
 #[path = "suite/providers.rs"] mod providers;
 mod rebuild_qdrant;
 #[path = "suite/runtime.rs"] mod runtime;

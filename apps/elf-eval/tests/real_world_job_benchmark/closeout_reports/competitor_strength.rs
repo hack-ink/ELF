@@ -3,7 +3,7 @@ use std::fs;
 use color_eyre::Result;
 use serde_json::Value;
 
-use crate::{closeout_reports::closeout_reports_helpers, support};
+use crate::{closeout_reports::helpers, support};
 
 #[test]
 fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Result<()> {
@@ -93,7 +93,7 @@ fn p3_competitor_strength_absorption_report_preserves_claim_boundaries() -> Resu
 		assert_eq!(item.pointer("/queued_label_applied").and_then(Value::as_bool), Some(false));
 	}
 
-	closeout_reports_helpers::assert_product_queue_items_reference_queue(products, queue)?;
+	helpers::assert_product_queue_items_reference_queue(products, queue)?;
 
 	assert!(support::array_contains_str(
 		&report,

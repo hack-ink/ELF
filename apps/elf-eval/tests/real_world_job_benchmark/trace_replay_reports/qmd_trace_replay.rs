@@ -1,7 +1,7 @@
-mod trace_replay_adoption_json;
-mod trace_replay_diagnostics_json;
-mod trace_replay_markdown_assertions;
-mod trace_replay_viewer_boundaries;
+#[path = "qmd_trace_replay/adoption_json.rs"] mod adoption_json;
+#[path = "qmd_trace_replay/diagnostics_json.rs"] mod diagnostics_json;
+#[path = "qmd_trace_replay/markdown_assertions.rs"] mod markdown_assertions;
+#[path = "qmd_trace_replay/viewer_boundaries.rs"] mod viewer_boundaries;
 
 use std::fs;
 
@@ -23,8 +23,8 @@ fn qmd_trace_replay_diagnostics_report_preserves_claim_boundaries() -> Result<()
 		support::competitor_strength_adoption_report_json_path()?,
 	)?)?;
 
-	trace_replay_diagnostics_json::assert_trace_replay_diagnostics_json(&report)?;
-	trace_replay_markdown_assertions::assert_trace_replay_diagnostics_markdown(&markdown);
+	diagnostics_json::assert_trace_replay_diagnostics_json(&report)?;
+	markdown_assertions::assert_trace_replay_diagnostics_markdown(&markdown);
 
 	assert!(readme.contains("ELF/qmd Trace Replay Diagnostics Report - June 11, 2026"));
 	assert!(benchmarking_index.contains("2026-06-11-elf-qmd-trace-replay-diagnostics-report.md"));
@@ -34,7 +34,7 @@ fn qmd_trace_replay_diagnostics_report_preserves_claim_boundaries() -> Result<()
 	assert!(adoption_report.contains("Letta scenario rows remain"));
 	assert!(adoption_report.contains("blocked or `not_tested`"));
 
-	trace_replay_viewer_boundaries::assert_trace_replay_viewer_blocker_boundaries(
+	viewer_boundaries::assert_trace_replay_viewer_blocker_boundaries(
 		&readme,
 		&markdown,
 		&adoption_report,
@@ -54,7 +54,7 @@ fn qmd_trace_replay_diagnostics_report_preserves_claim_boundaries() -> Result<()
 		}
 	));
 
-	trace_replay_adoption_json::assert_trace_replay_adoption_json(&adoption_json)?;
+	adoption_json::assert_trace_replay_adoption_json(&adoption_json)?;
 
 	Ok(())
 }

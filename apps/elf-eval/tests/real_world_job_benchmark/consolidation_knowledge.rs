@@ -1,5 +1,5 @@
-pub(crate) mod consolidation_knowledge_tests_helpers;
+#[path = "consolidation_knowledge/helpers.rs"] pub(crate) mod helpers;
 
-mod consolidation_knowledge_tests_capture;
-mod consolidation_knowledge_tests_fixtures;
-mod consolidation_knowledge_tests_live;
+#[path = "consolidation_knowledge/capture.rs"] mod capture;
+#[path = "consolidation_knowledge/fixtures.rs"] mod fixtures;
+#[path = "consolidation_knowledge/live.rs"] mod live;

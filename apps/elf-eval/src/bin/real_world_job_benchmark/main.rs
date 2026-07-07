@@ -24,7 +24,6 @@ mod scoreboard;
 mod scoreboard_reports;
 mod scoring;
 mod source_backed_quality;
-mod source_backed_quality_reports;
 mod summary;
 mod summary_reports;
 mod validation;
@@ -110,10 +109,8 @@ use scoreboard_reports::{
 	ScoreboardRow,
 };
 use scoring::{job_report, score_job};
-use source_backed_quality::{source_backed_quality_report, validate_source_backed_quality_gate};
-use source_backed_quality_reports::{
-	SourceBackedContextPackDecisionCounts, SourceBackedQualityMetrics, SourceBackedQualityReport,
-	SourceBackedScenarioCoverage,
+pub(crate) use source_backed_quality::{
+	SourceBackedQualityReport, source_backed_quality_report, validate_source_backed_quality_gate,
 };
 use summary::{evolution_summary, follow_up_reports, report_summary, suite_reports};
 use summary_reports::{
