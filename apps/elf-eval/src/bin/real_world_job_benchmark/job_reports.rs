@@ -4,7 +4,6 @@ mod job_report_domain_metrics;
 mod job_report_evolution;
 mod job_report_misc;
 mod job_report_scoring;
-mod local_organizer_reports;
 
 pub(super) use self::{
 	consolidation_reports::{
@@ -21,5 +20,5 @@ pub(super) use self::{
 	job_report_evolution::{EvolutionJobReport, EvolutionSummary},
 	job_report_misc::{FollowUpReport, PrivateCorpusRedaction},
 	job_report_scoring::{FailureCounts, JobMetrics, JobScoring, ScoreboardRankedMetrics},
-	local_organizer_reports::LocalOrganizerJobReport,
 };
+pub(super) use crate::LocalOrganizerJobReport;
