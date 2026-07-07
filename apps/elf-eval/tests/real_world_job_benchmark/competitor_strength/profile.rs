@@ -1,7 +1,7 @@
-mod boundaries;
-mod openviking;
-mod qmd;
-mod summary_terms;
+#[path = "profile/boundaries.rs"] mod boundaries;
+#[path = "profile/openviking.rs"] mod openviking;
+#[path = "profile/qmd.rs"] mod qmd;
+#[path = "profile/summary_terms.rs"] mod summary_terms;
 
 use std::fs;
 
