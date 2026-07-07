@@ -28,6 +28,10 @@ mod summary;
 mod summary_reports;
 mod validation;
 
+pub(crate) use source_backed_quality::{
+	SourceBackedQualityReport, source_backed_quality_report, validate_source_backed_quality_gate,
+};
+
 use std::{
 	collections::{BTreeMap, BTreeSet},
 	fs,
@@ -109,9 +113,6 @@ use scoreboard_reports::{
 	ScoreboardRow,
 };
 use scoring::{job_report, score_job};
-pub(crate) use source_backed_quality::{
-	SourceBackedQualityReport, source_backed_quality_report, validate_source_backed_quality_gate,
-};
 use summary::{evolution_summary, follow_up_reports, report_summary, suite_reports};
 use summary_reports::{
 	ConsolidationSummaryReport, KnowledgeSummary, MemorySummaryReport, ProactiveBriefSummaryReport,
