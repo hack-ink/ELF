@@ -1,5 +1,5 @@
+#[path = "production_ops/failure_cases.rs"] mod failure_cases;
 mod production_ops_evidence;
-mod production_ops_failure_cases;
 mod production_ops_jobs;
 mod production_ops_summary;
 

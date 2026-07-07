@@ -1,12 +1,12 @@
-mod external_adapters_first_generation;
-mod external_adapters_fixture;
-mod external_adapters_graph_gates;
-mod external_adapters_letta;
-mod external_adapters_live_sweep;
-mod external_adapters_operator_debug;
+#[path = "external_adapters/first_generation.rs"] mod first_generation;
+#[path = "external_adapters/fixture.rs"] mod fixture;
+#[path = "external_adapters/graph_gates.rs"] mod graph_gates;
 mod graph_rag;
+#[path = "external_adapters/letta.rs"] mod letta;
+#[path = "external_adapters/live_sweep.rs"] mod live_sweep;
 mod loss_summary;
 mod manifest_summary;
+#[path = "external_adapters/operator_debug.rs"] mod operator_debug;
 mod validation;
 
 use color_eyre::Result;
@@ -51,7 +51,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		support::find_by_field(adapters, "/adapter_id", "openviking_deep_profile_gate")?;
 	let letta = support::find_by_field(adapters, "/adapter_id", "letta_research_gate")?;
 
-	external_adapters_fixture::assert_elf_fixture_adapter_record(elf)?;
+	fixture::assert_elf_fixture_adapter_record(elf)?;
 
 	assert_eq!(
 		elf_live.pointer("/evidence_class").and_then(Value::as_str),
@@ -59,8 +59,8 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	);
 	assert_eq!(elf_live.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 
-	external_adapters_live_sweep::assert_live_sweep_record(elf_live, "blocked")?;
-	external_adapters_operator_debug::assert_operator_debug_live_adapter_records(
+	live_sweep::assert_live_sweep_record(elf_live, "blocked")?;
+	operator_debug::assert_operator_debug_live_adapter_records(
 		elf_operator_debug,
 		qmd_operator_debug,
 	)?;
@@ -68,7 +68,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	assert_eq!(qmd.pointer("/overall_status").and_then(Value::as_str), Some("pass"));
 	assert_eq!(qmd.pointer("/suites/0/status").and_then(Value::as_str), Some("not_encoded"));
 
-	external_adapters_fixture::assert_qmd_live_baseline_record(qmd);
+	fixture::assert_qmd_live_baseline_record(qmd);
 
 	assert_eq!(
 		qmd_live.pointer("/evidence_class").and_then(Value::as_str),
@@ -76,14 +76,14 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 	);
 	assert_eq!(qmd_live.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 
-	external_adapters_live_sweep::assert_live_sweep_record(qmd_live, "blocked")?;
+	live_sweep::assert_live_sweep_record(qmd_live, "blocked")?;
 
 	assert_eq!(
 		agentmemory.pointer("/capabilities/1/status").and_then(Value::as_str),
 		Some("mocked")
 	);
 
-	external_adapters_first_generation::assert_first_generation_adapter_records(
+	first_generation::assert_first_generation_adapter_records(
 		agentmemory,
 		mem0,
 		memsearch,
@@ -92,10 +92,8 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 
 	assert_eq!(openviking.pointer("/overall_status").and_then(Value::as_str), Some("wrong_result"));
 
-	external_adapters_graph_gates::assert_graph_rag_research_gate_records(
-		ragflow, lightrag, graphrag,
-	);
-	external_adapters_graph_gates::assert_graphiti_zep_adapter(graphiti_zep);
+	graph_gates::assert_graph_rag_research_gate_records(ragflow, lightrag, graphrag);
+	graph_gates::assert_graphiti_zep_adapter(graphiti_zep);
 	graph_rag::assert_graphify_adapter(graphify)?;
 	graph_rag::assert_graph_rag_representative_scenarios(
 		ragflow,
@@ -104,8 +102,8 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		graphiti_zep,
 		graphify,
 	)?;
-	external_adapters_letta::assert_letta_core_archival_gate(letta)?;
-	external_adapters_fixture::assert_qmd_deep_profile_gate(qmd_deep);
+	letta::assert_letta_core_archival_gate(letta)?;
+	fixture::assert_qmd_deep_profile_gate(qmd_deep);
 
 	assert_eq!(
 		qmd_deep.pointer("/capabilities/2/status").and_then(Value::as_str),
@@ -120,7 +118,7 @@ fn assert_external_adapter_manifest_records(report: &Value) -> Result<()> {
 		Some("docker_local_embed_context_trajectory_gate")
 	);
 
-	external_adapters_fixture::assert_openviking_deep_profile_gate(openviking_deep);
+	fixture::assert_openviking_deep_profile_gate(openviking_deep);
 
 	assert_eq!(
 		openviking_deep.pointer("/result/artifact").and_then(Value::as_str),

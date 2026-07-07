@@ -1,2 +1,2 @@
 mod competitor_strength_live;
-mod competitor_strength_profile;
+#[path = "competitor_strength/profile.rs"] mod profile;

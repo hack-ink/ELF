@@ -1,7 +1,12 @@
-use crate::{
-	BTreeSet, JobReport, RealWorldJob, ReportSummary, ScoreboardReport,
+mod reports;
+
+pub(super) use reports::{
 	SourceBackedContextPackDecisionCounts, SourceBackedQualityMetrics, SourceBackedQualityReport,
-	SourceBackedScenarioCoverage, TypedStatus, formatting,
+	SourceBackedScenarioCoverage,
+};
+
+use crate::{
+	BTreeSet, JobReport, RealWorldJob, ReportSummary, ScoreboardReport, TypedStatus, formatting,
 };
 
 const SOURCE_BACKED_QUALITY_SCHEMA: &str = "elf.source_backed_memory_quality_benchmark/v1";
