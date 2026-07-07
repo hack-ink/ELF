@@ -1,4 +1,4 @@
-mod dreaming_readback_artifacts;
+mod artifacts;
 
 use crate::{
 	AGENT_ID, DreamingReadbackMaterializationEvidence, DreamingReadbackOutput, ElfService,
@@ -85,10 +85,10 @@ pub(super) async fn materialize_elf_dreaming_readback(
 
 	let generated_at = OffsetDateTime::now_utc().format(&Rfc3339)?;
 	let service_evidence_ids = service_readback_evidence_ids(service, project_id).await?;
-	let mut artifacts = dreaming_readback_artifacts::dreaming_readback_template_artifacts(loaded)?;
+	let mut artifacts = artifacts::dreaming_readback_template_artifacts(loaded)?;
 
 	for artifact in &mut artifacts {
-		dreaming_readback_artifacts::stamp_dreaming_readback_artifact(
+		artifacts::stamp_dreaming_readback_artifact(
 			artifact,
 			loaded,
 			project_id,
@@ -100,10 +100,7 @@ pub(super) async fn materialize_elf_dreaming_readback(
 	let mut artifact_source_refs = Vec::new();
 
 	for artifact in &artifacts {
-		dreaming_readback_artifacts::collect_dreaming_artifact_source_refs(
-			artifact,
-			&mut artifact_source_refs,
-		);
+		artifacts::collect_dreaming_artifact_source_refs(artifact, &mut artifact_source_refs);
 	}
 
 	artifact_source_refs.sort();
@@ -119,10 +116,8 @@ pub(super) async fn materialize_elf_dreaming_readback(
 		.filter(|source_ref| service_evidence_ids.contains(*source_ref))
 		.cloned()
 		.collect::<Vec<_>>();
-	let scoring_evidence_ids = dreaming_readback_artifacts::dreaming_readback_scoring_evidence_ids(
-		loaded,
-		&service_evidence_ids,
-	);
+	let scoring_evidence_ids =
+		artifacts::dreaming_readback_scoring_evidence_ids(loaded, &service_evidence_ids);
 	let artifact_kind = match loaded.job.suite.as_str() {
 		"memory_summary" => "elf.memory_summary/v1",
 		"proactive_brief" => "elf.proactive_project_brief/v1",
@@ -141,12 +136,8 @@ pub(super) async fn materialize_elf_dreaming_readback(
 		source_mutation_count: 0,
 		no_source_mutation_checked: true,
 	};
-	let trace_stages =
-		dreaming_readback_artifacts::dreaming_readback_trace_stages(loaded, &materialization);
-	let content = dreaming_readback_artifacts::dreaming_readback_content(
-		loaded.job.suite.as_str(),
-		&artifacts,
-	);
+	let trace_stages = artifacts::dreaming_readback_trace_stages(loaded, &materialization);
+	let content = artifacts::dreaming_readback_content(loaded.job.suite.as_str(), &artifacts);
 	let (memory_summaries, proactive_briefs, scheduled_tasks) = match loaded.job.suite.as_str() {
 		"memory_summary" => (artifacts, Vec::new(), Vec::new()),
 		"proactive_brief" => (Vec::new(), artifacts, Vec::new()),

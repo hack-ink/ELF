@@ -3,7 +3,7 @@ use std::fs;
 use color_eyre::Result;
 use serde_json::Value;
 
-use crate::{closeout_reports::closeout_reports_helpers, support};
+use crate::{closeout_reports::helpers, support};
 
 #[test]
 fn graph_rag_citation_navigation_promotion_preserves_typed_non_passes() -> Result<()> {
@@ -109,14 +109,10 @@ fn graph_rag_adapter_matrix_report_preserves_no_parity_claims() -> Result<()> {
 	);
 
 	let rows = support::array_at(&report, "/adapter_matrix")?;
-	let ragflow_citation =
-		closeout_reports_helpers::find_matrix_row(rows, "RAGFlow", "citation_quality")?;
-	let lightrag_retrieval =
-		closeout_reports_helpers::find_matrix_row(rows, "LightRAG", "retrieval_quality")?;
-	let graphrag_navigation =
-		closeout_reports_helpers::find_matrix_row(rows, "GraphRAG", "navigation_quality")?;
-	let graphrag_retrieval =
-		closeout_reports_helpers::find_matrix_row(rows, "GraphRAG", "retrieval_quality")?;
+	let ragflow_citation = helpers::find_matrix_row(rows, "RAGFlow", "citation_quality")?;
+	let lightrag_retrieval = helpers::find_matrix_row(rows, "LightRAG", "retrieval_quality")?;
+	let graphrag_navigation = helpers::find_matrix_row(rows, "GraphRAG", "navigation_quality")?;
+	let graphrag_retrieval = helpers::find_matrix_row(rows, "GraphRAG", "retrieval_quality")?;
 
 	assert_eq!(ragflow_citation.pointer("/status").and_then(Value::as_str), Some("blocked"));
 	assert_eq!(lightrag_retrieval.pointer("/status").and_then(Value::as_str), Some("incomplete"));
