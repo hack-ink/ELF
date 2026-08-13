@@ -306,7 +306,9 @@ def _answer_scores(qrels: dict[str, Any], raw_answer: Any) -> tuple[Any, Any, li
         if _normalized_text(str(fact)) in normalized
     ]
     if qrels.get("expect_unsupported"):
-        unsupported_error = raw_answer.get("supported") is not False
+        unsupported_error = (
+            raw_answer.get("supported") is not False or normalized != "unknown"
+        )
         return float(not unsupported_error), float(unsupported_error), forbidden
     facts = [str(fact) for fact in qrels.get("answer_facts") or []]
     correct = bool(facts) and all(_normalized_text(fact) in normalized for fact in facts)

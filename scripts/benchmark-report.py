@@ -65,6 +65,25 @@ def metrics(result: dict[str, Any]) -> dict[str, Any]:
     return warm(result).get("metrics") or {}
 
 
+def decision_metric(result: dict[str, Any], name: str) -> Any:
+    value = metrics(result).get(name)
+    if (
+        name
+        in {
+            "forbidden_or_stale_evidence_hit_rate",
+            "privacy_scope_violation_rate",
+        }
+        and metrics(result).get("mean_recall_at_5") == 0
+    ):
+        return None
+    return value
+
+
+def retrieval_effective(result: dict[str, Any]) -> bool:
+    value = metrics(result).get("mean_recall_at_5")
+    return isinstance(value, (int, float)) and value > 0
+
+
 def count_text(phase: dict[str, Any]) -> str:
     counts = phase["counts"]
     return "/".join(
@@ -120,9 +139,9 @@ def metric_leaders(
     output: list[str] = []
     for name in metric_names:
         measured = [
-            (row["target"], metrics(row).get(name))
+            (row["target"], decision_metric(row, name))
             for row in completed
-            if metrics(row).get(name) is not None
+            if decision_metric(row, name) is not None
         ]
         if not measured:
             continue
@@ -243,8 +262,9 @@ def product_observations(bundle: dict[str, Any]) -> list[str]:
         for _, row in attempts:
             if not comparable([row]):
                 continue
-            for name, value in metrics(row).items():
-                if name in METRIC_NAMES and isinstance(value, (int, float)) and name != "mean_query_latency_ms":
+            for name in METRIC_NAMES:
+                value = decision_metric(row, name)
+                if isinstance(value, (int, float)) and name != "mean_query_latency_ms":
                     desirable = 1.0 - float(value) if name in LOWER_IS_BETTER else float(value)
                     measured.append((name, desirable))
         details: list[str] = []
@@ -261,6 +281,22 @@ def product_observations(bundle: dict[str, Any]) -> list[str]:
             details.insert(0, f"完成 {', '.join(completed)}")
         if failed:
             details.append(f"失败或不可比：{', '.join(failed)}")
+        performance = []
+        for suite_id, row in attempts:
+            if not comparable([row]):
+                continue
+            performance.append(
+                f"{suite_id} ingest {fmt(row['evaluation'].get('cold_ingest_duration_ms'), 1)} ms / warm {fmt(metrics(row).get('mean_query_latency_ms'), 1)} ms"
+            )
+            if (
+                metrics(row).get("mean_recall_at_5") == 0
+                and metrics(row).get("forbidden_or_stale_evidence_hit_rate") == 0
+            ):
+                details.append(
+                    f"{suite_id} 的零陈旧命中与零召回同时出现，不构成陈旧抑制强项"
+                )
+        if performance:
+            details.append("性能：" + "；".join(performance))
         if not attempts:
             details.append(
                 "没有可比 completed 质量行，不能从未计分单元形成实测强弱结论"
@@ -312,6 +348,49 @@ def elf_unscored_units(bundle: dict[str, Any]) -> list[tuple[str, str]]:
     return output
 
 
+def performance_regression_jobs(
+    bundle: dict[str, Any], multiplier: float = 10.0
+) -> set[str]:
+    output: set[str] = set()
+    for suite_id, suite in bundle["suite_results"].items():
+        elf = next(
+            (
+                row
+                for row in suite["results"]
+                if row["target"] == "elf" and comparable([row])
+            ),
+            None,
+        )
+        competitors = [
+            row
+            for row in comparable(suite["results"])
+            if row["target"] != "elf" and retrieval_effective(row)
+        ]
+        if elf is None or not competitors:
+            continue
+        competitor_latency: dict[str, list[float]] = defaultdict(list)
+        for row in competitors:
+            for job in warm(row).get("jobs") or []:
+                value = job.get("latency_ms")
+                if (
+                    job.get("classification") == "completed"
+                    and isinstance(value, (int, float))
+                    and value > 0
+                ):
+                    competitor_latency[job["job_id"]].append(float(value))
+        for job in warm(elf).get("jobs") or []:
+            value = job.get("latency_ms")
+            baselines = competitor_latency.get(job.get("job_id")) or []
+            if (
+                job.get("classification") == "completed"
+                and isinstance(value, (int, float))
+                and baselines
+                and float(value) > multiplier * min(baselines)
+            ):
+                output.add(f"{suite_id}/{job['job_id']}")
+    return output
+
+
 def elf_job_summary(bundle: dict[str, Any]) -> list[str]:
     measured = [
         (suite, job, job_desirability(job))
@@ -356,14 +435,17 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
         identity = f"{suite_id}/{job['job_id']}"
         if isinstance(job.get("recall_at_5"), (int, float)) and job["recall_at_5"] < 1:
             categories["retrieval"].add(identity)
-        if job.get("forbidden_evidence_hits") or job.get("privacy_scope_violation") == 1:
-            categories["stale_scope"].add(identity)
+        if job.get("forbidden_evidence_hits"):
+            categories["stale"].add(identity)
+        if job.get("privacy_scope_violation") == 1:
+            categories["privacy"].add(identity)
         if isinstance(job.get("source_trace_rate"), (int, float)) and job["source_trace_rate"] < 1:
             categories["trace"].add(identity)
         if job.get("answer_correct") == 0 or job.get("unsupported_answer_error") == 1:
             categories["answer"].add(identity)
         if job.get("native_update_success") == 0 or job.get("native_delete_success") == 0:
             categories["lifecycle"].add(identity)
+    categories["performance"].update(performance_regression_jobs(bundle))
 
     definitions = [
         (
@@ -372,6 +454,8 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
             "运行或配置边界在检索前失败；需用 raw trace 定位，当前只作为待证假设。",
             "修复具体失败边界，不改变 suite 或评分器。",
             "完成任务数与 typed failure 数",
+            "失败 jobs",
+            "固定复跑这些相同 suite/job。",
         ),
         (
             "retrieval",
@@ -379,13 +463,26 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
             "候选生成、分块或 scope routing 未把期望证据带入 top-5；需从 trace 验证。",
             "优先调候选召回、分块和范围激活，再评估 rerank。",
             "Recall@5、nDCG@5",
+            "失败 jobs",
+            "固定复跑这些相同 suite/job。",
         ),
         (
-            "stale_scope",
-            "强化陈旧抑制与隐私范围",
-            "生命周期状态或 scope filter 未在检索前稳定生效；需从命中证据验证。",
-            "把 supersession、delete 与 scope 状态作为硬过滤，并保留审计原因。",
-            "禁用/陈旧证据命中率、隐私越界率",
+            "stale",
+            "强化陈旧证据抑制",
+            "当前与陈旧证据同时进入候选或最终 top-5；需从命中 trace 验证过滤边界。",
+            "把 supersession 与当前状态作为检索硬过滤，并保留审计原因。",
+            "禁用/陈旧证据命中率",
+            "失败 jobs",
+            "固定复跑这些相同 suite/job。",
+        ),
+        (
+            "privacy",
+            "修复隐私范围隔离",
+            "scope filter 未在检索前稳定生效；需从越界命中 trace 验证。",
+            "把私有范围作为候选生成前的硬过滤，并记录拒绝原因。",
+            "隐私越界率",
+            "失败 jobs",
+            "固定复跑这些相同 suite/job。",
         ),
         (
             "trace",
@@ -393,13 +490,26 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
             "原生结果没有全部映射回稳定 source_ref。",
             "让每个候选和最终证据都携带不可推断的原生 source_ref。",
             "来源可追溯率",
+            "失败 jobs",
+            "固定复跑这些相同 suite/job。",
+        ),
+        (
+            "performance",
+            "缩短检索与摄取关键路径",
+            "这些 job 的 ELF warm 延迟超过同 job 最快非 ELF 完成行的 10 倍；聚合表还显示 cold ingest 存在数量级差距。",
+            "先用现有 trace 分解 embedding、存储、候选生成与 rerank 时间，再只优化主导阶段。",
+            "warm 查询延迟、cold ingest duration；Recall@5、nDCG@5 与来源追溯率作为质量护栏",
+            "触发 10× 同 job 延迟阈值的 jobs",
+            "固定复跑这些相同 suite/job；warm 延迟不再超过本次最快非 ELF 基线 10 倍，且质量护栏不得下降。",
         ),
         (
             "answer",
             "收紧证据绑定回答与拒答",
-            "共享回答器看到的检索上下文缺少关键事实或包含冲突事实。",
-            "在回答前校验来源充分性、冲突和 forbidden 状态；不足时明确拒答。",
+            "经非空/unknown 合同验证后的共享回答仍缺少必需事实或包含冲突事实；需结合已保留的 raw chat response 与 native context 定位。",
+            "在回答前校验来源充分性、冲突和 forbidden 状态；不足时明确拒答，不把 provider 合同失败归因给 ELF。",
             "答案正确率、无依据仍作答率",
+            "失败 jobs",
+            "固定复跑这些相同 suite/job。",
         ),
         (
             "lifecycle",
@@ -407,16 +517,18 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
             "原生 mutation receipt 或后续可见性检查失败。",
             "修复 update/delete、异步索引与 read-after-write 状态闭环。",
             "原生更新成功率、原生删除成功率",
+            "失败 jobs",
+            "固定复跑这些相同 suite/job。",
         ),
     ]
     actions: list[str] = []
-    for key, title, cause, change, expected in definitions:
+    for key, title, cause, change, expected, job_label, regression_text in definitions:
         jobs = sorted(categories.get(key) or [])
         if not jobs:
             continue
-        regression = ", ".join(f"`{job}`" for job in jobs[:8])
+        regression = ", ".join(f"`{job}`" for job in jobs)
         actions.append(
-            f"{len(actions) + 1}. **{title}** — 失败 jobs：{regression}。可能原因：{cause} 建议变更：{change} 期望指标：{expected}。回归：固定复跑这些相同 suite/job。"
+            f"{len(actions) + 1}. **{title}** — {job_label}（{len(jobs)}）：{regression}。可能原因：{cause} 建议变更：{change} 期望指标：{expected}。回归：{regression_text}"
         )
         if len(actions) == 5:
             break
@@ -458,6 +570,184 @@ def provider_usage(bundle: dict[str, Any]) -> Counter[str]:
                     if isinstance(value, int):
                         usage[name] += value
     return usage
+
+
+def quality_anchor(rows: list[dict[str, Any]]) -> list[str]:
+    candidates = comparable(rows)
+    for name in ("mean_recall_at_5", "mean_ndcg_at_5"):
+        measured = [
+            row
+            for row in candidates
+            if isinstance(decision_metric(row, name), (int, float))
+        ]
+        if not measured:
+            continue
+        best = max(float(decision_metric(row, name)) for row in measured)
+        candidates = [
+            row for row in measured if float(decision_metric(row, name)) == best
+        ]
+    return sorted(row["target"] for row in candidates)
+
+
+def fastest_targets(
+    rows: list[dict[str, Any]], field: str
+) -> tuple[list[str], float | None]:
+    measured: list[tuple[str, float]] = []
+    for row in comparable(rows):
+        value = (
+            row["evaluation"].get("cold_ingest_duration_ms")
+            if field == "ingest"
+            else metrics(row).get("mean_query_latency_ms")
+        )
+        if isinstance(value, (int, float)):
+            measured.append((row["target"], float(value)))
+    if not measured:
+        return [], None
+    best = min(value for _, value in measured)
+    return sorted(target for target, value in measured if value == best), best
+
+
+def suite_performance_disposition(
+    suite_id: str, rows: list[dict[str, Any]]
+) -> str | None:
+    elf = next(
+        (row for row in rows if row["target"] == "elf" and comparable([row])), None
+    )
+    competitors = [
+        row
+        for row in comparable(rows)
+        if row["target"] != "elf" and retrieval_effective(row)
+    ]
+    if elf is None or not competitors:
+        return None
+    ingest_values = [
+        float(row["evaluation"]["cold_ingest_duration_ms"])
+        for row in competitors
+        if isinstance(row["evaluation"].get("cold_ingest_duration_ms"), (int, float))
+        and row["evaluation"]["cold_ingest_duration_ms"] > 0
+    ]
+    latency_values = [
+        float(metrics(row)["mean_query_latency_ms"])
+        for row in competitors
+        if isinstance(metrics(row).get("mean_query_latency_ms"), (int, float))
+        and metrics(row)["mean_query_latency_ms"] > 0
+    ]
+    elf_ingest = elf["evaluation"].get("cold_ingest_duration_ms")
+    elf_latency = metrics(elf).get("mean_query_latency_ms")
+    details = []
+    if isinstance(elf_ingest, (int, float)) and ingest_values:
+        details.append(f"ingest 为最快非 ELF 的 {float(elf_ingest) / min(ingest_values):.1f}×")
+    if isinstance(elf_latency, (int, float)) and latency_values:
+        details.append(f"warm 为最快非 ELF 的 {float(elf_latency) / min(latency_values):.1f}×")
+    if not details:
+        return None
+    return f"{suite_id}：" + "，".join(details)
+
+
+def five_decisions(bundle: dict[str, Any]) -> list[str]:
+    suites = bundle.get("suite_results") or {}
+    common_rows = (suites.get("common-core-v1") or {}).get("results") or []
+    repository_rows = (suites.get("repository-knowledge-v1") or {}).get("results") or []
+    memory_rows = (suites.get("memory-lifecycle-v1") or {}).get("results") or []
+    knowledge_rows = (suites.get("knowledge-structure-v1") or {}).get("results") or []
+
+    common_elf = next(
+        (row for row in common_rows if row["target"] == "elf" and comparable([row])),
+        None,
+    )
+    non_elf_anchor = quality_anchor(
+        [row for row in common_rows if row["target"] != "elf"]
+    )
+    source_parts = []
+    if common_elf is not None:
+        source_parts.append(
+            "Common Core 的 ELF Recall@5/nDCG@5/来源追溯为 "
+            f"{fmt(metrics(common_elf).get('mean_recall_at_5'))}/"
+            f"{fmt(metrics(common_elf).get('mean_ndcg_at_5'))}/"
+            f"{fmt(metrics(common_elf).get('source_or_citation_trace_rate'))}"
+        )
+    if non_elf_anchor:
+        source_parts.append(
+            "非 ELF 质量锚点（先 Recall、再 nDCG）为 " + ", ".join(non_elf_anchor)
+        )
+    repository_elf = next(
+        (
+            row
+            for row in repository_rows
+            if row["target"] == "elf" and comparable([row])
+        ),
+        None,
+    )
+    if repository_elf is not None:
+        source_parts.append(
+            "Repository Knowledge 的 ELF Recall@5/nDCG@5 为 "
+            f"{fmt(metrics(repository_elf).get('mean_recall_at_5'))}/"
+            f"{fmt(metrics(repository_elf).get('mean_ndcg_at_5'))}"
+        )
+
+    lifecycle_parts = []
+    for row in comparable(memory_rows):
+        value = metrics(row)
+        lifecycle_parts.append(
+            f"{row['target']} update/delete/stale/privacy="
+            f"{fmt(value.get('native_correction_and_update_success'))}/"
+            f"{fmt(value.get('native_deletion_or_forgetting_success'))}/"
+            f"{fmt(value.get('forbidden_or_stale_evidence_hit_rate'))}/"
+            f"{fmt(value.get('privacy_scope_violation_rate'))}，warm {fmt(value.get('mean_query_latency_ms'), 1)} ms"
+        )
+
+    knowledge_anchor = quality_anchor(knowledge_rows)
+    trace_parts = []
+    if knowledge_anchor:
+        trace_parts.append("Knowledge Structure 质量锚点为 " + ", ".join(knowledge_anchor))
+    knowledge_elf = next(
+        (row for row in knowledge_rows if row["target"] == "elf" and comparable([row])),
+        None,
+    )
+    if knowledge_elf is not None:
+        value = metrics(knowledge_elf)
+        trace_parts.append(
+            "ELF 来源追溯/无依据作答率="
+            f"{fmt(value.get('source_or_citation_trace_rate'))}/"
+            f"{fmt(value.get('unsupported_answer_rate'))}"
+        )
+
+    capability_parts = []
+    performance_parts = []
+    for suite_id, suite in suites.items():
+        rows = suite.get("results") or []
+        quality = quality_anchor(rows)
+        ingest_targets, ingest_value = fastest_targets(rows, "ingest")
+        warm_targets, warm_value = fastest_targets(rows, "warm")
+        capability_parts.append(
+            f"{suite_id} 质量锚点={', '.join(quality) or '无'}；"
+            f"ingest 最快={', '.join(ingest_targets) or '无'}({fmt(ingest_value, 1)} ms)；"
+            f"warm 最快={', '.join(warm_targets) or '无'}({fmt(warm_value, 1)} ms)"
+        )
+        disposition = suite_performance_disposition(suite_id, rows)
+        if disposition:
+            performance_parts.append(disposition)
+
+    actions = roadmap(bundle)
+    action_titles = [
+        line.split("**", 2)[1] for line in actions if line.count("**") >= 2
+    ]
+    return [
+        "1. **来源支持的检索比较** — " + "；".join(source_parts) + "。",
+        "2. **时序、纠正、删除、范围与连续性** — "
+        + ("；".join(lifecycle_parts) or "没有足够的 completed 生命周期行")
+        + "。",
+        "3. **来源、引用、拒答与组织可靠性** — "
+        + ("；".join(trace_parts) or "没有足够的 completed 知识结构行")
+        + "。",
+        "4. **各能力最强证据与性能权衡** — 不合成总分；质量锚点只先比较 Recall@5、再比较 nDCG@5；性能最快项必须与同段质量锚点一起读，零召回不算质量强项。"
+        + "；".join(capability_parts)
+        + ("。ELF 性能处置：" + "；".join(performance_parts) if performance_parts else "")
+        + "。",
+        "5. **ELF 先改什么** — "
+        + (" → ".join(action_titles) if action_titles else "没有可归因的产品改动")
+        + "；完整失败 job、原因、变更、指标和回归条件见“ELF 优化顺序”。",
+    ]
 
 
 def publish(bundle: dict[str, Any]) -> str:
@@ -508,6 +798,11 @@ def publish(bundle: dict[str, Any]) -> str:
         [
             "",
             "这些结论按具体指标报告；指标领跑者不一致时不合成全局分数，也不制造单一赢家。",
+            "零召回时的零陈旧命中只表示没有检索结果，不作为陈旧抑制强项。",
+            "",
+            "## 五项产品决策",
+            "",
+            *five_decisions(bundle),
         ]
     )
     for suite_id, suite in bundle.get("suite_results", {}).items():
@@ -551,6 +846,7 @@ def publish(bundle: dict[str, Any]) -> str:
             "## 可复现性与限制",
             "",
             "- 每个 `{suite,target}` 使用独立 Compose project；并发上限为 2；cleanup 结果见覆盖表。",
+            "- 共享回答必须返回非空事实文本或精确的 `unknown`；原始 chat response 保存在对应 raw unit 中，评分器再做确定性事实校验。",
             f"- Image digests：`{json.dumps(bundle.get('target_image_digests') or {}, sort_keys=True)}`。",
             f"- Product pins：`{json.dumps(bundle.get('target_pins') or {}, sort_keys=True)}`。",
             "- Common Core 使用 job-level 正态近似 95% CI；样本只代表冻结 suite，是内部描述性证据。",

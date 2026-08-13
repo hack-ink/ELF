@@ -264,6 +264,101 @@ class BenchmarkContractTests(unittest.TestCase):
         stale = "\n".join(answer_cases(suite, unit, 12000)[0]["context"])
         self.assertNotIn(replacement, stale)
 
+    def test_shared_answer_requires_nonempty_text_and_preserves_raw_response(self) -> None:
+        suite = self.subset("common-core-v1")
+        case_id = opaque_job_id(suite["jobs"][0]["job_id"])
+        unit = self.completed_unit("elf", suite)
+        native = {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "answers": [
+                                    {
+                                        "case_id": case_id,
+                                        "text": "supported fact",
+                                        "supported": True,
+                                    }
+                                ]
+                            }
+                        )
+                    }
+                }
+            ],
+            "usage": {"total_tokens": 10},
+        }
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = json.dumps(native).encode()
+        env = {
+            "BENCHMARK_CHAT_API_BASE": "https://provider.test/v1",
+            "BENCHMARK_CHAT_MODEL": "model",
+            "BENCHMARK_CHAT_REASONING_EFFORT": "high",
+            "BENCHMARK_CHAT_API_KEY": "protected",
+        }
+        with mock.patch.object(
+            RUNNER.urllib.request, "urlopen", return_value=response
+        ) as urlopen:
+            attached = RUNNER.attach_shared_answers(suite, unit, env, 12000)
+        request_body = json.loads(urlopen.call_args.args[0].data)
+        prompt = json.loads(request_body["messages"][0]["content"])
+        self.assertIn("must never be empty", prompt["instruction"])
+        self.assertEqual(attached["provider_raw"]["shared_answer"], native)
+        self.assertEqual(
+            attached["phases"]["warm"]["jobs"][0]["answer"]["text"],
+            "supported fact",
+        )
+
+        invalid_native = copy.deepcopy(native)
+        invalid_native["choices"][0]["message"]["content"] = json.dumps(
+            {
+                "answers": [
+                    {"case_id": case_id, "text": "", "supported": True}
+                ]
+            }
+        )
+        invalid_response = mock.MagicMock()
+        invalid_response.__enter__.return_value.read.return_value = json.dumps(
+            invalid_native
+        ).encode()
+        with mock.patch.object(
+            RUNNER.urllib.request, "urlopen", return_value=invalid_response
+        ):
+            failed = RUNNER.attach_shared_answers(
+                suite, self.completed_unit("elf", suite), env, 12000
+            )
+        self.assertEqual(failed["result_class"], "provider_failed")
+        self.assertIn("empty text", failed["failure"]["message"])
+        self.assertEqual(failed["provider_raw"]["shared_answer"], invalid_native)
+
+    def test_unsupported_answer_requires_unknown_text(self) -> None:
+        suite = copy.deepcopy(self.suites["common-core-v1"])
+        suite["jobs"] = [
+            next(
+                job
+                for job in suite["jobs"]
+                if job["qrels"].get("expect_unsupported")
+            )
+        ]
+        suite["execution_mode"] = "readiness"
+        unit = self.completed_unit("elf", suite)
+        valid = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertEqual(valid["phases"]["warm"]["jobs"][0]["answer_correct"], 1.0)
+        self.assertEqual(
+            valid["phases"]["warm"]["jobs"][0]["unsupported_answer_error"],
+            0.0,
+        )
+
+        unit["phases"]["warm"]["jobs"][0]["answer"]["text"] = ""
+        invalid = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertEqual(
+            invalid["phases"]["warm"]["jobs"][0]["answer_correct"], 0.0
+        )
+        self.assertEqual(
+            invalid["phases"]["warm"]["jobs"][0]["unsupported_answer_error"],
+            1.0,
+        )
+
     def test_native_update_score_requires_receipt_and_post_update_readback(self) -> None:
         suite = self.subset("memory-lifecycle-v1")
         unit = self.completed_unit("elf", suite)
@@ -418,7 +513,13 @@ class BenchmarkContractTests(unittest.TestCase):
             "suite_results": {"common-core-v1": {"results": [row]}},
         }
         report = REPORT.publish(bundle)
-        for heading in ("决策摘要", "覆盖与失败", "逐产品实测强弱", "ELF 优化顺序"):
+        for heading in (
+            "决策摘要",
+            "五项产品决策",
+            "覆盖与失败",
+            "逐产品实测强弱",
+            "ELF 优化顺序",
+        ):
             self.assertIn(heading, report)
         self.assertIn(
             "The pinned revision constructs a hierarchy but exposes no native ranked retrieval operation.",
@@ -451,6 +552,110 @@ class BenchmarkContractTests(unittest.TestCase):
         observations = "\n".join(REPORT.product_observations(bundle))
         self.assertIn("不能从未计分单元形成实测强弱结论", observations)
         self.assertNotIn("memory-lifecycle-v1:adapter_failed", observations)
+
+    def test_zero_retrieval_does_not_become_stale_suppression_strength(self) -> None:
+        suite = self.subset("common-core-v1")
+        elf = {
+            "target": "elf",
+            "evaluation": evaluate_unit(
+                suite, self.completed_unit("elf", suite), self.targets["elf"]
+            ),
+            "cleanup": {"passed": True},
+        }
+        qmd = {
+            "target": "qmd",
+            "evaluation": evaluate_unit(
+                suite, self.completed_unit("qmd", suite), self.targets["qmd"]
+            ),
+            "cleanup": {"passed": True},
+        }
+        qmd_metrics = qmd["evaluation"]["phases"]["warm"]["metrics"]
+        qmd_metrics["mean_recall_at_5"] = 0.0
+        qmd_metrics["mean_ndcg_at_5"] = 0.0
+        qmd_metrics["forbidden_or_stale_evidence_hit_rate"] = 0.0
+        qmd_metrics["privacy_scope_violation_rate"] = 0.0
+        qmd_metrics["source_or_citation_trace_rate"] = None
+        leaders = "\n".join(
+            REPORT.metric_leaders(
+                [elf, qmd],
+                [
+                    "forbidden_or_stale_evidence_hit_rate",
+                    "privacy_scope_violation_rate",
+                ],
+            )
+        )
+        self.assertNotIn("qmd", leaders)
+        bundle = {
+            "target_pins": {"elf": {}, "qmd": {}},
+            "suite_results": {"common-core-v1": {"results": [elf, qmd]}},
+        }
+        observations = "\n".join(REPORT.product_observations(bundle))
+        self.assertIn("零陈旧命中与零召回同时出现", observations)
+        qmd_line = next(line for line in observations.splitlines() if "**qmd**" in line)
+        self.assertNotIn("陈旧证据命中率（方向化值 1.000）", qmd_line)
+
+    def test_roadmap_lists_all_failures_and_separates_privacy(self) -> None:
+        suite = self.subset("common-core-v1", 10)
+        evaluation = evaluate_unit(
+            suite, self.completed_unit("elf", suite), self.targets["elf"]
+        )
+        for job in evaluation["phases"]["warm"]["jobs"]:
+            job["forbidden_evidence_hits"] = ["stale"]
+            job["privacy_scope_violation"] = 0.0
+            job["answer_correct"] = 1.0
+        bundle = {
+            "target_pins": {"elf": {}},
+            "suite_results": {
+                "common-core-v1": {
+                    "results": [
+                        {
+                            "target": "elf",
+                            "evaluation": evaluation,
+                            "cleanup": {"passed": True},
+                        }
+                    ]
+                }
+            },
+        }
+        roadmap = "\n".join(REPORT.roadmap(bundle))
+        self.assertIn("强化陈旧证据抑制", roadmap)
+        self.assertIn("失败 jobs（10）", roadmap)
+        self.assertNotIn("修复隐私范围隔离", roadmap)
+        for job in suite["jobs"]:
+            self.assertIn(job["job_id"], roadmap)
+
+    def test_decisions_disclose_performance_and_add_thresholded_action(self) -> None:
+        suite = self.subset("common-core-v1", 2)
+        rows = []
+        for target, latency, ingest in (("elf", 100.0, 1000.0), ("sag", 5.0, 10.0)):
+            evaluation = evaluate_unit(
+                suite, self.completed_unit(target, suite), self.targets[target]
+            )
+            evaluation["cold_ingest_duration_ms"] = ingest
+            evaluation["phases"]["warm"]["metrics"]["mean_query_latency_ms"] = latency
+            for job in evaluation["phases"]["warm"]["jobs"]:
+                job["latency_ms"] = latency
+                job["answer_correct"] = 1.0
+                job["forbidden_evidence_hits"] = []
+            rows.append(
+                {
+                    "target": target,
+                    "evaluation": evaluation,
+                    "cleanup": {"passed": True},
+                }
+            )
+        bundle = {
+            "target_pins": {"elf": {}, "sag": {}},
+            "suite_results": {"common-core-v1": {"results": rows}},
+        }
+        decisions = "\n".join(REPORT.five_decisions(bundle))
+        roadmap = "\n".join(REPORT.roadmap(bundle))
+        self.assertIn("ELF 性能处置", decisions)
+        self.assertIn("warm 为最快非 ELF 的 20.0×", decisions)
+        self.assertIn("缩短检索与摄取关键路径", roadmap)
+        self.assertIn("触发 10× 同 job 延迟阈值的 jobs（2）", roadmap)
+        for job in suite["jobs"]:
+            self.assertIn(job["job_id"], roadmap)
 
 
 if __name__ == "__main__":

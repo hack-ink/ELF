@@ -413,9 +413,10 @@ def attach_shared_answers(
     prompt = {
         "instruction": (
             "Answer each case only from its supplied context. Return one JSON object "
-            "with key answers. Each answer must contain the unchanged case_id, a concise "
-            "text answer, and supported=true only when the context supports the requested "
-            "fact. Use supported=false and say unknown when it does not."
+            "with key answers. Each answer must contain the unchanged case_id, text, and "
+            "supported. The text value must never be empty. If supported=true, copy the "
+            "concise requested fact from context into text. If the context does not support "
+            "the fact, set supported=false and text exactly to unknown."
         ),
         "cases": cases,
     }
@@ -437,9 +438,11 @@ def attach_shared_answers(
         },
         method="POST",
     )
+    native: dict[str, Any] | None = None
     try:
         with urllib.request.urlopen(request, timeout=300) as response:
             native = json.loads(response.read().decode())
+        unit["provider_raw"] = {"shared_answer": native}
         content = native["choices"][0]["message"]["content"]
         decoded = json.loads(content)
         answers = decoded["answers"]
@@ -455,20 +458,37 @@ def attach_shared_answers(
                 answer = by_id.get(row.get("job_id"))
                 if answer is None:
                     raise ValueError(f"shared answer omitted case {row.get('job_id')}")
+                text = answer.get("text")
+                supported = answer.get("supported")
+                if not isinstance(text, str) or not text.strip():
+                    raise ValueError(
+                        f"shared answer returned empty text for {row.get('job_id')}"
+                    )
+                if not isinstance(supported, bool):
+                    raise TypeError(
+                        f"shared answer returned non-boolean supported for {row.get('job_id')}"
+                    )
+                if not supported and text.strip().casefold() != "unknown":
+                    raise ValueError(
+                        f"unsupported shared answer did not say unknown for {row.get('job_id')}"
+                    )
                 row["answer"] = {
-                    "text": str(answer.get("text") or ""),
-                    "supported": answer.get("supported") is True,
+                    "text": text,
+                    "supported": supported,
                 }
         unit["provider_usage"] = {"shared_answer": native.get("usage") or {}}
         return unit
     except Exception as error:
         message = f"shared target-blind answer request failed: {type(error).__name__}: {error}"
-        return failure_unit(
+        failed = failure_unit(
             {"id": unit["target"], "adapter": unit.get("native_mode"), "score_eligible": unit.get("score_eligible")},
             suite,
             "provider_failed",
             message,
         )
+        if native is not None:
+            failed["provider_raw"] = {"shared_answer": native}
+        return failed
 
 
 def run_unit(
@@ -583,7 +603,6 @@ def run_unit(
                 "adapter_failed",
                 f"unit result is not valid JSON: {type(error).__name__}: {error}",
             )
-    write_json(unit_root / "raw-unit-result.json", raw_unit)
     if not cleanup["passed"]:
         raw_unit = failure_unit(
             target, suite, "cleanup_failed", "Compose project cleanup was incomplete"
@@ -591,6 +610,7 @@ def run_unit(
     raw_unit = attach_shared_answers(
         suite, raw_unit, host_provider_env, context_budget
     )
+    write_json(unit_root / "raw-unit-result.json", raw_unit)
     try:
         evaluation = evaluate_unit(suite, raw_unit, target)
     except Exception as error:
