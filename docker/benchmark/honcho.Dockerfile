@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 FROM python:3.13-slim-bookworm
 
 ARG HONCHO_REVISION=93dcf59c4a4225bb020b20c628799737fefae318

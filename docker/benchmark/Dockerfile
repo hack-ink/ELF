@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 FROM rust:1-bookworm AS elf-builder
 
 RUN apt-get update \

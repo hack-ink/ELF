@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 FROM rust:1.91.1-trixie AS rust-toolchain
 
 FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim AS builder
