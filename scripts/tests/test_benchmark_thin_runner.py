@@ -593,6 +593,59 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertIn("零陈旧命中与零召回同时出现", observations)
         qmd_line = next(line for line in observations.splitlines() if "**qmd**" in line)
         self.assertNotIn("陈旧证据命中率（方向化值 1.000）", qmd_line)
+        self.assertNotIn("实测相对强项为 Recall@5（方向化值 0.000）", qmd_line)
+
+    def test_shared_answer_metrics_remain_observations_without_product_attribution(self) -> None:
+        suite = self.subset("knowledge-structure-v1")
+        evaluation = evaluate_unit(
+            suite, self.completed_unit("elf", suite), self.targets["elf"]
+        )
+        job = evaluation["phases"]["warm"]["jobs"][0]
+        job["answer_correct"] = 0.0
+        job["unsupported_answer_error"] = 1.0
+        row = {
+            "target": "elf",
+            "evaluation": evaluation,
+            "cleanup": {"passed": True},
+        }
+        bundle = {
+            "schema": "elf.benchmark_bundle/v1",
+            "mode": "complete_measured_run",
+            "source": {"head": "abc", "dirty": False},
+            "provider_routes": {},
+            "provider_preflight": {},
+            "acceptance": {"passed": True, "findings": []},
+            "target_pins": {"elf": {}},
+            "target_contracts": {},
+            "target_image_digests": {},
+            "suite_results": {"knowledge-structure-v1": {"results": [row]}},
+        }
+
+        table = "\n".join(REPORT.result_table([row]))
+        self.assertIn("0.000", table)
+        self.assertEqual(
+            REPORT.metric_leaders(
+                [row],
+                ["programmatic_answer_correctness", "unsupported_answer_rate"],
+            ),
+            [],
+        )
+        observations = "\n".join(REPORT.product_observations(bundle))
+        self.assertNotIn("答案正确率（方向化值", observations)
+        self.assertNotIn("无依据仍作答率（方向化值", observations)
+        roadmap = "\n".join(REPORT.roadmap(bundle))
+        self.assertNotIn("收紧证据绑定回答与拒答", roadmap)
+
+        without_answer = copy.deepcopy(job)
+        without_answer["answer_correct"] = 1.0
+        without_answer["unsupported_answer_error"] = 0.0
+        self.assertEqual(
+            REPORT.job_desirability(job), REPORT.job_desirability(without_answer)
+        )
+
+        report = REPORT.publish(bundle)
+        self.assertIn("端到端观测，不用于产品强弱或路线图归因", report)
+        self.assertIn("不用于宣布产品强项、赢家、ELF 场景强弱或产品路线图", report)
 
     def test_roadmap_lists_all_failures_and_separates_privacy(self) -> None:
         suite = self.subset("common-core-v1", 10)

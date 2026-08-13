@@ -34,6 +34,10 @@ LOWER_IS_BETTER = {
     "unsupported_answer_rate",
     "mean_query_latency_ms",
 }
+SHARED_ANSWER_METRICS = {
+    "programmatic_answer_correctness",
+    "unsupported_answer_rate",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,6 +71,8 @@ def metrics(result: dict[str, Any]) -> dict[str, Any]:
 
 def decision_metric(result: dict[str, Any], name: str) -> Any:
     value = metrics(result).get(name)
+    if name in SHARED_ANSWER_METRICS:
+        return None
     if (
         name
         in {
@@ -271,9 +277,12 @@ def product_observations(bundle: dict[str, Any]) -> list[str]:
         if measured:
             strongest = max(measured, key=lambda item: item[1])
             weakest = min(measured, key=lambda item: item[1])
-            details.append(
-                f"实测相对强项为 {METRIC_NAMES[strongest[0]]}（方向化值 {fmt(strongest[1])}）"
-            )
+            if strongest[1] > 0:
+                details.append(
+                    f"实测相对强项为 {METRIC_NAMES[strongest[0]]}（方向化值 {fmt(strongest[1])}）"
+                )
+            else:
+                details.append("没有测得正向质量强项")
             details.append(
                 f"实测相对弱项为 {METRIC_NAMES[weakest[0]]}（方向化值 {fmt(weakest[1])}）"
             )
@@ -312,7 +321,6 @@ def job_desirability(job: dict[str, Any]) -> float | None:
     for name in (
         "recall_at_5",
         "ndcg_at_5",
-        "answer_correct",
         "source_trace_rate",
         "native_update_success",
         "native_delete_success",
@@ -320,7 +328,7 @@ def job_desirability(job: dict[str, Any]) -> float | None:
         value = job.get(name)
         if isinstance(value, (int, float)):
             values.append(float(value))
-    for name in ("privacy_scope_violation", "unsupported_answer_error"):
+    for name in ("privacy_scope_violation",):
         value = job.get(name)
         if isinstance(value, (int, float)):
             values.append(1.0 - float(value))
@@ -441,8 +449,6 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
             categories["privacy"].add(identity)
         if isinstance(job.get("source_trace_rate"), (int, float)) and job["source_trace_rate"] < 1:
             categories["trace"].add(identity)
-        if job.get("answer_correct") == 0 or job.get("unsupported_answer_error") == 1:
-            categories["answer"].add(identity)
         if job.get("native_update_success") == 0 or job.get("native_delete_success") == 0:
             categories["lifecycle"].add(identity)
     categories["performance"].update(performance_regression_jobs(bundle))
@@ -501,15 +507,6 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
             "warm 查询延迟、cold ingest duration；Recall@5、nDCG@5 与来源追溯率作为质量护栏",
             "触发 10× 同 job 延迟阈值的 jobs",
             "固定复跑这些相同 suite/job；warm 延迟不再超过本次最快非 ELF 基线 10 倍，且质量护栏不得下降。",
-        ),
-        (
-            "answer",
-            "收紧证据绑定回答与拒答",
-            "经非空/unknown 合同验证后的共享回答仍缺少必需事实或包含冲突事实；需结合已保留的 raw chat response 与 native context 定位。",
-            "在回答前校验来源充分性、冲突和 forbidden 状态；不足时明确拒答，不把 provider 合同失败归因给 ELF。",
-            "答案正确率、无依据仍作答率",
-            "失败 jobs",
-            "固定复跑这些相同 suite/job。",
         ),
         (
             "lifecycle",
@@ -707,9 +704,12 @@ def five_decisions(bundle: dict[str, Any]) -> list[str]:
     if knowledge_elf is not None:
         value = metrics(knowledge_elf)
         trace_parts.append(
-            "ELF 来源追溯/无依据作答率="
-            f"{fmt(value.get('source_or_citation_trace_rate'))}/"
+            "ELF 来源追溯率="
+            f"{fmt(value.get('source_or_citation_trace_rate'))}；"
+            "共享回答正确率/无依据作答率="
+            f"{fmt(value.get('programmatic_answer_correctness'))}/"
             f"{fmt(value.get('unsupported_answer_rate'))}"
+            "（端到端观测，不用于产品强弱或路线图归因）"
         )
 
     capability_parts = []
@@ -768,6 +768,7 @@ def publish(bundle: dict[str, Any]) -> str:
         f"- Chat：`{routes.get('chat_model')}` / reasoning `{routes.get('chat_reasoning_effort')}`；embedding：`{routes.get('embedding_model')}` / `{routes.get('embedding_dimensions')}` 维。",
         f"- Preflight：embedding `{(preflight.get('embedding') or {}).get('classification')}`，chat `{(preflight.get('chat') or {}).get('classification')}`。",
         "- `无依据仍作答率`、`禁用/陈旧证据命中率` 与 `隐私越界率` 越低越好；其余质量成功率越高越好。",
+        "- 共享回答由每个可计分单元的一次 target-blind Luna 调用生成。答案正确率与无依据作答率保留为端到端观测，但单次生成差异和 query/qrel 蕴含边界不能可靠归因给原生产品；因此二者不用于宣布产品强项、赢家、ELF 场景强弱或产品路线图。",
         "",
         "## 决策摘要",
         "",
@@ -799,6 +800,7 @@ def publish(bundle: dict[str, Any]) -> str:
             "",
             "这些结论按具体指标报告；指标领跑者不一致时不合成全局分数，也不制造单一赢家。",
             "零召回时的零陈旧命中只表示没有检索结果，不作为陈旧抑制强项。",
+            "共享回答指标仍在数值表和置信区间中完整呈现，但只作为端到端观测，不参与产品归因。",
             "",
             "## 五项产品决策",
             "",
@@ -847,6 +849,7 @@ def publish(bundle: dict[str, Any]) -> str:
             "",
             "- 每个 `{suite,target}` 使用独立 Compose project；并发上限为 2；cleanup 结果见覆盖表。",
             "- 共享回答必须返回非空事实文本或精确的 `unknown`；原始 chat response 保存在对应 raw unit 中，评分器再做确定性事实校验。",
+            "- 共享回答只采样一次。若查询不蕴含全部 scorer-only answer facts，或相同 native context 产生不同回答，该结果不能证明原生产品差异；报告保留原值，但不据此形成产品赢家、ELF 强弱场景或路线图动作。",
             f"- Image digests：`{json.dumps(bundle.get('target_image_digests') or {}, sort_keys=True)}`。",
             f"- Product pins：`{json.dumps(bundle.get('target_pins') or {}, sort_keys=True)}`。",
             "- Common Core 使用 job-level 正态近似 95% CI；样本只代表冻结 suite，是内部描述性证据。",
