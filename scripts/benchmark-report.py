@@ -343,8 +343,6 @@ def elf_job_summary(bundle: dict[str, Any]) -> list[str]:
 
 def roadmap(bundle: dict[str, Any]) -> list[str]:
     categories: dict[str, set[str]] = defaultdict(set)
-    for suite_id, _ in elf_unscored_units(bundle):
-        categories["runtime"].add(f"{suite_id}/*")
     for suite_id, job in elf_jobs(bundle):
         identity = f"{suite_id}/{job['job_id']}"
         if isinstance(job.get("recall_at_5"), (int, float)) and job["recall_at_5"] < 1:

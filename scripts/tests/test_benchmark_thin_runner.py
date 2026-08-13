@@ -445,6 +445,9 @@ class BenchmarkContractTests(unittest.TestCase):
         summary = "\n".join(REPORT.elf_job_summary(bundle))
         self.assertIn("整个单元不计分", summary)
         self.assertNotIn("最强场景", summary)
+        roadmap = "\n".join(REPORT.roadmap(bundle))
+        self.assertIn("没有产生可归因的指标失败", roadmap)
+        self.assertNotIn("先消除 ELF 原生运行失败", roadmap)
 
 
 if __name__ == "__main__":
