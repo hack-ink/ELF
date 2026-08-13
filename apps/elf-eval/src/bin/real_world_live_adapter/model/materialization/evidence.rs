@@ -1,4 +1,4 @@
-use crate::{Serialize, Uuid, serde_json};
+use crate::{Deserialize, Serialize, Uuid, serde_json};
 
 use super::{AdapterKind, MaterializationStatus, SourceMappingEvidence};
 
@@ -64,7 +64,7 @@ pub(crate) struct OperatorDebugMaterializationEvidence {
 	pub(crate) raw_sql_needed: bool,
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct CaptureMaterializationEvidence {
 	pub(crate) stored_evidence_ids: Vec<String>,
 	pub(crate) excluded_evidence_ids: Vec<String>,
@@ -128,7 +128,7 @@ pub(crate) struct DreamingReadbackMaterializationEvidence {
 	pub(crate) no_source_mutation_checked: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct CaptureRuntimeSourceRefEvidence {
 	pub(crate) evidence_id: String,
 	pub(crate) source_ref: serde_json::Value,

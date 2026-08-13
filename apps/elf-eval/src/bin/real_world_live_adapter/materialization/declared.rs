@@ -139,7 +139,10 @@ fn not_encoded_reason(suite: &str) -> Option<&'static str> {
 		| "project_decisions"
 		| "retrieval"
 		| "memory_evolution"
-		| "personalization" => None,
+		| "personalization"
+		| "memory_lifecycle"
+		| "knowledge_structure"
+		| "repository_knowledge" => None,
 		"consolidation" => Some(
 			"The live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals.",
 		),

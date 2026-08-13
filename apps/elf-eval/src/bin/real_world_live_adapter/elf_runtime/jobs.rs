@@ -1,9 +1,9 @@
 use crate::{
-	AdapterKind, BaselineRuntime, CommandEvidence, ElfArgs, ElfService, LoadedJob, MaterializedJob,
-	MaterializedJobInput, MaterializedOutput, Result, SuiteMaterializationSelectionInput,
-	TestDatabase, Uuid, aggregate_status,
+	AdapterKind, BaselineRuntime, CommandEvidence, DeleteRequest, ElfArgs, ElfService, LoadedJob,
+	MaterializedJob, MaterializedJobInput, MaterializedOutput, NoteOp, Result,
+	SuiteMaterializationSelectionInput, UpdateRequest, aggregate_status,
 	elf_runtime::{search, surfaces},
-	env, eyre,
+	env, eyre, fs, serde_json,
 };
 
 pub(crate) async fn run_elf(args: ElfArgs) -> Result<()> {
@@ -31,7 +31,7 @@ pub(crate) async fn run_elf(args: ElfArgs) -> Result<()> {
 			reason: "ELF live adapter used ElfService, worker indexing, and search_raw."
 				.to_string(),
 		}],
-		metadata: None,
+		metadata: Some(serde_json::json!({"index_reused": args.reuse_index})),
 	})
 }
 
@@ -41,11 +41,11 @@ async fn materialize_elf_jobs(args: &ElfArgs, jobs: &[LoadedJob]) -> Result<Vec<
 	let qdrant_url = env::var("ELF_QDRANT_GRPC_URL")
 		.or_else(|_| env::var("ELF_QDRANT_URL"))
 		.map_err(|_| eyre::eyre!("ELF_QDRANT_GRPC_URL or ELF_QDRANT_URL must be set."))?;
-	let test_db = TestDatabase::new(&base_dsn).await?;
-	let run_suffix = crate::short_hash(format!("{}:{}", args.adapter_id, Uuid::new_v4()).as_str());
+	fs::create_dir_all(&args.work_dir)?;
+	let run_suffix = crate::short_hash(args.adapter_id.as_str());
 	let runtime = BaselineRuntime {
 		config_path: args.config.clone(),
-		dsn: test_db.dsn().to_string(),
+		dsn: base_dsn,
 		qdrant_url,
 		collection: format!("elf_live_real_world_{run_suffix}"),
 		docs_collection: format!("elf_live_real_world_docs_{run_suffix}"),
@@ -54,12 +54,10 @@ async fn materialize_elf_jobs(args: &ElfArgs, jobs: &[LoadedJob]) -> Result<Vec<
 	let mut out = Vec::with_capacity(jobs.len());
 
 	for loaded in jobs {
-		out.push(materialize_elf_job(&runtime, &service, loaded, &args.adapter_id).await?);
+		out.push(materialize_elf_job(&runtime, &service, loaded, &args).await?);
 	}
 
 	drop(service);
-
-	test_db.cleanup().await?;
 
 	Ok(out)
 }
@@ -68,22 +66,44 @@ async fn materialize_elf_job(
 	runtime: &BaselineRuntime,
 	service: &ElfService,
 	loaded: &LoadedJob,
-	adapter_id: &str,
+	args: &ElfArgs,
 ) -> Result<MaterializedJob> {
-	if let Some(job) = crate::declared_encoding_job(adapter_id, loaded) {
+	if let Some(job) = crate::declared_encoding_job(&args.adapter_id, loaded) {
 		return Ok(job);
 	}
-	if let Some(job) = crate::not_encoded_job(adapter_id, loaded) {
+	if let Some(job) = crate::not_encoded_job(&args.adapter_id, loaded) {
 		return Ok(job);
 	}
 
 	let corpus = crate::corpus_texts(loaded)?;
 	let stored_corpus = crate::elf_stored_corpus_texts(&corpus)?;
 	let project_id = crate::project_id_for_job(&loaded.job.job_id);
-	let ingested =
-		crate::ingest_elf_corpus(service, loaded, adapter_id, project_id.as_str(), &corpus).await?;
+	let state_path = args.work_dir.join(format!("{}.json", crate::slug(&loaded.job.job_id)));
+	let ingested = if args.reuse_index {
+		let raw = fs::read(&state_path).map_err(|err| {
+			eyre::eyre!("Warm ELF ingest receipt is missing at {}: {err}", state_path.display())
+		})?;
 
-	crate::run_worker(runtime).await?;
+		let ingested = serde_json::from_slice(&raw)?;
+		apply_native_operations(runtime, service, loaded, &ingested, project_id.as_str()).await?;
+		ingested
+	} else {
+		if state_path.exists() {
+			return Err(eyre::eyre!("Cold ELF state already exists at {}.", state_path.display()));
+		}
+		let ingested = crate::ingest_elf_corpus(
+			service,
+			loaded,
+			&args.adapter_id,
+			project_id.as_str(),
+			&corpus,
+		)
+		.await?;
+
+		crate::run_worker(runtime).await?;
+		fs::write(&state_path, serde_json::to_vec_pretty(&ingested)?)?;
+		ingested
+	};
 
 	let (response, latency_ms) = search::search_elf_job(service, loaded, &project_id).await?;
 	let evidence_ids = crate::search_response_evidence_ids(&response);
@@ -121,7 +141,7 @@ async fn materialize_elf_job(
 		&ingested,
 		project_id.as_str(),
 		response.trace_id,
-		adapter_id,
+		&args.adapter_id,
 	)
 	.await?;
 	let suite_selection =
@@ -138,7 +158,7 @@ async fn materialize_elf_job(
 
 	Ok(crate::materialized_job(
 		loaded,
-		adapter_id,
+		&args.adapter_id,
 		MaterializedJobInput {
 			content: suite_selection.selected.content,
 			evidence_ids: suite_selection.selected.evidence_ids,
@@ -164,4 +184,84 @@ async fn materialize_elf_job(
 			trace_stages: suite_selection.trace_stages,
 		},
 	))
+}
+
+async fn apply_native_operations(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	loaded: &LoadedJob,
+	ingested: &crate::IngestedCorpus,
+	project_id: &str,
+) -> Result<()> {
+	if loaded.job.operations.is_empty() {
+		return Ok(());
+	}
+	let mut affected_note_ids = Vec::new();
+	for operation in &loaded.job.operations {
+		let note_ids = ingested
+			.note_ids_by_evidence
+			.get(&operation.evidence_id)
+			.ok_or_else(|| {
+				eyre::eyre!(
+					"ELF operation references unknown evidence {} for {}.",
+					operation.evidence_id,
+					loaded.job.job_id
+				)
+			})?;
+		for note_id in note_ids {
+			match operation.operation_type.as_str() {
+				"update" => {
+					let text = operation.text.clone().ok_or_else(|| {
+						eyre::eyre!(
+							"ELF update has no replacement text for {}.",
+							operation.evidence_id
+						)
+					})?;
+					let response = service
+						.update(UpdateRequest {
+							tenant_id: crate::TENANT_ID.to_string(),
+							project_id: project_id.to_string(),
+							agent_id: crate::AGENT_ID.to_string(),
+							note_id: *note_id,
+							text: Some(text),
+							importance: None,
+							confidence: None,
+							ttl_days: None,
+						})
+						.await?;
+					if response.op != NoteOp::Update {
+						return Err(eyre::eyre!(
+							"ELF update returned {:?} for {}.",
+							response.op,
+							operation.evidence_id
+						));
+					}
+				}
+				"delete" => {
+					let response = service
+						.delete(DeleteRequest {
+							tenant_id: crate::TENANT_ID.to_string(),
+							project_id: project_id.to_string(),
+							agent_id: crate::AGENT_ID.to_string(),
+							note_id: *note_id,
+						})
+						.await?;
+					if response.op != NoteOp::Delete {
+						return Err(eyre::eyre!(
+							"ELF delete returned {:?} for {}.",
+							response.op,
+							operation.evidence_id
+						));
+					}
+				}
+				other => return Err(eyre::eyre!("Unsupported ELF operation {other}.")),
+			}
+			affected_note_ids.push(*note_id);
+		}
+	}
+	if affected_note_ids.is_empty() {
+		return Err(eyre::eyre!("ELF operation set affected no notes."));
+	}
+	crate::run_worker(runtime).await?;
+	Ok(())
 }

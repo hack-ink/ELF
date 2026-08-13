@@ -5,7 +5,6 @@ use crate::{
 
 pub(super) async fn build_service(runtime: &BaselineRuntime) -> Result<ElfService> {
 	let cfg = crate::runtime_config(runtime)?;
-	let vector_dim = cfg.storage.qdrant.vector_dim;
 	let db = Db::connect(&cfg.storage.postgres).await?;
 
 	db.ensure_schema(cfg.storage.qdrant.vector_dim).await?;
@@ -14,7 +13,9 @@ pub(super) async fn build_service(runtime: &BaselineRuntime) -> Result<ElfServic
 
 	qdrant.ensure_collection().await?;
 
-	Ok(ElfService::with_providers(cfg, db, qdrant, crate::deterministic_providers(vector_dim)))
+	let providers = crate::real_world_providers(&cfg);
+
+	Ok(ElfService::with_providers(cfg, db, qdrant, providers))
 }
 
 pub(super) async fn run_worker(runtime: &BaselineRuntime) -> Result<()> {

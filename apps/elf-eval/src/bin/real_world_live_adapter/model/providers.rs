@@ -21,6 +21,38 @@ impl EmbeddingProvider for DeterministicEmbedding {
 }
 
 #[derive(Debug)]
+pub(crate) struct ExternalEmbedding;
+impl EmbeddingProvider for ExternalEmbedding {
+	fn embed<'a>(
+		&'a self,
+		cfg: &'a EmbeddingProviderConfig,
+		texts: &'a [String],
+	) -> BoxFuture<'a, elf_service::Result<Vec<Vec<f32>>>> {
+		Box::pin(async move {
+			elf_providers::embedding::embed(cfg, texts)
+				.await
+				.map_err(|err| elf_service::Error::Provider { message: err.to_string() })
+		})
+	}
+}
+
+#[derive(Debug)]
+pub(crate) struct RetrievalOrderRerank;
+impl RerankProvider for RetrievalOrderRerank {
+	fn rerank<'a>(
+		&'a self,
+		_cfg: &'a ProviderConfig,
+		_query: &'a str,
+		docs: &'a [String],
+	) -> BoxFuture<'a, elf_service::Result<Vec<f32>>> {
+		let count = docs.len();
+		let scores = (0..count).map(|index| (count - index) as f32).collect();
+
+		Box::pin(async move { Ok(scores) })
+	}
+}
+
+#[derive(Debug)]
 pub(crate) struct TokenOverlapRerank;
 impl RerankProvider for TokenOverlapRerank {
 	fn rerank<'a>(

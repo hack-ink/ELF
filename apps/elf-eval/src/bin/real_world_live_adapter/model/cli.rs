@@ -24,6 +24,12 @@ pub(crate) struct ElfArgs {
 	/// Adapter id embedded in generated adapter_response objects.
 	#[arg(long, default_value = "elf_live_real_world")]
 	pub(crate) adapter_id: String,
+	/// Directory that persists cold-run ingest metadata for the warm query.
+	#[arg(long, value_name = "DIR")]
+	pub(crate) work_dir: PathBuf,
+	/// Query the cold-run database and collections without a second ingest.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reuse_index: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -46,9 +52,18 @@ pub(crate) struct QmdArgs {
 	/// qmd repository URL used when qmd_dir is absent.
 	#[arg(long, default_value = "https://github.com/tobi/qmd.git")]
 	pub(crate) qmd_repo_url: String,
+	/// Exact qmd commit used by the benchmark image.
+	#[arg(long, default_value = "e428df76bc0274d9e93eb7ca3e95673315c42e90")]
+	pub(crate) qmd_revision: String,
 	/// Adapter id embedded in generated adapter_response objects.
 	#[arg(long, default_value = "qmd_live_real_world")]
 	pub(crate) adapter_id: String,
+	/// Query the cold-run qmd index without a second update or embed.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reuse_index: bool,
+	/// Use qmd's native BM25 path for non-measured architecture readiness.
+	#[arg(long, default_value_t = false)]
+	pub(crate) lexical_only: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -95,6 +110,9 @@ pub(crate) struct LightragArgs {
 	/// Delay between document indexing status checks.
 	#[arg(long, default_value_t = 2)]
 	pub(crate) index_interval_seconds: u64,
+	/// Query the cold-run LightRAG state without a second document ingest.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reuse_index: bool,
 }
 
 #[derive(Debug, Subcommand)]

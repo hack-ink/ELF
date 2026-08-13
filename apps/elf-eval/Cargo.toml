@@ -23,6 +23,7 @@ elf-chunking = { workspace = true }
 elf-cli      = { workspace = true }
 elf-config   = { workspace = true }
 elf-domain   = { workspace = true }
+elf-providers = { workspace = true }
 elf-service  = { workspace = true }
 elf-storage  = { workspace = true }
 elf-testkit  = { workspace = true }

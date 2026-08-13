@@ -1,0 +1,172 @@
+{
+  "schema": "elf.benchmark_suite/v4",
+  "suite_id": "memory-lifecycle-v1",
+  "kind": "memory_lifecycle",
+  "purpose": "native_memory_correction_deletion_scope_and_work_continuity",
+  "top_k": 5,
+  "jobs": [
+    {
+      "job_id": "memory-update-channel",
+      "stratum": "native_update_visibility",
+      "title": "Update the preferred incident channel",
+      "query": "Which incident channel does Rowan currently prefer?",
+      "corpus": [
+        {"evidence_id": "memory_channel", "text": "Rowan currently prefers incident updates by email."},
+        {"evidence_id": "memory_channel_noise", "text": "Rowan reviews incident summaries on Mondays."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "memory_channel", "text": "Rowan now prefers incident updates by Signal. This replaces the email preference."}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_channel"],
+        "forbidden_evidence": [],
+        "answer_facts": ["Signal"],
+        "forbidden_answer_facts": ["email"],
+        "required_operations": ["update"]
+      }
+    },
+    {
+      "job_id": "memory-delete-credential",
+      "stratum": "native_delete_forgetting",
+      "title": "Forget a temporary deployment credential",
+      "query": "What safe Nova deployment fact remains?",
+      "corpus": [
+        {"evidence_id": "memory_nova_public", "text": "Nova staging deployment is healthy and passed the green readiness gate."},
+        {"evidence_id": "memory_nova_secret", "text": "Temporary Nova credential: cobalt-secret-771. This must be deleted."}
+      ],
+      "operations": [
+        {"type": "delete", "evidence_id": "memory_nova_secret"}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_nova_public"],
+        "forbidden_evidence": ["memory_nova_secret"],
+        "answer_facts": ["staging", "healthy", "green readiness gate"],
+        "forbidden_answer_facts": ["cobalt-secret-771"],
+        "required_operations": ["delete"],
+        "privacy": true
+      }
+    },
+    {
+      "job_id": "memory-correct-cache-ttl",
+      "stratum": "temporal_correction",
+      "title": "Correct the active cache TTL",
+      "query": "What is the current Finch cache TTL?",
+      "corpus": [
+        {"evidence_id": "memory_finch_ttl", "text": "Finch cache TTL is 30 minutes."},
+        {"evidence_id": "memory_finch_format", "text": "Finch cache values use JSON encoding."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "memory_finch_ttl", "text": "The corrected Finch cache TTL is 10 minutes. The 30 minute value is obsolete."}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_finch_ttl"],
+        "forbidden_evidence": [],
+        "answer_facts": ["10 minutes"],
+        "forbidden_answer_facts": ["30 minutes"],
+        "required_operations": ["update"]
+      }
+    },
+    {
+      "job_id": "memory-resume-migration",
+      "stratum": "work_continuity",
+      "title": "Resume work from an updated migration checkpoint",
+      "query": "Where did the Kestrel migration stop, and what comes next?",
+      "corpus": [
+        {"evidence_id": "memory_kestrel_checkpoint", "text": "Kestrel migration is paused before schema conversion. The next action is schema conversion."},
+        {"evidence_id": "memory_kestrel_context", "text": "Kestrel uses signed release artifacts."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "memory_kestrel_checkpoint", "text": "Kestrel schema conversion completed at commit 8f21a6. The next action is the rollback drill."}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_kestrel_checkpoint"],
+        "forbidden_evidence": [],
+        "answer_facts": ["schema conversion completed", "8f21a6", "rollback drill"],
+        "forbidden_answer_facts": ["next action is schema conversion"],
+        "required_operations": ["update"]
+      }
+    },
+    {
+      "job_id": "memory-scope-forget-private",
+      "stratum": "privacy_scope",
+      "title": "Forget private review content and retain the team fact",
+      "query": "Which Birch decision is safe for the team summary?",
+      "corpus": [
+        {"evidence_id": "memory_birch_team", "text": "The approved Birch team decision uses a 15 minute cache TTL."},
+        {"evidence_id": "memory_birch_private", "text": "Private Birch security review identifier is IR-9921 and must be forgotten."}
+      ],
+      "operations": [
+        {"type": "delete", "evidence_id": "memory_birch_private"}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_birch_team"],
+        "forbidden_evidence": ["memory_birch_private"],
+        "answer_facts": ["15 minute cache TTL"],
+        "forbidden_answer_facts": ["IR-9921"],
+        "required_operations": ["delete"],
+        "privacy": true
+      }
+    },
+    {
+      "job_id": "memory-delete-obsolete-plan",
+      "stratum": "stale_suppression",
+      "title": "Delete an obsolete recovery plan",
+      "query": "Which recovery plan is active for Meridian?",
+      "corpus": [
+        {"evidence_id": "memory_meridian_active", "text": "The active Meridian recovery plan restores the last signed release."},
+        {"evidence_id": "memory_meridian_old", "text": "The obsolete Meridian plan skips signature verification."}
+      ],
+      "operations": [
+        {"type": "delete", "evidence_id": "memory_meridian_old"}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_meridian_active"],
+        "forbidden_evidence": ["memory_meridian_old"],
+        "answer_facts": ["last signed release"],
+        "forbidden_answer_facts": ["skips signature verification"],
+        "required_operations": ["delete"]
+      }
+    },
+    {
+      "job_id": "memory-update-owner",
+      "stratum": "native_update_visibility",
+      "title": "Update the service owner",
+      "query": "Which team currently owns Cinder?",
+      "corpus": [
+        {"evidence_id": "memory_cinder_owner", "text": "Developer Tools owns Cinder."},
+        {"evidence_id": "memory_cinder_oncall", "text": "Cinder has a weekday on-call rotation."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "memory_cinder_owner", "text": "Platform Runtime now owns Cinder. Developer Tools no longer owns it."}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_cinder_owner"],
+        "forbidden_evidence": [],
+        "answer_facts": ["Platform Runtime"],
+        "forbidden_answer_facts": ["Developer Tools owns"],
+        "required_operations": ["update"]
+      }
+    },
+    {
+      "job_id": "memory-update-and-delete-release",
+      "stratum": "combined_lifecycle",
+      "title": "Update a release gate and delete a temporary bypass",
+      "query": "What is the current Solstice release gate?",
+      "corpus": [
+        {"evidence_id": "memory_solstice_gate", "text": "Solstice may publish after packaging."},
+        {"evidence_id": "memory_solstice_bypass", "text": "Temporary Solstice bypass permits publishing without approval."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "memory_solstice_gate", "text": "Solstice may publish only after release approval and checksum verification."},
+        {"type": "delete", "evidence_id": "memory_solstice_bypass"}
+      ],
+      "qrels": {
+        "relevant_evidence": ["memory_solstice_gate"],
+        "forbidden_evidence": ["memory_solstice_bypass"],
+        "answer_facts": ["release approval", "checksum verification"],
+        "forbidden_answer_facts": ["without approval"],
+        "required_operations": ["update", "delete"]
+      }
+    }
+  ]
+}

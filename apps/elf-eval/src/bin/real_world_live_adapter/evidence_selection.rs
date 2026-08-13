@@ -17,12 +17,11 @@ pub(super) fn required_evidence_satisfied(loaded: &LoadedJob, evidence_ids: &[St
 	required::required_evidence_satisfied_impl(loaded, evidence_ids)
 }
 
-pub(super) fn selected_required_corpus_texts(
-	loaded: &LoadedJob,
+pub(super) fn selected_retrieved_corpus_texts(
 	corpus: &[CorpusText],
 	retrieved_evidence_ids: &[String],
 ) -> SelectedEvidenceText {
-	required::selected_required_corpus_texts_impl(loaded, corpus, retrieved_evidence_ids)
+	required::selected_retrieved_corpus_texts_impl(corpus, retrieved_evidence_ids)
 }
 
 pub(super) fn live_required_evidence_ids(

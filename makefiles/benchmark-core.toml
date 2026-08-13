@@ -4,6 +4,22 @@
 # source for the complete task index, while this file owns only non-sharded
 # benchmark commands.
 
+[tasks.benchmark-competitors]
+workspace = false
+command = "python3"
+args = [
+	"scripts/benchmark-runner.py",
+]
+
+[tasks.test-benchmark-runner-contract]
+workspace = false
+command = "python3"
+args = [
+	"-m",
+	"unittest",
+	"scripts/tests/test_benchmark_thin_runner.py",
+]
+
 [tasks.baseline-backfill-100k-docker]
 workspace = false
 command = "bash"

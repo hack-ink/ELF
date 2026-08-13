@@ -1,0 +1,299 @@
+{
+  "schema": "elf.benchmark_suite/v3",
+  "suite_id": "common-core-v1",
+  "kind": "retrieval",
+  "purpose": "internal_descriptive_common_retrieval",
+  "top_k": 5,
+  "jobs": [
+    {
+      "job_id": "core-direct-region",
+      "stratum": "direct_factual_recall",
+      "title": "Recall the active Atlas production region",
+      "query": "Which AWS region is the Atlas service currently deployed in?",
+      "corpus": [
+        {"evidence_id": "core_direct_region", "text": "The Atlas service is currently deployed in AWS eu-west-2. This production decision is active."},
+        {"evidence_id": "core_direct_region_stage", "text": "The Atlas staging environment is deployed in AWS us-east-1."},
+        {"evidence_id": "core_direct_region_old", "text": "An obsolete Atlas proposal considered AWS eu-central-1 but was never adopted."}
+      ],
+      "qrels": {"relevant_evidence": ["core_direct_region"], "forbidden_evidence": ["core_direct_region_old"], "answer_facts": ["eu-west-2"]}
+    },
+    {
+      "job_id": "core-direct-backup",
+      "stratum": "direct_factual_recall",
+      "title": "Recall the Nori backup window",
+      "query": "What is the current backup window for Nori?",
+      "corpus": [
+        {"evidence_id": "core_direct_backup", "text": "Nori backups run every day from 02:00 to 03:00 UTC."},
+        {"evidence_id": "core_direct_backup_old", "text": "A superseded Nori runbook listed a 01:00 to 02:00 UTC backup window."},
+        {"evidence_id": "core_direct_backup_retention", "text": "Nori backup retention is fourteen days."}
+      ],
+      "qrels": {"relevant_evidence": ["core_direct_backup"], "forbidden_evidence": ["core_direct_backup_old"], "answer_facts": ["02:00", "03:00", "UTC"]}
+    },
+    {
+      "job_id": "core-direct-api",
+      "stratum": "direct_factual_recall",
+      "title": "Recall the active Vega API version",
+      "query": "Which API version is active for Vega?",
+      "corpus": [
+        {"evidence_id": "core_direct_api", "text": "Vega clients must use API version v3."},
+        {"evidence_id": "core_direct_api_old", "text": "Vega API version v2 is retired and must not be used."},
+        {"evidence_id": "core_direct_api_auth", "text": "Vega requests use signed service credentials."}
+      ],
+      "qrels": {"relevant_evidence": ["core_direct_api"], "forbidden_evidence": ["core_direct_api_old"], "answer_facts": ["v3"]}
+    },
+    {
+      "job_id": "core-direct-owner",
+      "stratum": "direct_factual_recall",
+      "title": "Recall the Cedar service owner",
+      "query": "Which team owns the Cedar service?",
+      "corpus": [
+        {"evidence_id": "core_direct_owner", "text": "The Platform Runtime team owns the Cedar service."},
+        {"evidence_id": "core_direct_owner_old", "text": "Cedar was formerly owned by the Developer Tools team."},
+        {"evidence_id": "core_direct_owner_oncall", "text": "The Cedar on-call rotation runs Monday through Friday."}
+      ],
+      "qrels": {"relevant_evidence": ["core_direct_owner"], "forbidden_evidence": ["core_direct_owner_old"], "answer_facts": ["Platform Runtime"]}
+    },
+    {
+      "job_id": "core-synthesis-runtime-storage",
+      "stratum": "multi_source_synthesis",
+      "title": "Retrieve Cobalt runtime and storage",
+      "query": "What backend runtime and durable storage does Project Cobalt use?",
+      "corpus": [
+        {"evidence_id": "core_synth_runtime", "text": "Project Cobalt's backend runtime is Rust with the Axum web framework."},
+        {"evidence_id": "core_synth_storage", "text": "Project Cobalt uses PostgreSQL 18 with pgvector as durable storage."},
+        {"evidence_id": "core_synth_frontend", "text": "Project Cobalt's frontend is implemented with React."},
+        {"evidence_id": "core_synth_rejected", "text": "A rejected Cobalt design proposed a Redis-only durable store."}
+      ],
+      "qrels": {"relevant_evidence": ["core_synth_runtime", "core_synth_storage"], "forbidden_evidence": ["core_synth_rejected"], "answer_facts": ["Rust", "Axum", "PostgreSQL 18", "pgvector"]}
+    },
+    {
+      "job_id": "core-synthesis-deploy",
+      "stratum": "multi_source_synthesis",
+      "title": "Retrieve Meridian deployment and rollback",
+      "query": "What is the Meridian deployment method and rollback action?",
+      "corpus": [
+        {"evidence_id": "core_synth_deploy", "text": "Meridian is deployed with a canary release to the primary cluster."},
+        {"evidence_id": "core_synth_rollback", "text": "If the Meridian canary fails, roll back to the last signed release."},
+        {"evidence_id": "core_synth_region", "text": "Meridian serves customers in three regions."},
+        {"evidence_id": "core_synth_rejected", "text": "A blue-green-only Meridian rollout was rejected."}
+      ],
+      "qrels": {"relevant_evidence": ["core_synth_deploy", "core_synth_rollback"], "forbidden_evidence": ["core_synth_rejected"], "answer_facts": ["canary", "last signed release"]}
+    },
+    {
+      "job_id": "core-synthesis-auth",
+      "stratum": "multi_source_synthesis",
+      "title": "Retrieve Kestrel authentication policy",
+      "query": "What authentication method and credential lifetime does Kestrel require?",
+      "corpus": [
+        {"evidence_id": "core_synth_auth", "text": "Kestrel requires mTLS between services."},
+        {"evidence_id": "core_synth_lifetime", "text": "Kestrel service certificates expire after 24 hours."},
+        {"evidence_id": "core_synth_auth_old", "text": "Kestrel previously accepted long-lived bearer tokens, but that policy is retired."}
+      ],
+      "qrels": {"relevant_evidence": ["core_synth_auth", "core_synth_lifetime"], "forbidden_evidence": ["core_synth_auth_old"], "answer_facts": ["mTLS", "24 hours"]}
+    },
+    {
+      "job_id": "core-synthesis-alerting",
+      "stratum": "multi_source_synthesis",
+      "title": "Retrieve Juniper queue and alert threshold",
+      "query": "Which queue handles Juniper jobs and when should an alert fire?",
+      "corpus": [
+        {"evidence_id": "core_synth_queue", "text": "Juniper jobs are routed to the cobalt-main queue."},
+        {"evidence_id": "core_synth_threshold", "text": "Alert the on-call engineer when Juniper queue depth exceeds 500 jobs."},
+        {"evidence_id": "core_synth_queue_old", "text": "The amber-old queue was retired for Juniper production traffic."}
+      ],
+      "qrels": {"relevant_evidence": ["core_synth_queue", "core_synth_threshold"], "forbidden_evidence": ["core_synth_queue_old"], "answer_facts": ["cobalt-main", "500"]}
+    },
+    {
+      "job_id": "core-correction-falcon",
+      "stratum": "correction_and_stale_suppression",
+      "title": "Prefer the corrected Falcon cache TTL",
+      "query": "What is the current Falcon cache TTL after the latest correction?",
+      "corpus": [
+        {"evidence_id": "core_correction_falcon_current", "text": "Current Falcon decision, revised on 2026-07-20: the cache TTL is 10 minutes. This supersedes the earlier value."},
+        {"evidence_id": "core_correction_falcon_old", "text": "Historical Falcon decision from 2026-06-01: the cache TTL was 30 minutes. This value is obsolete."},
+        {"evidence_id": "core_correction_falcon_format", "text": "Falcon cache entries use JSON serialization."}
+      ],
+      "qrels": {"relevant_evidence": ["core_correction_falcon_current"], "forbidden_evidence": ["core_correction_falcon_old"], "answer_facts": ["10 minutes"]}
+    },
+    {
+      "job_id": "core-correction-rook",
+      "stratum": "correction_and_stale_suppression",
+      "title": "Prefer the corrected Rook queue",
+      "query": "Which queue is valid for Rook production after the correction?",
+      "corpus": [
+        {"evidence_id": "core_correction_rook_current", "text": "The signed Rook correction routes production refunds to queue cobalt-main."},
+        {"evidence_id": "core_correction_rook_old", "text": "The earlier Rook runbook routed production refunds to queue amber-old; that route is retired."},
+        {"evidence_id": "core_correction_rook_dev", "text": "Rook development jobs use a local test queue."}
+      ],
+      "qrels": {"relevant_evidence": ["core_correction_rook_current"], "forbidden_evidence": ["core_correction_rook_old"], "answer_facts": ["cobalt-main"]}
+    },
+    {
+      "job_id": "core-correction-iris",
+      "stratum": "correction_and_stale_suppression",
+      "title": "Prefer the corrected Iris model",
+      "query": "Which model should Iris use now?",
+      "corpus": [
+        {"evidence_id": "core_correction_iris_current", "text": "The latest Iris decision selects model atlas-2 for production inference."},
+        {"evidence_id": "core_correction_iris_old", "text": "Iris formerly used model atlas-1; the decision was superseded."},
+        {"evidence_id": "core_correction_iris_eval", "text": "Iris evaluation compares latency and answer quality."}
+      ],
+      "qrels": {"relevant_evidence": ["core_correction_iris_current"], "forbidden_evidence": ["core_correction_iris_old"], "answer_facts": ["atlas-2"]}
+    },
+    {
+      "job_id": "core-correction-lumen",
+      "stratum": "correction_and_stale_suppression",
+      "title": "Prefer the corrected Lumen retention",
+      "query": "What is the current Lumen retention period?",
+      "corpus": [
+        {"evidence_id": "core_correction_lumen_current", "text": "The approved Lumen policy retains operational events for 30 days."},
+        {"evidence_id": "core_correction_lumen_old", "text": "An old Lumen policy retained operational events for 90 days and is no longer active."},
+        {"evidence_id": "core_correction_lumen_backup", "text": "Lumen backups are encrypted at rest."}
+      ],
+      "qrels": {"relevant_evidence": ["core_correction_lumen_current"], "forbidden_evidence": ["core_correction_lumen_old"], "answer_facts": ["30 days"]}
+    },
+    {
+      "job_id": "core-resume-harbor",
+      "stratum": "work_resume",
+      "title": "Resume the Harbor migration",
+      "query": "Where did the Harbor migration stop, and what is the next action?",
+      "corpus": [
+        {"evidence_id": "core_resume_harbor_done", "text": "Harbor migration checkpoint: schema conversion completed and commit 8f21a6 passed integration tests."},
+        {"evidence_id": "core_resume_harbor_next", "text": "Harbor migration next action: run the rollback drill before enabling production traffic."},
+        {"evidence_id": "core_resume_harbor_rejected", "text": "The team rejected skipping the Harbor rollback drill."}
+      ],
+      "qrels": {"relevant_evidence": ["core_resume_harbor_done", "core_resume_harbor_next"], "forbidden_evidence": [], "answer_facts": ["schema conversion", "8f21a6", "rollback drill"]}
+    },
+    {
+      "job_id": "core-resume-delta",
+      "stratum": "work_resume",
+      "title": "Resume the Delta incident follow-up",
+      "query": "What was completed in the Delta incident follow-up and what remains?",
+      "corpus": [
+        {"evidence_id": "core_resume_delta_done", "text": "Delta incident follow-up completed log rotation and verified the alert route."},
+        {"evidence_id": "core_resume_delta_next", "text": "The next Delta action is to run the recovery drill with the service owner."},
+        {"evidence_id": "core_resume_delta_old", "text": "An earlier Delta note proposed closing the incident without a recovery drill."}
+      ],
+      "qrels": {"relevant_evidence": ["core_resume_delta_done", "core_resume_delta_next"], "forbidden_evidence": ["core_resume_delta_old"], "answer_facts": ["log rotation", "alert route", "recovery drill"]}
+    },
+    {
+      "job_id": "core-resume-solstice",
+      "stratum": "work_resume",
+      "title": "Resume the Solstice release",
+      "query": "Where did the Solstice release stop and what should happen next?",
+      "corpus": [
+        {"evidence_id": "core_resume_solstice_done", "text": "Solstice release packaging finished and artifact checksums were recorded."},
+        {"evidence_id": "core_resume_solstice_next", "text": "The next Solstice step is to obtain the release approval before publishing."},
+        {"evidence_id": "core_resume_solstice_rejected", "text": "Publishing Solstice without release approval was rejected."}
+      ],
+      "qrels": {"relevant_evidence": ["core_resume_solstice_done", "core_resume_solstice_next"], "forbidden_evidence": [], "answer_facts": ["packaging", "checksums", "release approval"]}
+    },
+    {
+      "job_id": "core-resume-mica",
+      "stratum": "work_resume",
+      "title": "Resume the Mica documentation migration",
+      "query": "What is complete in the Mica documentation migration and what is the next step?",
+      "corpus": [
+        {"evidence_id": "core_resume_mica_done", "text": "Mica documentation migration converted the API guide and checked all internal links."},
+        {"evidence_id": "core_resume_mica_next", "text": "The next Mica action is to review the deployment guide with the operations team."},
+        {"evidence_id": "core_resume_mica_old", "text": "The old Mica plan would have skipped operations review; that option was rejected."}
+      ],
+      "qrels": {"relevant_evidence": ["core_resume_mica_done", "core_resume_mica_next"], "forbidden_evidence": ["core_resume_mica_old"], "answer_facts": ["API guide", "internal links", "deployment guide", "operations team"]}
+    },
+    {
+      "job_id": "core-scope-orion",
+      "stratum": "privacy_scope_deletion_forgetting",
+      "title": "Retrieve only the approved public Orion note",
+      "query": "Which Orion deployment detail is approved for the public release note?",
+      "corpus": [
+        {"evidence_id": "core_scope_orion_public", "text": "Approved public Orion release note: deployment completed successfully on 2026-07-24."},
+        {"evidence_id": "core_scope_orion_private", "text": "Private Orion security note: temporary incident credential is private-only and must never be published."},
+        {"evidence_id": "core_scope_orion_draft", "text": "Draft Orion release copy was rejected and is not approved for publication."}
+      ],
+      "qrels": {"relevant_evidence": ["core_scope_orion_public"], "forbidden_evidence": ["core_scope_orion_private", "core_scope_orion_draft"], "answer_facts": ["deployment completed successfully", "2026-07-24"]}
+    },
+    {
+      "job_id": "core-scope-nova",
+      "stratum": "privacy_scope_deletion_forgetting",
+      "title": "Exclude the deleted Nova credential",
+      "query": "What public Nova deployment fact remains after the credential was deleted?",
+      "corpus": [
+        {"evidence_id": "core_scope_nova_public", "text": "Nova deployment completed in the staging cluster and is safe to mention in the internal project summary."},
+        {"evidence_id": "core_scope_nova_deleted", "text": "The Nova temporary credential was deleted and must not be recalled or exposed."},
+        {"evidence_id": "core_scope_nova_draft", "text": "A Nova draft deployment date was not approved."}
+      ],
+      "qrels": {"relevant_evidence": ["core_scope_nova_public"], "forbidden_evidence": ["core_scope_nova_deleted", "core_scope_nova_draft"], "answer_facts": ["staging cluster"]}
+    },
+    {
+      "job_id": "core-scope-birch",
+      "stratum": "privacy_scope_deletion_forgetting",
+      "title": "Respect the Birch project scope",
+      "query": "Which Birch decision belongs to the controlled project scope?",
+      "corpus": [
+        {"evidence_id": "core_scope_birch_project", "text": "Within the Birch project scope, the approved cache uses a 15 minute TTL."},
+        {"evidence_id": "core_scope_birch_adjacent", "text": "An adjacent project uses a different Birch cache policy and is out of scope."},
+        {"evidence_id": "core_scope_birch_private", "text": "Birch private review notes are restricted to the security team."}
+      ],
+      "qrels": {"relevant_evidence": ["core_scope_birch_project"], "forbidden_evidence": ["core_scope_birch_adjacent", "core_scope_birch_private"], "answer_facts": ["15 minute TTL"]}
+    },
+    {
+      "job_id": "core-scope-tern",
+      "stratum": "privacy_scope_deletion_forgetting",
+      "title": "Respect the Tern release scope",
+      "query": "What Tern release detail is approved for the team summary?",
+      "corpus": [
+        {"evidence_id": "core_scope_tern_public", "text": "The approved Tern team summary says the release passed integration tests."},
+        {"evidence_id": "core_scope_tern_restricted", "text": "Tern restricted review contains an incident identifier and is not in the team summary scope."},
+        {"evidence_id": "core_scope_tern_rejected", "text": "A Tern draft claim about zero defects was rejected."}
+      ],
+      "qrels": {"relevant_evidence": ["core_scope_tern_public"], "forbidden_evidence": ["core_scope_tern_restricted", "core_scope_tern_rejected"], "answer_facts": ["passed integration tests"]}
+    },
+    {
+      "job_id": "core-unsupported-lyra",
+      "stratum": "unsupported_claim_grounding",
+      "title": "Do not invent the Lyra launch code",
+      "query": "What is the confidential Lyra launch code?",
+      "corpus": [
+        {"evidence_id": "core_unsupported_lyra_schedule", "text": "The Lyra launch rehearsal is scheduled for Friday. No launch code is recorded here."},
+        {"evidence_id": "core_unsupported_lyra_owner", "text": "The Lyra release owner is the platform team. This source does not contain a launch code."},
+        {"evidence_id": "core_unsupported_lyra_policy", "text": "Policy requires stating that the launch code is unknown when no source provides it."}
+      ],
+      "qrels": {"relevant_evidence": [], "forbidden_evidence": ["core_unsupported_lyra_schedule", "core_unsupported_lyra_owner"], "expect_unsupported": true}
+    },
+    {
+      "job_id": "core-unsupported-aster",
+      "stratum": "unsupported_claim_grounding",
+      "title": "Do not invent the Aster deadline",
+      "query": "What is the confidential Aster customer deadline?",
+      "corpus": [
+        {"evidence_id": "core_unsupported_aster_status", "text": "Aster work is in progress. The source does not record a customer deadline."},
+        {"evidence_id": "core_unsupported_aster_owner", "text": "The Aster owner is the delivery team, but no customer deadline is documented."},
+        {"evidence_id": "core_unsupported_aster_policy", "text": "When a deadline is absent, the assistant must say that it is unknown."}
+      ],
+      "qrels": {"relevant_evidence": [], "forbidden_evidence": ["core_unsupported_aster_status", "core_unsupported_aster_owner"], "expect_unsupported": true}
+    },
+    {
+      "job_id": "core-unsupported-umber",
+      "stratum": "unsupported_claim_grounding",
+      "title": "Do not invent the Umber incident key",
+      "query": "What is the confidential Umber incident key?",
+      "corpus": [
+        {"evidence_id": "core_unsupported_umber_status", "text": "The Umber incident is being investigated. No incident key is present in this source."},
+        {"evidence_id": "core_unsupported_umber_owner", "text": "The Umber incident owner is the operations team. The key is not recorded."},
+        {"evidence_id": "core_unsupported_umber_policy", "text": "Unknown incident keys must not be guessed or fabricated."}
+      ],
+      "qrels": {"relevant_evidence": [], "forbidden_evidence": ["core_unsupported_umber_status", "core_unsupported_umber_owner"], "expect_unsupported": true}
+    },
+    {
+      "job_id": "core-unsupported-quartz",
+      "stratum": "unsupported_claim_grounding",
+      "title": "Do not invent the Quartz approval date",
+      "query": "What is the confidential Quartz approval date?",
+      "corpus": [
+        {"evidence_id": "core_unsupported_quartz_status", "text": "Quartz review is scheduled, but this source contains no approval date."},
+        {"evidence_id": "core_unsupported_quartz_owner", "text": "The Quartz review owner is the architecture group; no approval date is recorded."},
+        {"evidence_id": "core_unsupported_quartz_policy", "text": "The assistant must report an approval date as unknown when evidence is absent."}
+      ],
+      "qrels": {"relevant_evidence": [], "forbidden_evidence": ["core_unsupported_quartz_status", "core_unsupported_quartz_owner"], "expect_unsupported": true}
+    }
+  ]
+}

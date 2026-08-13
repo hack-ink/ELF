@@ -26,10 +26,17 @@ pub(crate) fn run_qmd(args: QmdArgs) -> Result<()> {
 			status: aggregate_status(&materialized),
 			command: "cargo run -p elf-eval --bin real_world_live_adapter -- qmd".to_string(),
 			artifact: Some(args.evidence_out.display().to_string()),
-			reason: "qmd live adapter used collection add, update, embed, and query --json."
-				.to_string(),
+			reason: if args.lexical_only {
+				"qmd live adapter used collection add, update, and lexical query --json."
+					.to_string()
+			} else {
+				"qmd live adapter used collection add, update, embed, and query --json.".to_string()
+			},
 		}],
-		metadata: None,
+		metadata: Some(serde_json::json!({
+			"index_reused": args.reuse_index,
+			"lexical_only": args.lexical_only,
+		})),
 	})
 }
 

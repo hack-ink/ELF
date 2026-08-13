@@ -67,17 +67,16 @@ use elf_domain_materializers::{materialize_elf_consolidation, materialize_elf_kn
 use elf_service::{
 	AddNoteInput, AddNoteRequest, BoxFuture, ConsolidationProposalInput,
 	ConsolidationProposalResponse, ConsolidationProposalReviewRequest,
-	ConsolidationProposalsListRequest, ConsolidationRunCreateRequest, ElfService,
+	ConsolidationProposalsListRequest, ConsolidationRunCreateRequest, DeleteRequest, ElfService,
 	EmbeddingProvider, ExtractorProvider, KnowledgePageLintRequest, KnowledgePageLintResponse,
 	KnowledgePageRebuildRequest, KnowledgePageResponse, KnowledgePageSearchRequest, ListRequest,
-	PayloadLevel, RerankProvider, SearchItem, SearchRequest, SearchResponse,
+	NoteOp, PayloadLevel, RerankProvider, SearchItem, SearchRequest, SearchResponse, UpdateRequest,
 };
 use elf_storage::{db::Db, qdrant::QdrantStore};
-use elf_testkit::TestDatabase;
 use elf_worker::worker::{self, WorkerState};
 use evidence_selection::{
 	answer_claims, elf_selected_evidence_text, expected_claim_text, live_required_evidence_ids,
-	required_evidence_satisfied, selected_required_corpus_texts,
+	required_evidence_satisfied, selected_retrieved_corpus_texts,
 };
 use fixtures::{corpus_texts, load_jobs, read_dir_paths};
 use ingestion::ingest_elf_corpus;
@@ -95,12 +94,13 @@ use model::{
 	CaptureRuntimeSourceRefEvidence, CommandArgs, CommandEvidence,
 	ConsolidationMaterializationEvidence, CorpusText, CostOutput, DeterministicEmbedding,
 	DreamingReadbackMaterializationEvidence, DreamingReadbackOutput, ELF_NOTE_CHUNK_CHARS,
-	EVIDENCE_SCHEMA, ElfArgs, IngestedCorpus, JOB_SCHEMA, KnowledgeMaterializationEvidence,
-	LightragArgs, LightragSource, LiveCaptureAction, LiveConsolidationFixture,
-	LiveConsolidationProposal, LiveExpectedClaim, LiveJob, LiveMemoryEvolution, LoadedJob,
-	MaterializationEvidence, MaterializationStatus, MaterializedJob, MaterializedJobEvidence,
-	MaterializedJobInput, MaterializedOutput, NoopExtractor, OperatorDebugMaterializationEvidence,
-	PreparedConsolidationRun, QmdArgs, SCOPE, SelectedEvidenceText, SourceMappingEvidence,
+	EVIDENCE_SCHEMA, ElfArgs, ExternalEmbedding, IngestedCorpus, JOB_SCHEMA,
+	KnowledgeMaterializationEvidence, LightragArgs, LightragSource, LiveCaptureAction,
+	LiveConsolidationFixture, LiveConsolidationProposal, LiveExpectedClaim, LiveJob,
+	LiveMemoryEvolution, LoadedJob, MaterializationEvidence, MaterializationStatus,
+	MaterializedJob, MaterializedJobEvidence, MaterializedJobInput, MaterializedOutput,
+	NoopExtractor, OperatorDebugMaterializationEvidence, PreparedConsolidationRun, QmdArgs,
+	RetrievalOrderRerank, SCOPE, SelectedEvidenceText, SourceMappingEvidence,
 	SuiteMaterializationSelection, SuiteMaterializationSelectionInput, TENANT_ID,
 	TemporalReconciliationMaterializationEvidence, TemporalReconciliationSelection,
 	TokenOverlapRerank, TraceExplainabilityOutput, TraceStageOutput,
@@ -108,9 +108,8 @@ use model::{
 use operator_debug::{elf_replay_command, operator_debug_output, qmd_replay_command};
 use output::{aggregate_status, failure_jobs, write_materialized_output};
 use runtime_support::{
-	deterministic_providers, embed_text, normalize_ascii_alnum_lowercase, note_text_chunks,
-	project_id_for_job, push_unique, run_logged_command, run_logged_shell, run_qmd_command,
-	runtime_config, short_hash, slug, terms,
+	embed_text, note_text_chunks, project_id_for_job, push_unique, real_world_providers,
+	run_logged_command, run_logged_shell, run_qmd_command, runtime_config, short_hash, slug, terms,
 };
 use service_runtime::{build_service, run_worker};
 

@@ -15,12 +15,23 @@ pub(crate) struct LiveJob {
 	pub(crate) title: String,
 	pub(crate) corpus: LiveCorpus,
 	pub(crate) prompt: LivePrompt,
+	#[serde(default)]
+	pub(crate) operations: Vec<LiveOperation>,
+	#[serde(default)]
 	pub(crate) expected_answer: LiveExpectedAnswer,
 	#[serde(default)]
 	pub(crate) required_evidence: Vec<LiveRequiredEvidence>,
 	#[serde(default)]
 	pub(crate) encoding: LiveEncoding,
 	pub(crate) memory_evolution: Option<LiveMemoryEvolution>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct LiveOperation {
+	#[serde(rename = "type")]
+	pub(crate) operation_type: String,
+	pub(crate) evidence_id: String,
+	pub(crate) text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -55,7 +66,7 @@ pub(crate) struct LivePrompt {
 	pub(crate) content: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub(crate) struct LiveExpectedAnswer {
 	#[serde(default)]
 	pub(crate) must_include: Vec<LiveExpectedClaim>,
