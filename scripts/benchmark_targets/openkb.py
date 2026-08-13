@@ -104,6 +104,12 @@ def _write_json(path: Path, value: Any) -> None:
     )
 
 
+def _subprocess_text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
+
+
 def _load_jobs(input_dir: Path) -> list[dict[str, Any]]:
     return [
         json.loads(path.read_text(encoding="utf-8"))
@@ -221,8 +227,8 @@ def _run_native(
         )
     except subprocess.TimeoutExpired as error:
         stdout_path.parent.mkdir(parents=True, exist_ok=True)
-        stdout_path.write_text(error.stdout or "", encoding="utf-8")
-        stderr_path.write_text(error.stderr or "", encoding="utf-8")
+        stdout_path.write_text(_subprocess_text(error.stdout), encoding="utf-8")
+        stderr_path.write_text(_subprocess_text(error.stderr), encoding="utf-8")
         raise OpenKBProductFailure("OpenKB native operation timed out") from error
     elapsed_ms = (time.monotonic() - started) * 1000.0
     stdout_path.parent.mkdir(parents=True, exist_ok=True)

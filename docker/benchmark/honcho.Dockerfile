@@ -20,6 +20,7 @@ RUN git init /app \
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
 RUN --mount=type=cache,target=/root/.cache/uv \
   uv sync --frozen --no-group dev
 

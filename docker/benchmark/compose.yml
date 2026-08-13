@@ -94,6 +94,7 @@ services:
       EMBEDDING_BINDING_API_KEY: ${BENCHMARK_EMBEDDING_API_KEY}
       EMBEDDING_MODEL: ${BENCHMARK_EMBEDDING_MODEL}
       EMBEDDING_DIM: ${BENCHMARK_EMBEDDING_DIMENSIONS}
+      EMBEDDING_SEND_DIM: "true"
       RERANK_BY_DEFAULT: "False"
       MAX_ASYNC_LLM: 1
       MAX_ASYNC_RERANK: 1
@@ -261,6 +262,9 @@ services:
   openkb-unit:
     <<: *unit
     image: ${BENCHMARK_OPENKB_IMAGE:-elf-benchmark-openkb:v4}
+    environment:
+      <<: *unit-environment
+      OPENKB_TIMEOUT_SECONDS: "1200"
     command:
       - python3
       - /opt/benchmark/benchmark-unit.py

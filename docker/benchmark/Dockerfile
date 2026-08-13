@@ -61,7 +61,8 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
 COPY --from=elf-builder /out/real_world_live_adapter \
   /usr/local/bin/real_world_live_adapter
 COPY --from=qmd-builder /opt/qmd /opt/qmd
-COPY config/local/elf.docker.toml config/local/tokenizer.wordlevel.json /opt/elf/
+COPY config/local/elf.docker.toml /opt/elf/
+COPY config/local/tokenizer.wordlevel.json /config/local/tokenizer.wordlevel.json
 COPY scripts/benchmark-unit.py /opt/benchmark/benchmark-unit.py
 COPY scripts/benchmark-provider-preflight.py /opt/benchmark/benchmark-provider-preflight.py
 COPY scripts/benchmark_targets /opt/benchmark/benchmark_targets
@@ -70,5 +71,7 @@ LABEL org.opencontainers.image.revision="${ELF_SOURCE_COMMIT}"
 
 ENV MEM0_TELEMETRY=false
 ENV PYTHONUNBUFFERED=1
+
+WORKDIR /
 
 CMD ["python3", "/opt/benchmark/benchmark-unit.py", "--help"]

@@ -46,6 +46,7 @@ PREFLIGHT = load_script(
     "benchmark_provider_preflight", "scripts/benchmark-provider-preflight.py"
 )
 REPORT = load_script("benchmark_report", "scripts/benchmark-report.py")
+OPENKB = load_script("benchmark_openkb", "scripts/benchmark_targets/openkb.py")
 
 
 class BenchmarkContractTests(unittest.TestCase):
@@ -245,6 +246,43 @@ class BenchmarkContractTests(unittest.TestCase):
             PREFLIGHT.endpoint("https://provider.test", "chat/completions"),
             "https://provider.test/v1/chat/completions",
         )
+
+    def test_readiness_repairs_remain_native_and_bounded(self) -> None:
+        compose = (REPO / "docker/benchmark/compose.yml").read_text(encoding="utf-8")
+        unit_image = (REPO / "docker/benchmark/Dockerfile").read_text(encoding="utf-8")
+        honcho_image = (REPO / "docker/benchmark/honcho.Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('EMBEDDING_SEND_DIM: "true"', compose)
+        self.assertIn('OPENKB_TIMEOUT_SECONDS: "1200"', compose)
+        self.assertIn(
+            "COPY config/local/tokenizer.wordlevel.json /config/local/tokenizer.wordlevel.json",
+            unit_image,
+        )
+        self.assertIn("UV_PYTHON_INSTALL_DIR=/opt/uv-python", honcho_image)
+
+    def test_openkb_timeout_preserves_bytes_and_product_failure(self) -> None:
+        timeout = subprocess.TimeoutExpired(
+            ["openkb"], 1, output=b"partial stdout\n", stderr=b"partial stderr\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stdout_path = root / "stdout.log"
+            stderr_path = root / "stderr.log"
+            with mock.patch.object(OPENKB.subprocess, "run", side_effect=timeout):
+                with self.assertRaisesRegex(
+                    OPENKB.OpenKBProductFailure, "native operation timed out"
+                ):
+                    OPENKB._run_native(
+                        ["openkb"],
+                        cwd=root,
+                        env={},
+                        stdout_path=stdout_path,
+                        stderr_path=stderr_path,
+                        timeout=1,
+                    )
+            self.assertEqual(stdout_path.read_text(encoding="utf-8"), "partial stdout\n")
+            self.assertEqual(stderr_path.read_text(encoding="utf-8"), "partial stderr\n")
 
     def test_report_has_required_chinese_decision_sections(self) -> None:
         suite = self.subset("common-core-v1")
