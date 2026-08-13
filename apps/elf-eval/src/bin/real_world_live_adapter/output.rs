@@ -18,6 +18,7 @@ pub(super) fn failure_jobs(
 				MaterializedJobInput {
 					content: String::new(),
 					evidence_ids: Vec::new(),
+					contexts: None,
 					pages: Vec::new(),
 					latency_ms: 0.0,
 					indexing_latency_ms: None,
@@ -146,6 +147,7 @@ fn clone_job_evidence(evidence: &MaterializedJobEvidence) -> MaterializedJobEvid
 		status: evidence.status,
 		query: evidence.query.clone(),
 		evidence_ids: evidence.evidence_ids.clone(),
+		contexts: evidence.contexts.clone(),
 		returned_count: evidence.returned_count,
 		indexing_latency_ms: evidence.indexing_latency_ms,
 		latency_ms: evidence.latency_ms,

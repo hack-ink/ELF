@@ -81,7 +81,7 @@ pub(super) fn materialize_qmd_job(
 						));
 					}
 					fs::write(path, format!("# {}\n\n{}\n", operation.evidence_id, text))?;
-				}
+				},
 				"delete" => {
 					if !path.is_file() {
 						return Err(eyre::eyre!(
@@ -90,7 +90,7 @@ pub(super) fn materialize_qmd_job(
 						));
 					}
 					fs::remove_file(path)?;
-				}
+				},
 				other => return Err(eyre::eyre!("Unsupported qmd operation {other}.")),
 			}
 		}
@@ -138,6 +138,7 @@ pub(super) fn materialize_qmd_job(
 	)?;
 	let latency_ms = started_at.elapsed().as_secs_f64() * 1_000.0;
 	let (entries, evidence_ids) = response::qmd_query_entries(loaded, &corpus, &stdout)?;
+	let contexts = response::qmd_native_contexts(loaded, &corpus, &entries)?;
 	let selected = crate::selected_retrieved_corpus_texts(&corpus, &evidence_ids);
 	let replay_command = crate::qmd_replay_command(&loaded.job.prompt.content, collection.as_str());
 	let (operator_debug, operator_debug_evidence) = crate::operator_debug_output(
@@ -152,6 +153,7 @@ pub(super) fn materialize_qmd_job(
 		loaded,
 		&args.adapter_id,
 		selected,
+		contexts,
 		latency_ms,
 		entries.len(),
 		operator_debug,

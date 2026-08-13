@@ -115,6 +115,7 @@ pub(super) fn materialized_declared_status_job(
 			status,
 			query: loaded.job.prompt.content.clone(),
 			evidence_ids: Vec::new(),
+			contexts: None,
 			returned_count: 0,
 			indexing_latency_ms: None,
 			latency_ms: 0.0,

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_contract import (
+    NativeContextError,
     answer_cases,
     evaluate_unit,
     load_json,
@@ -394,7 +395,19 @@ def attach_shared_answers(
 ) -> dict[str, Any]:
     if unit.get("result_class") != "completed" or not unit.get("score_eligible"):
         return unit
-    cases = answer_cases(suite, unit, context_budget)
+    try:
+        cases = answer_cases(suite, unit, context_budget)
+    except NativeContextError as error:
+        return failure_unit(
+            {
+                "id": unit["target"],
+                "adapter": unit.get("native_mode"),
+                "score_eligible": unit.get("score_eligible"),
+            },
+            suite,
+            "adapter_failed",
+            str(error),
+        )
     if not cases:
         return unit
     prompt = {

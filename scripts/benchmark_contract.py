@@ -58,6 +58,10 @@ FORBIDDEN_PRODUCT_KEYS = {
 }
 
 
+class NativeContextError(ValueError):
+    """A mutation job omitted or malformed its native ranked readback."""
+
+
 def load_json(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -310,14 +314,42 @@ def _answer_scores(qrels: dict[str, Any], raw_answer: Any) -> tuple[Any, Any, li
     return float(correct), None, forbidden
 
 
+def _normalized_native_contexts(
+    raw: Any, evidence_id_map: dict[str, str]
+) -> list[dict[str, Any]] | None:
+    if not isinstance(raw, list):
+        return None
+    contexts: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+            return None
+        evidence_id = item.get("evidence_id")
+        if evidence_id is not None and not isinstance(evidence_id, str):
+            return None
+        contexts.append(
+            {
+                "evidence_id": evidence_id_map.get(evidence_id, evidence_id),
+                "text": item["text"],
+            }
+        )
+    return contexts
+
+
 def _operation_scores(
-    expected: list[str], native: Any
+    expected: list[str],
+    operations: list[dict[str, Any]],
+    native: Any,
+    retrieved: list[str],
+    contexts: list[dict[str, Any]] | None,
 ) -> tuple[float | None, float | None, list[str]]:
     rows = native if isinstance(native, list) else []
     missing: list[str] = []
     update_values: list[float] = []
     delete_values: list[float] = []
     for requested in expected:
+        operation = next(
+            (item for item in operations if item.get("type") == requested), None
+        )
         row = next(
             (
                 item
@@ -337,10 +369,33 @@ def _operation_scores(
             value = 1.0 if row.get("native_success") is True else 0.0
         if requested == "update":
             exact = native_type in {"update", "replace", "reindex_update"}
-            update_values.append(value if exact else 0.0)
+            evidence_id = operation.get("evidence_id") if operation else None
+            replacement = operation.get("text") if operation else None
+            readback = bool(
+                contexts is not None
+                and isinstance(evidence_id, str)
+                and isinstance(replacement, str)
+                and evidence_id in retrieved
+                and any(
+                    context.get("evidence_id") == evidence_id
+                    and _normalized_text(replacement)
+                    in _normalized_text(str(context.get("text") or ""))
+                    for context in contexts
+                )
+            )
+            update_values.append(value if exact and readback else 0.0)
         elif requested == "delete":
             exact = native_type in {"delete", "forget", "session_delete"}
-            delete_values.append(value if exact else 0.0)
+            evidence_id = operation.get("evidence_id") if operation else None
+            readback = bool(
+                contexts is not None
+                and isinstance(evidence_id, str)
+                and evidence_id not in retrieved
+                and all(
+                    context.get("evidence_id") != evidence_id for context in contexts
+                )
+            )
+            delete_values.append(value if exact and readback else 0.0)
     return _mean(update_values), _mean(delete_values), missing
 
 
@@ -400,6 +455,21 @@ def evaluate_unit(
                 evidence_id_map.get(evidence_id, evidence_id)
                 for evidence_id in raw_evidence
             ]
+            native_contexts = (
+                _normalized_native_contexts(raw_job.get("contexts"), evidence_id_map)
+                if "contexts" in raw_job
+                else None
+            )
+            requires_native_readback = bool(definition.get("operations"))
+            if phase_name == "warm" and requires_native_readback:
+                if "contexts" not in raw_job:
+                    contract_failures.append(
+                        f"{job_id} omitted native ranked contexts after mutation"
+                    )
+                elif native_contexts is None:
+                    contract_failures.append(
+                        f"{job_id} returned malformed native ranked contexts after mutation"
+                    )
             relevant = set(qrels.get("relevant_evidence") or [])
             forbidden = set(qrels.get("forbidden_evidence") or [])
             relevant_hits = [value for value in retrieved if value in relevant]
@@ -419,7 +489,10 @@ def evaluate_unit(
             )
             update_success, delete_success, missing_operations = _operation_scores(
                 list(qrels.get("required_operations") or []),
+                list(definition.get("operations") or []),
                 raw_job.get("operations"),
+                retrieved,
+                native_contexts,
             )
             if phase_name == "warm" and missing_operations:
                 contract_failures.append(
@@ -435,6 +508,7 @@ def evaluate_unit(
                         "classification", raw_phase.get("status")
                     ),
                     "retrieved_evidence": retrieved,
+                    "native_contexts": native_contexts or [],
                     "recall_at_5": _rounded(
                         len(relevant_hits) / len(relevant) if relevant else None
                     ),
@@ -489,7 +563,8 @@ def evaluate_unit(
                     f"{phase_name} phase contains non-completed job rows"
                 )
         quality_denominator = bool(
-            score_eligible
+            unit.get("result_class") == "completed"
+            and score_eligible
             and phase_class == "completed"
             and coverage["passed"]
             and len(completed_rows) == len(normalized_rows)
@@ -601,31 +676,38 @@ def answer_cases(
         job = jobs.get(raw.get("job_id"))
         if job is None or raw.get("classification") != "completed":
             continue
-        final_evidence = {
-            item["evidence_id"]: item["text"] for item in job["corpus"]
-        }
-        for operation in job.get("operations") or []:
-            evidence_id = operation["evidence_id"]
-            if operation["type"] == "update":
-                final_evidence[evidence_id] = operation["text"]
-            elif operation["type"] == "delete":
-                final_evidence.pop(evidence_id, None)
+        source_evidence = {item["evidence_id"]: item["text"] for item in job["corpus"]}
         evidence = {
             key: text
-            for evidence_id, text in final_evidence.items()
+            for evidence_id, text in source_evidence.items()
             for key in (evidence_id, opaque_evidence_id(evidence_id))
         }
         context = []
         used = 0
-        native_contexts = raw.get("contexts")
-        ranked_contexts = (
-            native_contexts
-            if isinstance(native_contexts, list)
-            else [
+        if "contexts" in raw:
+            native_contexts = raw.get("contexts")
+            if not isinstance(native_contexts, list) or any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("text"), str)
+                or (
+                    item.get("evidence_id") is not None
+                    and not isinstance(item.get("evidence_id"), str)
+                )
+                for item in native_contexts
+            ):
+                raise NativeContextError(
+                    f"{raw.get('job_id')} returned malformed native ranked contexts"
+                )
+            ranked_contexts = native_contexts
+        elif job.get("operations"):
+            raise NativeContextError(
+                f"{raw.get('job_id')} omitted native ranked contexts after mutation"
+            )
+        else:
+            ranked_contexts = [
                 {"evidence_id": evidence_id, "text": evidence.get(evidence_id)}
                 for evidence_id in raw.get("evidence_ids") or []
             ]
-        )
         for rank, item in enumerate(ranked_contexts, start=1):
             if not isinstance(item, dict):
                 continue

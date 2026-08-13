@@ -49,7 +49,7 @@ use consolidation_adapter::{
 	prepare_consolidation_run, validate_reviewed_consolidation_count,
 };
 use dreaming_readback::{
-	materialize_elf_dreaming_readback, search_response_evidence_ids,
+	materialize_elf_dreaming_readback, search_response_contexts, search_response_evidence_ids,
 	suite_materialization_selection,
 };
 use elf_chunking::ChunkingConfig;

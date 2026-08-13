@@ -150,20 +150,21 @@ def normalize_rust_phase(
         classification = classify_failure(failure) if failure else "completed"
         if classification != "completed":
             phase_status = classification
-        jobs.append(
-            {
-                "job_id": job["job_id"],
-                "classification": classification,
-                "evidence_ids": list(job.get("evidence_ids") or []),
-                "returned_count": int(job.get("returned_count") or 0),
-                "latency_ms": float(job.get("latency_ms") or 0.0),
-                "native_status": job.get("status"),
-                "failure": failure,
-                "operations": native_operation_receipts(
-                    target, phase, fixtures.get(job["job_id"])
-                ) if classification == "completed" else [],
-            }
-        )
+        row = {
+            "job_id": job["job_id"],
+            "classification": classification,
+            "evidence_ids": list(job.get("evidence_ids") or []),
+            "returned_count": int(job.get("returned_count") or 0),
+            "latency_ms": float(job.get("latency_ms") or 0.0),
+            "native_status": job.get("status"),
+            "failure": failure,
+            "operations": native_operation_receipts(
+                target, phase, fixtures.get(job["job_id"])
+            ) if classification == "completed" else [],
+        }
+        if "contexts" in job:
+            row["contexts"] = job["contexts"]
+        jobs.append(row)
     return {
         "status": phase_status,
         "jobs": jobs,
@@ -314,6 +315,18 @@ def mapped_evidence(entries: list[dict[str, Any]]) -> list[str]:
     return output
 
 
+def mem0_contexts(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    output = []
+    for entry in entries:
+        text = entry.get("memory")
+        if not isinstance(text, str):
+            continue
+        metadata = entry.get("metadata")
+        evidence_id = metadata.get("evidence_id") if isinstance(metadata, dict) else None
+        output.append({"evidence_id": evidence_id, "text": text})
+    return output
+
+
 def created_memory_ids(value: Any) -> list[str]:
     output: list[str] = []
     for entry in mem0_entries(value):
@@ -448,6 +461,7 @@ def run_mem0() -> dict[str, Any]:
                     "job_id": job["job_id"],
                     "classification": "completed",
                     "evidence_ids": evidence_ids,
+                    "contexts": mem0_contexts(entries),
                     "returned_count": len(entries),
                     "latency_ms": latency_ms,
                     "native_status": "completed",

@@ -150,6 +150,7 @@ async fn materialize_lightrag_job(
 		MaterializedJobInput {
 			content: selected.content,
 			evidence_ids: selected.evidence_ids,
+			contexts: None,
 			pages: Vec::new(),
 			latency_ms,
 			indexing_latency_ms,

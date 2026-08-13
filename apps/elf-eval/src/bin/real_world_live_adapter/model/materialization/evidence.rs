@@ -33,6 +33,8 @@ pub(crate) struct MaterializedJobEvidence {
 	pub(crate) status: MaterializationStatus,
 	pub(crate) query: String,
 	pub(crate) evidence_ids: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(crate) contexts: Option<Vec<serde_json::Value>>,
 	pub(crate) returned_count: usize,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(crate) indexing_latency_ms: Option<f64>,

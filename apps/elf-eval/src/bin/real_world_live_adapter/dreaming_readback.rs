@@ -4,7 +4,7 @@ use crate::{
 	AGENT_ID, DreamingReadbackMaterializationEvidence, DreamingReadbackOutput, ElfService,
 	ListRequest, LoadedJob, OffsetDateTime, Result, Rfc3339, SCOPE, SearchResponse,
 	SelectedEvidenceText, SuiteMaterializationSelection, SuiteMaterializationSelectionInput,
-	TENANT_ID, Uuid, Value, eyre,
+	TENANT_ID, Uuid, Value, eyre, serde_json,
 };
 
 pub(super) fn search_response_evidence_ids(response: &SearchResponse) -> Vec<String> {
@@ -17,6 +17,19 @@ pub(super) fn search_response_evidence_ids(response: &SearchResponse) -> Vec<Str
 	}
 
 	evidence_ids
+}
+
+pub(super) fn search_response_contexts(response: &SearchResponse) -> Vec<Value> {
+	response
+		.items
+		.iter()
+		.map(|item| {
+			serde_json::json!({
+				"evidence_id": item.source_ref.get("evidence_id").cloned().unwrap_or(Value::Null),
+				"text": item.snippet,
+			})
+		})
+		.collect()
 }
 
 pub(super) fn suite_materialization_selection(

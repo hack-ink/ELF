@@ -107,6 +107,7 @@ async fn materialize_elf_job(
 
 	let (response, latency_ms) = search::search_elf_job(service, loaded, &project_id).await?;
 	let evidence_ids = crate::search_response_evidence_ids(&response);
+	let contexts = crate::search_response_contexts(&response);
 	let runtime_capture = crate::capture_runtime_evidence_from_search_items(&response.items);
 	let capture =
 		crate::capture_with_runtime_source_refs(ingested.capture.clone(), &runtime_capture);
@@ -155,13 +156,24 @@ async fn materialize_elf_job(
 			consolidation: &optional.consolidation,
 			dreaming_readback: optional.dreaming_readback,
 		});
+	let native_content = contexts
+		.iter()
+		.filter_map(|context| context.get("text").and_then(serde_json::Value::as_str))
+		.collect::<Vec<_>>()
+		.join("\n");
+	let content = if loaded.job.operations.is_empty() {
+		suite_selection.selected.content
+	} else {
+		native_content
+	};
 
 	Ok(crate::materialized_job(
 		loaded,
 		&args.adapter_id,
 		MaterializedJobInput {
-			content: suite_selection.selected.content,
+			content,
 			evidence_ids: suite_selection.selected.evidence_ids,
+			contexts: Some(contexts),
 			pages: optional.pages,
 			latency_ms,
 			indexing_latency_ms: None,

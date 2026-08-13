@@ -236,6 +236,8 @@ def product_observations(bundle: dict[str, Any]) -> list[str]:
         ]
         measured: list[tuple[str, float]] = []
         for _, row in attempts:
+            if not comparable([row]):
+                continue
             for name, value in metrics(row).items():
                 if name in METRIC_NAMES and isinstance(value, (int, float)) and name != "mean_query_latency_ms":
                     desirable = 1.0 - float(value) if name in LOWER_IS_BETTER else float(value)
@@ -286,9 +288,18 @@ def elf_jobs(bundle: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     output: list[tuple[str, dict[str, Any]]] = []
     for suite_id, suite in bundle["suite_results"].items():
         row = next((item for item in suite["results"] if item["target"] == "elf"), None)
-        if row is None:
+        if row is None or not comparable([row]):
             continue
         output.extend((suite_id, job) for job in warm(row).get("jobs") or [])
+    return output
+
+
+def elf_unscored_units(bundle: dict[str, Any]) -> list[tuple[str, str]]:
+    output = []
+    for suite_id, suite in bundle["suite_results"].items():
+        row = next((item for item in suite["results"] if item["target"] == "elf"), None)
+        if row is not None and not comparable([row]):
+            output.append((suite_id, row["evaluation"]["classification"]))
     return output
 
 
@@ -299,9 +310,8 @@ def elf_job_summary(bundle: dict[str, Any]) -> list[str]:
         if job.get("classification") == "completed" and job_desirability(job) is not None
     ]
     failed = [
-        f"{suite}/{job['job_id']}（{job.get('classification')}）"
-        for suite, job in elf_jobs(bundle)
-        if job.get("classification") != "completed"
+        f"{suite}/*（{classification}，整个单元不计分）"
+        for suite, classification in elf_unscored_units(bundle)
     ]
     lines: list[str] = []
     if measured:
@@ -333,11 +343,10 @@ def elf_job_summary(bundle: dict[str, Any]) -> list[str]:
 
 def roadmap(bundle: dict[str, Any]) -> list[str]:
     categories: dict[str, set[str]] = defaultdict(set)
+    for suite_id, _ in elf_unscored_units(bundle):
+        categories["runtime"].add(f"{suite_id}/*")
     for suite_id, job in elf_jobs(bundle):
         identity = f"{suite_id}/{job['job_id']}"
-        if job.get("classification") != "completed":
-            categories["runtime"].add(identity)
-            continue
         if isinstance(job.get("recall_at_5"), (int, float)) and job["recall_at_5"] < 1:
             categories["retrieval"].add(identity)
         if job.get("forbidden_evidence_hits") or job.get("privacy_scope_violation") == 1:
@@ -407,6 +416,28 @@ def roadmap(bundle: dict[str, Any]) -> list[str]:
     if not actions:
         actions.append("1. 本次 ELF 没有产生可归因的指标失败；不据此提出产品改动。先保留本 benchmark 作为回归基线。")
     return actions
+
+
+def native_contract_boundaries(bundle: dict[str, Any]) -> list[str]:
+    lines = [
+        "| 产品 | 类型 | suite/字段 | 精确合同说明 |",
+        "|---|---|---|---|",
+    ]
+    found = False
+    for target, contract in sorted((bundle.get("target_contracts") or {}).items()):
+        for suite_id, reason in sorted((contract.get("not_applicable") or {}).items()):
+            found = True
+            lines.append(
+                f"| {esc(target)} | not_applicable | {esc(suite_id)} | {esc(reason)} |"
+            )
+        for field, reason in sorted((contract.get("native_deviations") or {}).items()):
+            found = True
+            lines.append(
+                f"| {esc(target)} | native_deviation | {esc(field)} | {esc(reason)} |"
+            )
+    if not found:
+        lines.append("| — | — | — | 没有声明的原生接口边界 |")
+    return lines
 
 
 def provider_usage(bundle: dict[str, Any]) -> Counter[str]:
@@ -516,7 +547,11 @@ def publish(bundle: dict[str, Any]) -> str:
             f"- Image digests：`{json.dumps(bundle.get('target_image_digests') or {}, sort_keys=True)}`。",
             f"- Product pins：`{json.dumps(bundle.get('target_pins') or {}, sort_keys=True)}`。",
             "- Common Core 使用 job-level 正态近似 95% CI；样本只代表冻结 suite，是内部描述性证据。",
-            "- native deviation 保留在 bundle 的 `target_contracts` 与各 unit raw artifact 中；不同原生语义不被适配器伪装成同一种 CRUD。",
+            "- 下表逐字呈现 manifest 中的 not-applicable 理由与 native deviation；不同原生语义不被适配器伪装成同一种 CRUD。",
+            "",
+            "### 原生接口边界",
+            "",
+            *native_contract_boundaries(bundle),
         ]
     )
     usage = provider_usage(bundle)

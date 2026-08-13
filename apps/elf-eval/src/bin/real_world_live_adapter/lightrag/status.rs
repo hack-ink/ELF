@@ -36,6 +36,7 @@ pub(super) fn lightrag_failure_jobs(
 				MaterializedJobInput {
 					content: String::new(),
 					evidence_ids: Vec::new(),
+					contexts: None,
 					pages: Vec::new(),
 					latency_ms: 0.0,
 					indexing_latency_ms: None,

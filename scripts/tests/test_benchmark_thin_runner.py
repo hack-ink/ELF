@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 from benchmark_contract import (  # noqa: E402
     FAILURE_CLASSES,
     FORBIDDEN_PRODUCT_KEYS,
+    NativeContextError,
     SUITE_IDS,
     answer_cases,
     evaluate_unit,
@@ -71,6 +72,23 @@ class BenchmarkContractTests(unittest.TestCase):
         for job in suite["jobs"]:
             relevant = job["qrels"].get("relevant_evidence") or []
             retrieved = [opaque_evidence_id(value) for value in relevant]
+            cold_text = {item["evidence_id"]: item["text"] for item in job["corpus"]}
+            warm_text = dict(cold_text)
+            for operation in job.get("operations") or []:
+                if operation["type"] == "update":
+                    warm_text[operation["evidence_id"]] = operation["text"]
+                elif operation["type"] == "delete":
+                    warm_text.pop(operation["evidence_id"], None)
+            cold_contexts = [
+                {"evidence_id": opaque_evidence_id(value), "text": cold_text[value]}
+                for value in relevant
+                if value in cold_text
+            ]
+            warm_contexts = [
+                {"evidence_id": opaque_evidence_id(value), "text": warm_text[value]}
+                for value in relevant
+                if value in warm_text
+            ]
             answer = {
                 "text": " ".join(job["qrels"].get("answer_facts") or []) or "unknown",
                 "supported": not bool(job["qrels"].get("expect_unsupported")),
@@ -80,6 +98,7 @@ class BenchmarkContractTests(unittest.TestCase):
                     "job_id": opaque_job_id(job["job_id"]),
                     "classification": "completed",
                     "evidence_ids": retrieved,
+                    "contexts": cold_contexts,
                     "returned_count": len(retrieved),
                     "latency_ms": 10.0,
                     "operations": [],
@@ -97,6 +116,7 @@ class BenchmarkContractTests(unittest.TestCase):
             warm_jobs.append(
                 {
                     **cold_jobs[-1],
+                    "contexts": warm_contexts,
                     "answer": answer,
                     "operations": operations,
                 }
@@ -187,6 +207,18 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertTrue(result["contract_failures"])
         self.assertEqual(result["phases"]["warm"]["counts"]["scored"], 0)
 
+    def test_missing_mutation_readback_becomes_adapter_failure_before_answering(self) -> None:
+        suite = self.subset("memory-lifecycle-v1")
+        unit = self.completed_unit("elf", suite)
+        del unit["phases"]["warm"]["jobs"][0]["contexts"]
+        with self.assertRaises(NativeContextError):
+            answer_cases(suite, unit, 12000)
+        attached = RUNNER.attach_shared_answers(suite, unit, {}, 12000)
+        self.assertEqual(attached["result_class"], "adapter_failed")
+        result = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertEqual(result["classification"], "adapter_failed")
+        self.assertIn("omitted native ranked contexts", result["contract_failures"][0])
+
     def test_incomplete_completed_unit_becomes_adapter_failure(self) -> None:
         suite = self.subset("common-core-v1", 2)
         unit = self.completed_unit("elf", suite)
@@ -199,6 +231,16 @@ class BenchmarkContractTests(unittest.TestCase):
         )
         self.assertEqual(result["phases"]["warm"]["counts"]["scored"], 0)
 
+    def test_failed_top_level_unit_cannot_enter_quality_denominator(self) -> None:
+        suite = self.subset("common-core-v1")
+        unit = self.completed_unit("elf", suite)
+        unit["result_class"] = "adapter_failed"
+        result = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertEqual(result["classification"], "adapter_failed")
+        self.assertFalse(result["phases"]["warm"]["quality_denominator"])
+        self.assertIsNone(result["phases"]["warm"]["metrics"])
+        self.assertEqual(result["phases"]["warm"]["counts"]["scored"], 0)
+
     def test_deterministic_scoring_replays_byte_identically(self) -> None:
         suite = self.subset("common-core-v1", 2)
         unit = self.completed_unit("elf", suite)
@@ -207,7 +249,7 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertEqual(sha256_json(first), sha256_json(second))
         self.assertEqual(first["phases"]["warm"]["metrics"]["mean_recall_at_5"], 1.0)
 
-    def test_shared_answer_context_uses_post_update_text(self) -> None:
+    def test_shared_answer_context_uses_native_post_update_text(self) -> None:
         suite = self.subset("memory-lifecycle-v1")
         unit = self.completed_unit("elf", suite)
         cases = answer_cases(suite, unit, 12000)
@@ -215,6 +257,52 @@ class BenchmarkContractTests(unittest.TestCase):
         rendered = "\n".join(cases[0]["context"])
         self.assertIn(replacement, rendered)
         self.assertNotIn(suite["jobs"][0]["corpus"][0]["text"], rendered)
+
+        unit["phases"]["warm"]["jobs"][0]["contexts"][0]["text"] = suite["jobs"][0][
+            "corpus"
+        ][0]["text"]
+        stale = "\n".join(answer_cases(suite, unit, 12000)[0]["context"])
+        self.assertNotIn(replacement, stale)
+
+    def test_native_update_score_requires_receipt_and_post_update_readback(self) -> None:
+        suite = self.subset("memory-lifecycle-v1")
+        unit = self.completed_unit("elf", suite)
+        replacement = suite["jobs"][0]["operations"][0]["text"]
+        fresh = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertEqual(
+            fresh["phases"]["warm"]["jobs"][0]["native_update_success"], 1.0
+        )
+
+        unit["phases"]["warm"]["jobs"][0]["contexts"][0]["text"] = suite["jobs"][0][
+            "corpus"
+        ][0]["text"]
+        stale = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertNotIn(replacement, stale["phases"]["warm"]["jobs"][0]["native_contexts"][0]["text"])
+        self.assertEqual(
+            stale["phases"]["warm"]["jobs"][0]["native_update_success"], 0.0
+        )
+
+    def test_native_delete_score_requires_receipt_and_absent_post_delete_readback(self) -> None:
+        suite = copy.deepcopy(self.suites["memory-lifecycle-v1"])
+        suite["jobs"] = suite["jobs"][1:2]
+        suite["execution_mode"] = "readiness"
+        unit = self.completed_unit("elf", suite)
+        deleted = suite["jobs"][0]["operations"][0]["evidence_id"]
+        clean = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertEqual(
+            clean["phases"]["warm"]["jobs"][0]["native_delete_success"], 1.0
+        )
+
+        unit["phases"]["warm"]["jobs"][0]["contexts"].append(
+            {
+                "evidence_id": opaque_evidence_id(deleted),
+                "text": suite["jobs"][0]["corpus"][1]["text"],
+            }
+        )
+        stale = evaluate_unit(suite, unit, self.targets["elf"])
+        self.assertEqual(
+            stale["phases"]["warm"]["jobs"][0]["native_delete_success"], 0.0
+        )
 
     def test_compose_names_are_isolated_and_bounded(self) -> None:
         names = {
@@ -319,12 +407,44 @@ class BenchmarkContractTests(unittest.TestCase):
             "provider_preflight": {},
             "acceptance": {"passed": True, "findings": []},
             "target_pins": {"elf": {}},
+            "target_contracts": {
+                "pageindex": {
+                    "not_applicable": {
+                        "common-core-v1": "The pinned revision constructs a hierarchy but exposes no native ranked retrieval operation."
+                    }
+                }
+            },
             "target_image_digests": {},
             "suite_results": {"common-core-v1": {"results": [row]}},
         }
         report = REPORT.publish(bundle)
         for heading in ("决策摘要", "覆盖与失败", "逐产品实测强弱", "ELF 优化顺序"):
             self.assertIn(heading, report)
+        self.assertIn(
+            "The pinned revision constructs a hierarchy but exposes no native ranked retrieval operation.",
+            report,
+        )
+
+    def test_report_does_not_interpret_jobs_from_reclassified_elf_unit(self) -> None:
+        suite = self.subset("memory-lifecycle-v1")
+        unit = self.completed_unit("elf", suite)
+        unit["phases"]["warm"]["jobs"][0]["operations"] = []
+        evaluation = evaluate_unit(suite, unit, self.targets["elf"])
+        row = {
+            "target": "elf",
+            "unit_result": unit,
+            "evaluation": evaluation,
+            "cleanup": {"passed": True},
+        }
+        bundle = {
+            "target_pins": {"elf": {}},
+            "suite_results": {"memory-lifecycle-v1": {"results": [row]}},
+        }
+        self.assertEqual(evaluation["classification"], "adapter_failed")
+        self.assertEqual(REPORT.elf_jobs(bundle), [])
+        summary = "\n".join(REPORT.elf_job_summary(bundle))
+        self.assertIn("整个单元不计分", summary)
+        self.assertNotIn("最强场景", summary)
 
 
 if __name__ == "__main__":
