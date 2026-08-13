@@ -448,6 +448,9 @@ class BenchmarkContractTests(unittest.TestCase):
         roadmap = "\n".join(REPORT.roadmap(bundle))
         self.assertIn("没有产生可归因的指标失败", roadmap)
         self.assertNotIn("先消除 ELF 原生运行失败", roadmap)
+        observations = "\n".join(REPORT.product_observations(bundle))
+        self.assertIn("不能从未计分单元形成实测强弱结论", observations)
+        self.assertNotIn("memory-lifecycle-v1:adapter_failed", observations)
 
 
 if __name__ == "__main__":

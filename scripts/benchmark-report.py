@@ -227,7 +227,12 @@ def product_observations(bundle: dict[str, Any]) -> list[str]:
             by_target[row["target"]].append((suite_id, row))
     lines: list[str] = []
     for target in sorted(bundle.get("target_pins") or {}):
-        attempts = by_target.get(target, [])
+        raw_attempts = by_target.get(target, [])
+        attempts = (
+            [item for item in raw_attempts if comparable([item[1]])]
+            if target == "elf"
+            else raw_attempts
+        )
         completed = [suite_id for suite_id, row in attempts if row["evaluation"]["classification"] == "completed"]
         failed = [
             f"{suite_id}:{row['evaluation']['classification']}"
@@ -257,7 +262,11 @@ def product_observations(bundle: dict[str, Any]) -> list[str]:
         if failed:
             details.append(f"失败或不可比：{', '.join(failed)}")
         if not attempts:
-            details.append("清单中保留，但本次没有适用 suite")
+            details.append(
+                "没有可比 completed 质量行，不能从未计分单元形成实测强弱结论"
+                if raw_attempts
+                else "清单中保留，但本次没有适用 suite"
+            )
         lines.append(f"- **{target}**：{'；'.join(details)}。")
     return lines
 
