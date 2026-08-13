@@ -284,6 +284,23 @@ class BenchmarkContractTests(unittest.TestCase):
             self.assertEqual(stdout_path.read_text(encoding="utf-8"), "partial stdout\n")
             self.assertEqual(stderr_path.read_text(encoding="utf-8"), "partial stderr\n")
 
+    def test_openkb_native_command_can_skip_its_interactive_key_prompt(self) -> None:
+        completed = subprocess.CompletedProcess(["openkb"], 0, "ready\n", "")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(OPENKB.subprocess, "run", return_value=completed) as run:
+                stdout, _ = OPENKB._run_native(
+                    ["openkb"],
+                    cwd=root,
+                    env={"LLM_API_KEY": "protected"},
+                    stdout_path=root / "stdout.log",
+                    stderr_path=root / "stderr.log",
+                    timeout=1,
+                    stdin_text="\n",
+                )
+        self.assertEqual(stdout, "ready\n")
+        self.assertEqual(run.call_args.kwargs["input"], "\n")
+
     def test_report_has_required_chinese_decision_sections(self) -> None:
         suite = self.subset("common-core-v1")
         unit = self.completed_unit("elf", suite)

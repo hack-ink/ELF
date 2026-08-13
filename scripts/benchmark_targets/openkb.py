@@ -212,6 +212,7 @@ def _run_native(
     stdout_path: Path,
     stderr_path: Path,
     timeout: int,
+    stdin_text: str | None = None,
 ) -> tuple[str, float]:
     started = time.monotonic()
     try:
@@ -224,6 +225,7 @@ def _run_native(
             stderr=subprocess.PIPE,
             text=True,
             timeout=timeout,
+            input=stdin_text,
         )
     except subprocess.TimeoutExpired as error:
         stdout_path.parent.mkdir(parents=True, exist_ok=True)
@@ -567,6 +569,7 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
             stdout_path=artifacts / "raw" / "openkb-init.stdout.log",
             stderr_path=artifacts / "raw" / "openkb-init.stderr.log",
             timeout=timeout,
+            stdin_text="\n",
         )
         _, ingest_latency_ms = _run_native(
             [str(OPENKB_PYTHON), "-m", "openkb", "add", str(source_dir)],
