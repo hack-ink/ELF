@@ -72,7 +72,7 @@ pub(crate) struct CaptureMaterializationEvidence {
 	pub(crate) write_policy_audit_count: usize,
 	pub(crate) write_policy_exclusion_count: usize,
 	pub(crate) write_policy_redaction_count: usize,
-	#[serde(skip_serializing_if = "Vec::is_empty")]
+	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub(crate) runtime_source_refs: Vec<CaptureRuntimeSourceRefEvidence>,
 }
 

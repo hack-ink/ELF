@@ -85,6 +85,17 @@ fn capture_runtime_validation_rejects_returned_excluded_evidence() {
 }
 
 #[test]
+fn empty_runtime_source_refs_round_trip_for_warm_ingest_receipt() {
+	let serialized = serde_json::to_value(capture_evidence(&["source-a"], &[]))
+		.expect("capture evidence serializes");
+	assert!(serialized.get("runtime_source_refs").is_none());
+
+	let parsed: super::CaptureMaterializationEvidence =
+		serde_json::from_value(serialized).expect("warm receipt accepts omitted empty source refs");
+	assert!(parsed.runtime_source_refs.is_empty());
+}
+
+#[test]
 fn capture_runtime_source_refs_are_written_into_generated_fixture() {
 	let mut value = serde_json::json!({
 		"corpus": {
