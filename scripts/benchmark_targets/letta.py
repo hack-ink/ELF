@@ -186,6 +186,131 @@ def _mapped_evidence(
     return evidence_ids
 
 
+def _native_contexts(
+    native_search: dict[str, Any], passage_identity: dict[str, str]
+) -> list[dict[str, Any]]:
+    """Preserve ranked native passage content for central answer and mutation checks."""
+    contexts: list[dict[str, Any]] = []
+    for result in native_search["results"]:
+        if not isinstance(result, dict):
+            raise LettaAdapterFailure("Letta search returned a malformed passage")
+        passage_id = result.get("id")
+        content = result.get("content")
+        if not isinstance(passage_id, str) or not isinstance(content, str):
+            raise LettaAdapterFailure(
+                "Letta search result omitted its native passage id or content"
+            )
+        contexts.append(
+            {
+                "evidence_id": passage_identity.get(passage_id),
+                "text": content,
+            }
+        )
+    return contexts
+
+
+def _apply_operations(
+    client: Any,
+    jobs: list[dict[str, Any]],
+    receipt_agents: dict[str, Any],
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """Use Letta's native delete/create APIs for delete and replacement semantics."""
+    receipts: dict[str, list[dict[str, Any]]] = {}
+    native_jobs: list[dict[str, Any]] = []
+    for job in jobs:
+        state = receipt_agents.get(job["job_id"])
+        if not isinstance(state, dict):
+            raise LettaAdapterFailure(f"Letta state is missing job {job['job_id']}")
+        agent_id = state.get("agent_id")
+        identities = state.get("passage_identity")
+        historical_identities = state.get("historical_passage_identity")
+        if (
+            not isinstance(agent_id, str)
+            or not isinstance(identities, dict)
+            or not isinstance(historical_identities, dict)
+        ):
+            raise LettaAdapterFailure(f"Letta state is malformed for {job['job_id']}")
+        job_receipts: list[dict[str, Any]] = []
+        native_operations: list[dict[str, Any]] = []
+        for operation in job.get("operations") or []:
+            requested_type = operation.get("type")
+            evidence_id = operation.get("evidence_id")
+            matching = [
+                passage_id
+                for passage_id, mapped in identities.items()
+                if mapped == evidence_id
+            ]
+            if len(matching) != 1:
+                raise LettaAdapterFailure(
+                    "Letta native mutation target did not resolve to one passage"
+                )
+            old_passage_id = matching[0]
+            deleted = _product_call(
+                "archival passage deletion",
+                lambda agent_id=agent_id, old_passage_id=old_passage_id: (
+                    client.agents.passages.delete(
+                        agent_id=agent_id, memory_id=old_passage_id
+                    )
+                ),
+            )
+            historical_identities[old_passage_id] = evidence_id
+            del identities[old_passage_id]
+            native_type = "delete"
+            created: list[Any] = []
+            if requested_type == "update":
+                replacement_text = operation.get("text")
+                if not isinstance(replacement_text, str) or not replacement_text:
+                    raise LettaAdapterFailure(
+                        "Letta update operation has no replacement text"
+                    )
+                created = _product_call(
+                    "replacement archival passage creation",
+                    lambda agent_id=agent_id, replacement_text=replacement_text: (
+                        client.agents.passages.create(
+                            agent_id=agent_id, text=replacement_text
+                        )
+                    ),
+                )
+                if not isinstance(created, list) or not created:
+                    raise LettaAdapterFailure(
+                        "Letta replacement creation returned no passage identity"
+                    )
+                for passage in created:
+                    passage_id = getattr(passage, "id", None)
+                    if not isinstance(passage_id, str) or passage_id in identities:
+                        raise LettaAdapterFailure(
+                            "Letta replacement creation returned an invalid passage identity"
+                        )
+                    identities[passage_id] = evidence_id
+                    historical_identities[passage_id] = evidence_id
+                native_type = "replace"
+            elif requested_type != "delete":
+                raise LettaAdapterFailure(
+                    f"Letta does not support operation {requested_type!r}"
+                )
+            job_receipts.append(
+                {
+                    "requested_type": requested_type,
+                    "native_type": native_type,
+                    "classification": "completed",
+                    "native_success": True,
+                }
+            )
+            native_operations.append(
+                {
+                    "requested": operation,
+                    "deleted_passage_id": old_passage_id,
+                    "delete_response": _as_json(deleted),
+                    "created_passages": _as_json(created),
+                }
+            )
+        receipts[job["job_id"]] = job_receipts
+        native_jobs.append(
+            {"job_id": job["job_id"], "operations": native_operations}
+        )
+    return receipts, native_jobs
+
+
 def _cold_ingest(
     client: Any, jobs: list[dict[str, Any]]
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -231,6 +356,7 @@ def _cold_ingest(
         receipt_agents[job["job_id"]] = {
             "agent_id": agent.id,
             "passage_identity": passage_identity,
+            "historical_passage_identity": dict(passage_identity),
         }
         native_agents.append(
             {
@@ -250,6 +376,7 @@ def _phase(
     *,
     phase: str,
     native_agents: list[dict[str, Any]] | None = None,
+    operations: dict[str, list[dict[str, Any]]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     native_jobs: list[dict[str, Any]] = []
@@ -259,7 +386,12 @@ def _phase(
             raise LettaAdapterFailure(f"Letta state is missing job {job['job_id']}")
         agent_id = state.get("agent_id")
         identities = state.get("passage_identity")
-        if not isinstance(agent_id, str) or not isinstance(identities, dict):
+        historical_identities = state.get("historical_passage_identity")
+        if (
+            not isinstance(agent_id, str)
+            or not isinstance(identities, dict)
+            or not isinstance(historical_identities, dict)
+        ):
             raise LettaAdapterFailure(f"Letta state is malformed for {job['job_id']}")
         warm_readback: dict[str, Any] | None = None
         if phase == "warm":
@@ -282,7 +414,7 @@ def _phase(
                 or set(passage_ids) != set(identities)
             ):
                 raise LettaAdapterFailure(
-                    "Letta warm readback did not preserve cold passage identities"
+                    "Letta warm readback did not preserve post-operation passage identities"
                 )
             warm_readback = {
                 "agent": _as_json(agent),
@@ -291,12 +423,16 @@ def _phase(
         native_search, latency_ms = _search(
             base_url, agent_id, job["prompt"]["content"], top_k=5
         )
-        evidence_ids = _mapped_evidence(native_search, identities)
+        result_identities = historical_identities if phase == "warm" else identities
+        evidence_ids = _mapped_evidence(native_search, result_identities)
+        contexts = _native_contexts(native_search, result_identities)
         rows.append(
             {
                 "job_id": job["job_id"],
                 "classification": "completed",
                 "evidence_ids": evidence_ids,
+                "contexts": contexts,
+                "operations": (operations or {}).get(job["job_id"], []),
                 "returned_count": len(native_search["results"]),
                 "latency_ms": latency_ms,
                 "native_status": "completed",
@@ -362,12 +498,19 @@ def run_letta(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, An
     warm_receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     if warm_receipt != receipt or warm_receipt["fixture_sha256"] != _fixture_digest(jobs):
         raise LettaAdapterFailure("Letta warm phase did not reuse the cold receipt")
+    operation_receipts, native_operations = _apply_operations(
+        client, jobs, warm_receipt["agents"]
+    )
+    _write_json(
+        artifacts / "raw" / "letta-operations.json", native_operations
+    )
     warm, warm_native = _phase(
         client,
         base_url,
         jobs,
         warm_receipt["agents"],
         phase="warm",
+        operations=operation_receipts,
     )
     _write_json(artifacts / "raw" / "letta-warm.json", warm_native)
 

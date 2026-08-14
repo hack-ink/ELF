@@ -290,6 +290,8 @@ services:
   honcho-unit:
     <<: *unit
     image: ${BENCHMARK_HONCHO_IMAGE:-elf-benchmark-honcho:v4}
+    tmpfs:
+      - /benchmark/state:mode=1777
     depends_on:
       honcho-api:
         condition: service_started

@@ -20,6 +20,10 @@ EMBEDDING_MODEL = "Qwen3-Embedding-8B"
 EMBEDDING_DIMENSIONS = 4096
 CHAT_MODEL = "gpt-5.6-luna"
 CHAT_REASONING_EFFORT = "high"
+SCHEMA_INSTANCE_INSTRUCTION = (
+    "Return one JSON instance that validates against the requested schema. "
+    "Do not return or describe the schema itself."
+)
 FORBIDDEN_FIXTURE_KEYS = {
     "expected_answer",
     "negative_traps",
@@ -184,6 +188,17 @@ def _chat_response_format(response_model: Any) -> dict[str, Any]:
     }
 
 
+def _validate_response_instance(response_model: Any, value: Any) -> None:
+    """Validate one model response without adding product-specific fields."""
+    if response_model is None:
+        return
+    validator = getattr(response_model, "model_validate", None)
+    if callable(validator):
+        validator(value)
+        return
+    response_model(**value)
+
+
 def _wait_for_falkordb(host: str, port: int, timeout_seconds: float) -> None:
     deadline = time.monotonic() + timeout_seconds
     last_error: OSError | None = None
@@ -267,15 +282,34 @@ def _new_graphiti(environment: dict[str, str]) -> tuple[Any, Any, Any]:
                 for message in messages
                 if message.role in {"system", "user"}
             ]
-            response = await self.client.chat.completions.create(
-                model=CHAT_MODEL,
-                messages=native_messages,
-                max_tokens=max_tokens,
-                reasoning_effort=CHAT_REASONING_EFFORT,
-                response_format=_chat_response_format(response_model),
-            )
-            content = response.choices[0].message.content or "{}"
-            return json.loads(content)
+            if response_model is not None:
+                native_messages[-1]["content"] += f"\n\n{SCHEMA_INSTANCE_INSTRUCTION}"
+            for attempt in range(2):
+                response = await self.client.chat.completions.create(
+                    model=CHAT_MODEL,
+                    messages=native_messages,
+                    max_tokens=max_tokens,
+                    reasoning_effort=CHAT_REASONING_EFFORT,
+                    response_format=_chat_response_format(response_model),
+                )
+                content = response.choices[0].message.content or "{}"
+                try:
+                    parsed = json.loads(content)
+                    _validate_response_instance(response_model, parsed)
+                    return parsed
+                except Exception:
+                    if attempt:
+                        raise
+                    native_messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                "The previous response did not validate. "
+                                + SCHEMA_INSTANCE_INSTRUCTION
+                            ),
+                        }
+                    )
+            raise RuntimeError("Graphiti structured response retry was exhausted")
 
     try:
         driver = FalkorDriver(
@@ -371,6 +405,7 @@ async def _cold_ingest(
         identities[job["job_id"]] = {
             "group_id": group_id,
             "episode_identity": episode_identity,
+            "historical_episode_identity": dict(episode_identity),
         }
         native_jobs.append(
             {
@@ -410,13 +445,191 @@ def evidence_ids_from_edges(
     return evidence_ids
 
 
+def _episode_uuids_from_edges(edges: Any) -> list[str]:
+    """Return native episode UUIDs in the order exposed by ranked edges."""
+    episode_uuids: list[str] = []
+    for edge in edges:
+        episodes = getattr(edge, "episodes", None)
+        if episodes is None and isinstance(edge, dict):
+            episodes = edge.get("episodes")
+        if not isinstance(episodes, list):
+            raise GraphitiAdapterFailure(
+                "Graphiti search edge has no native episode UUID list"
+            )
+        for episode_uuid in episodes:
+            if not isinstance(episode_uuid, str):
+                raise GraphitiAdapterFailure(
+                    "Graphiti search edge returned a malformed episode UUID"
+                )
+            if episode_uuid not in episode_uuids:
+                episode_uuids.append(episode_uuid)
+    return episode_uuids
+
+
+async def _native_contexts_from_edges(
+    episodic_node: Any,
+    driver: Any,
+    edges: Any,
+    episode_identity: dict[str, str],
+) -> tuple[list[dict[str, str]], list[Any]]:
+    episode_uuids = _episode_uuids_from_edges(edges)
+    if not episode_uuids:
+        return [], []
+    episodes = await _product_call(
+        "ranked episodic-node readback",
+        episodic_node.get_by_uuids(driver, episode_uuids),
+    )
+    native_by_uuid = {
+        getattr(episode, "uuid", None): episode for episode in episodes
+    }
+    fallback_by_uuid: dict[str, str] = {}
+    for edge in edges:
+        edge_episodes = getattr(edge, "episodes", None)
+        fact = getattr(edge, "fact", None)
+        if isinstance(edge, dict):
+            edge_episodes = edge.get("episodes", edge_episodes)
+            fact = edge.get("fact", fact)
+        if isinstance(edge_episodes, list) and isinstance(fact, str):
+            for episode_uuid in edge_episodes:
+                if isinstance(episode_uuid, str):
+                    fallback_by_uuid.setdefault(episode_uuid, fact)
+    contexts: list[dict[str, str]] = []
+    for episode_uuid in episode_uuids:
+        episode = native_by_uuid.get(episode_uuid)
+        evidence_id = episode_identity.get(episode_uuid)
+        content = (
+            getattr(episode, "content", None)
+            if episode is not None
+            else fallback_by_uuid.get(episode_uuid)
+        )
+        if evidence_id is None or not isinstance(content, str):
+            raise GraphitiAdapterFailure(
+                "Graphiti ranked episode could not be read through its native identity"
+            )
+        contexts.append({"evidence_id": evidence_id, "text": content})
+    return contexts, episodes
+
+
+async def _apply_operations(
+    graphiti: Any,
+    episodic_node: Any,
+    episode_type: Any,
+    jobs: list[dict[str, Any]],
+    identities: dict[str, Any],
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]], list[str]]:
+    """Execute frozen native replace/delete operations before warm retrieval."""
+    receipts: dict[str, list[dict[str, Any]]] = {}
+    native_jobs: list[dict[str, Any]] = []
+    removed_episode_uuids: list[str] = []
+    reference_time = datetime.now(timezone.utc)
+    for job_index, job in enumerate(jobs):
+        state = identities.get(job["job_id"])
+        if not isinstance(state, dict):
+            raise GraphitiAdapterFailure(
+                f"Graphiti state is missing job {job['job_id']}"
+            )
+        group_id = state.get("group_id")
+        episode_identity = state.get("episode_identity")
+        historical_identity = state.get("historical_episode_identity")
+        if (
+            not isinstance(group_id, str)
+            or not isinstance(episode_identity, dict)
+            or not isinstance(historical_identity, dict)
+        ):
+            raise GraphitiAdapterFailure(
+                f"Graphiti state is malformed for {job['job_id']}"
+            )
+        job_receipts: list[dict[str, Any]] = []
+        native_operations: list[dict[str, Any]] = []
+        for operation_index, operation in enumerate(job.get("operations") or []):
+            requested_type = operation.get("type")
+            evidence_id = operation.get("evidence_id")
+            matching = [
+                episode_uuid
+                for episode_uuid, mapped in episode_identity.items()
+                if mapped == evidence_id
+            ]
+            if len(matching) != 1:
+                raise GraphitiAdapterFailure(
+                    "Graphiti native mutation target did not resolve to one episode"
+                )
+            old_uuid = matching[0]
+            before = await _product_call(
+                "mutation episodic-node readback",
+                episodic_node.get_by_uuids(graphiti.driver, [old_uuid]),
+            )
+            if len(before) != 1:
+                raise GraphitiAdapterFailure(
+                    "Graphiti native mutation target was absent before mutation"
+                )
+            await _product_call("remove_episode", graphiti.remove_episode(old_uuid))
+            removed_episode_uuids.append(old_uuid)
+            historical_identity[old_uuid] = evidence_id
+            del episode_identity[old_uuid]
+            native_type = "delete"
+            replacement = None
+            if requested_type == "update":
+                replacement_text = operation.get("text")
+                if not isinstance(replacement_text, str) or not replacement_text:
+                    raise GraphitiAdapterFailure(
+                        "Graphiti update operation has no replacement text"
+                    )
+                replacement = await _product_call(
+                    "replacement add_episode",
+                    graphiti.add_episode(
+                        name=f"benchmark replacement {operation_index + 1}",
+                        episode_body=replacement_text,
+                        source_description=f"benchmark job {job['job_id']} update",
+                        reference_time=reference_time
+                        + timedelta(seconds=job_index * 10 + operation_index),
+                        source=episode_type.text,
+                        group_id=group_id,
+                    ),
+                )
+                replacement_episode = getattr(replacement, "episode", None)
+                replacement_uuid = getattr(replacement_episode, "uuid", None)
+                if not isinstance(replacement_uuid, str) or not replacement_uuid:
+                    raise GraphitiAdapterFailure(
+                        "Graphiti replacement add_episode returned no native UUID"
+                    )
+                episode_identity[replacement_uuid] = evidence_id
+                historical_identity[replacement_uuid] = evidence_id
+                native_type = "replace"
+            elif requested_type != "delete":
+                raise GraphitiAdapterFailure(
+                    f"Graphiti does not support operation {requested_type!r}"
+                )
+            job_receipts.append(
+                {
+                    "requested_type": requested_type,
+                    "native_type": native_type,
+                    "classification": "completed",
+                    "native_success": True,
+                }
+            )
+            native_operations.append(
+                {
+                    "requested": operation,
+                    "removed_episode": before[0],
+                    "replacement_add_episode": replacement,
+                }
+            )
+        receipts[job["job_id"]] = job_receipts
+        native_jobs.append(
+            {"job_id": job["job_id"], "operations": native_operations}
+        )
+    return receipts, native_jobs, removed_episode_uuids
+
+
 async def _query_phase(
     graphiti: Any,
+    episodic_node: Any,
     jobs: list[dict[str, Any]],
     identities: dict[str, Any],
     *,
     phase: str,
     ingest_output: list[dict[str, Any]] | None = None,
+    operations: dict[str, list[dict[str, Any]]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     native_jobs: list[dict[str, Any]] = []
@@ -428,7 +641,12 @@ async def _query_phase(
             )
         group_id = state.get("group_id")
         episode_identity = state.get("episode_identity")
-        if not isinstance(group_id, str) or not isinstance(episode_identity, dict):
+        historical_identity = state.get("historical_episode_identity")
+        if (
+            not isinstance(group_id, str)
+            or not isinstance(episode_identity, dict)
+            or not isinstance(historical_identity, dict)
+        ):
             raise GraphitiAdapterFailure(
                 f"Graphiti state is malformed for {job['job_id']}"
             )
@@ -442,12 +660,17 @@ async def _query_phase(
             ),
         )
         latency_ms = (time.monotonic() - started) * 1000.0
-        evidence_ids = evidence_ids_from_edges(edges, episode_identity)
+        evidence_ids = evidence_ids_from_edges(edges, historical_identity)
+        contexts, native_episodes = await _native_contexts_from_edges(
+            episodic_node, graphiti.driver, edges, historical_identity
+        )
         rows.append(
             {
                 "job_id": job["job_id"],
                 "classification": "completed",
                 "evidence_ids": evidence_ids,
+                "contexts": contexts,
+                "operations": (operations or {}).get(job["job_id"], []),
                 "returned_count": len(edges),
                 "latency_ms": round(latency_ms, 3),
                 "native_status": "completed",
@@ -459,6 +682,7 @@ async def _query_phase(
                 "job_id": job["job_id"],
                 "group_id": group_id,
                 "search_results": edges,
+                "ranked_episode_readback": native_episodes,
             }
         )
     native_output: dict[str, Any] = {"phase": phase, "jobs": native_jobs}
@@ -476,7 +700,9 @@ async def _query_phase(
                 "embedding_dimensions": EMBEDDING_DIMENSIONS,
                 "chat_model": CHAT_MODEL,
                 "chat_reasoning_effort": CHAT_REASONING_EFFORT,
-                "structured_response": "chat_completions_json_schema",
+                "structured_response": (
+                    "chat_completions_json_schema_with_instance_validation"
+                ),
             },
         },
         native_output,
@@ -484,7 +710,10 @@ async def _query_phase(
 
 
 async def _verify_warm_state(
-    episodic_node: Any, driver: Any, identities: dict[str, Any]
+    episodic_node: Any,
+    driver: Any,
+    identities: dict[str, Any],
+    removed_episode_uuids: list[str],
 ) -> list[Any]:
     expected: dict[str, str] = {}
     for state in identities.values():
@@ -492,7 +721,9 @@ async def _verify_warm_state(
             expected[episode_uuid] = state["group_id"]
     episodes = await _product_call(
         "warm episodic-node query",
-        episodic_node.get_by_uuids(driver, list(expected)),
+        episodic_node.get_by_uuids(
+            driver, list(expected) + removed_episode_uuids
+        ),
     )
     actual = {
         getattr(episode, "uuid", None): getattr(episode, "group_id", None)
@@ -500,7 +731,7 @@ async def _verify_warm_state(
     }
     if actual != expected:
         raise GraphitiAdapterFailure(
-            "Graphiti warm native episode state does not match the cold ingest"
+            "Graphiti warm native episode state does not match post-operation state"
         )
     return episodes
 
@@ -549,6 +780,7 @@ async def _run_graphiti_async(
 
         cold, cold_native = await _query_phase(
             graphiti,
+            episodic_node,
             jobs,
             identities,
             phase="cold",
@@ -564,14 +796,32 @@ async def _run_graphiti_async(
             raise GraphitiAdapterFailure(
                 "Graphiti warm phase did not reuse the cold ingest receipt"
             )
+        operation_receipts, native_operations, removed_episode_uuids = (
+            await _apply_operations(
+                graphiti,
+                episodic_node,
+                episode_type,
+                jobs,
+                warm_receipt["identities"],
+            )
+        )
+        _write_json(
+            artifacts / "raw" / "graphiti-operations.json",
+            native_operations,
+        )
         native_episodes = await _verify_warm_state(
-            episodic_node, graphiti.driver, warm_receipt["identities"]
+            episodic_node,
+            graphiti.driver,
+            warm_receipt["identities"],
+            removed_episode_uuids,
         )
         warm, warm_native = await _query_phase(
             graphiti,
+            episodic_node,
             jobs,
             warm_receipt["identities"],
             phase="warm",
+            operations=operation_receipts,
         )
         warm_native["native_episode_readback"] = native_episodes
         _write_json(artifacts / "raw" / "graphiti-warm.json", warm_native)

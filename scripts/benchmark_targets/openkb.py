@@ -30,6 +30,10 @@ class OpenKBProductFailure(RuntimeError):
     """The pinned OpenKB runtime failed after the adapter reached it."""
 
 
+class OpenKBAdapterFailure(RuntimeError):
+    """The OpenKB adapter could not preserve native state or identity."""
+
+
 _QUERY_PROGRAM = r"""
 import asyncio
 import json
@@ -196,6 +200,39 @@ def _materialize_sources(
     return hashes
 
 
+def _source_paths(
+    jobs: list[dict[str, Any]], source_dir: Path
+) -> dict[str, str]:
+    paths: dict[str, str] = {}
+    for job in jobs:
+        job_id = str(job["job_id"])
+        for item in job["corpus"]["items"]:
+            evidence_id = str(item["evidence_id"])
+            if evidence_id in paths:
+                raise OpenKBAdapterFailure(
+                    "OpenKB product evidence identity is not job scoped"
+                )
+            paths[evidence_id] = str(
+                source_dir / _opaque_source_name(job_id, evidence_id)
+            )
+    return paths
+
+
+def _bounded_timeouts(
+    jobs: list[dict[str, Any]], configured_timeout: int
+) -> dict[str, int]:
+    """Allocate scale-aware native budgets inside the fixed 3600-second unit limit."""
+    if configured_timeout <= 0:
+        raise ValueError("OPENKB_TIMEOUT_SECONDS must be positive")
+    source_count = sum(len(job["corpus"]["items"]) for job in jobs)
+    return {
+        "init": min(configured_timeout, 300),
+        "ingest": min(2700, max(configured_timeout, source_count * 30)),
+        "query": min(configured_timeout, 180),
+        "mutation": min(configured_timeout, 600),
+    }
+
+
 def _litellm_model(model: str) -> str:
     """Select LiteLLM's OpenAI transport for an operator-defined proxy alias."""
     return model if "/" in model else f"openai/{model}"
@@ -296,6 +333,11 @@ def _state_sha256(root: Path) -> str:
 def _native_document_map(
     registry: dict[str, Any], expected_hashes: dict[str, str]
 ) -> dict[str, str]:
+    extra = set(registry) - set(expected_hashes)
+    if extra:
+        raise OpenKBProductFailure(
+            f"OpenKB native hash registry retained {len(extra)} unexpected source(s)"
+        )
     mapping: dict[str, str] = {}
     missing = set(expected_hashes)
     for file_hash, evidence_id in expected_hashes.items():
@@ -312,6 +354,76 @@ def _native_document_map(
             f"OpenKB native hash registry omitted {len(missing)} ingested source(s)"
         )
     return mapping
+
+
+def _native_document_records(
+    registry: dict[str, Any],
+    expected_hashes: dict[str, str],
+    source_paths: dict[str, str],
+) -> dict[str, dict[str, str]]:
+    records: dict[str, dict[str, str]] = {}
+    for file_hash, evidence_id in expected_hashes.items():
+        metadata = registry.get(file_hash)
+        source_path = source_paths.get(evidence_id)
+        if (
+            not isinstance(metadata, dict)
+            or not isinstance(metadata.get("doc_name"), str)
+            or not isinstance(source_path, str)
+        ):
+            raise OpenKBProductFailure(
+                "OpenKB native source record is incomplete after ingest"
+            )
+        records[evidence_id] = {
+            "file_hash": file_hash,
+            "doc_name": metadata["doc_name"],
+            "source_path": source_path,
+        }
+    return records
+
+
+def _assert_native_document_absent(
+    kb_dir: Path, file_hash: str, doc_name: str
+) -> dict[str, Any]:
+    """Prove that native remove deleted one registry identity and its own pages."""
+    registry_path = kb_dir / ".openkb" / "hashes.json"
+    try:
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise OpenKBProductFailure(
+            f"OpenKB deletion registry readback failed: {error}"
+        ) from error
+    if not isinstance(registry, dict):
+        raise OpenKBProductFailure(
+            "OpenKB native hash registry is malformed after remove"
+        )
+    retained_identity = file_hash in registry or any(
+        isinstance(metadata, dict) and metadata.get("doc_name") == doc_name
+        for metadata in registry.values()
+    )
+    if retained_identity:
+        raise OpenKBProductFailure(
+            "OpenKB native remove retained the document registry identity"
+        )
+    relative_paths = [
+        Path("wiki") / "summaries" / f"{doc_name}.md",
+        Path("wiki") / "sources" / f"{doc_name}.md",
+        Path("wiki") / "sources" / f"{doc_name}.json",
+        Path("wiki") / "sources" / "images" / doc_name,
+        Path("raw") / f"{doc_name}.md",
+    ]
+    retained_paths = [
+        path.as_posix() for path in relative_paths if (kb_dir / path).exists()
+    ]
+    if retained_paths:
+        raise OpenKBProductFailure(
+            "OpenKB native remove retained document-owned paths: "
+            + ", ".join(retained_paths)
+        )
+    return {
+        "file_hash_absent": True,
+        "doc_name_absent": True,
+        "checked_paths": [path.as_posix() for path in relative_paths],
+    }
 
 
 def _tool_calls(value: Any) -> list[dict[str, Any]]:
@@ -417,6 +529,189 @@ def native_source_trace(
     return evidence_ids, trace
 
 
+def _native_contexts_from_trace(
+    trace: list[dict[str, Any]], wiki_root: Path
+) -> list[dict[str, Any]]:
+    """Read only the native wiki pages that the OpenKB agent invoked."""
+    contexts: list[dict[str, Any]] = []
+    seen: set[tuple[str | None, str]] = set()
+    for item in trace:
+        wiki_path = item.get("wiki_path")
+        evidence_ids = item.get("evidence_ids")
+        if not isinstance(wiki_path, str) or not isinstance(evidence_ids, list):
+            raise OpenKBAdapterFailure("OpenKB source trace is malformed")
+        path = wiki_root / wiki_path
+        if not path.is_file():
+            if not evidence_ids:
+                continue
+            raise OpenKBAdapterFailure(
+                f"OpenKB native tool referenced a missing wiki path: {wiki_path}"
+            )
+        text = path.read_text(encoding="utf-8")
+        mapped = [value for value in evidence_ids if isinstance(value, str)] or [None]
+        for evidence_id in mapped:
+            key = (evidence_id, text)
+            if key in seen:
+                continue
+            seen.add(key)
+            contexts.append({"evidence_id": evidence_id, "text": text})
+    return contexts
+
+
+def _assert_native_add_success(stdout: str) -> None:
+    failed_adds = stdout.count("[ERROR] add failed")
+    if not failed_adds:
+        return
+    provider_markers = ("litellm", "provider", "openai", "api connection")
+    cause = (
+        "provider failure"
+        if any(marker in stdout.lower() for marker in provider_markers)
+        else "product failure"
+    )
+    raise OpenKBProductFailure(
+        f"OpenKB native add reported {failed_adds} {cause}(s); "
+        "inspect the preserved native ingest log"
+    )
+
+
+def _apply_operations(
+    jobs: list[dict[str, Any]],
+    *,
+    kb_dir: Path,
+    artifacts: Path,
+    env: dict[str, str],
+    expected_hashes: dict[str, str],
+    source_records: dict[str, dict[str, str]],
+    timeout: int,
+) -> tuple[
+    dict[str, list[dict[str, Any]]],
+    list[dict[str, Any]],
+    dict[str, str],
+    dict[str, Any],
+]:
+    """Use OpenKB remove/add as native delete and reindex-update operations."""
+    current_hashes = dict(expected_hashes)
+    receipts: dict[str, list[dict[str, Any]]] = {}
+    native_jobs: list[dict[str, Any]] = []
+    for job in jobs:
+        job_receipts: list[dict[str, Any]] = []
+        native_operations: list[dict[str, Any]] = []
+        for operation_index, operation in enumerate(job.get("operations") or []):
+            requested_type = operation.get("type")
+            evidence_id = operation.get("evidence_id")
+            record = source_records.get(evidence_id)
+            if not isinstance(record, dict):
+                raise OpenKBAdapterFailure(
+                    "OpenKB native mutation target did not resolve to one document"
+                )
+            stem = (
+                f"openkb-mutation-{_safe_name(str(job['job_id']))[:-3]}-"
+                f"{operation_index:02d}"
+            )
+            old_doc_name = record["doc_name"]
+            _run_native(
+                [
+                    str(OPENKB_PYTHON),
+                    "-m",
+                    "openkb",
+                    "remove",
+                    old_doc_name,
+                    "--yes",
+                ],
+                cwd=kb_dir,
+                env=env,
+                stdout_path=artifacts / "raw" / f"{stem}-remove.stdout.log",
+                stderr_path=artifacts / "raw" / f"{stem}-remove.stderr.log",
+                timeout=timeout,
+            )
+            old_hash = record["file_hash"]
+            removal_readback = _assert_native_document_absent(
+                kb_dir, old_hash, old_doc_name
+            )
+            current_hashes.pop(old_hash, None)
+            native_type = "delete"
+            replacement_doc_name: str | None = None
+            if requested_type == "update":
+                replacement_text = operation.get("text")
+                if not isinstance(replacement_text, str) or not replacement_text:
+                    raise OpenKBAdapterFailure(
+                        "OpenKB update operation has no replacement text"
+                    )
+                source_path = Path(record["source_path"])
+                source_path.write_text(_render_source(replacement_text), encoding="utf-8")
+                new_hash = hashlib.sha256(source_path.read_bytes()).hexdigest()
+                if new_hash in current_hashes and current_hashes[new_hash] != evidence_id:
+                    raise OpenKBAdapterFailure(
+                        "OpenKB replacement content collides with another native source"
+                    )
+                add_stdout, _ = _run_native(
+                    [
+                        str(OPENKB_PYTHON),
+                        "-m",
+                        "openkb",
+                        "add",
+                        str(source_path),
+                    ],
+                    cwd=kb_dir,
+                    env=env,
+                    stdout_path=artifacts / "raw" / f"{stem}-add.stdout.log",
+                    stderr_path=artifacts / "raw" / f"{stem}-add.stderr.log",
+                    timeout=timeout,
+                )
+                _assert_native_add_success(add_stdout)
+                registry_path = kb_dir / ".openkb" / "hashes.json"
+                registry = json.loads(registry_path.read_text(encoding="utf-8"))
+                metadata = registry.get(new_hash) if isinstance(registry, dict) else None
+                if not isinstance(metadata, dict) or not isinstance(
+                    metadata.get("doc_name"), str
+                ):
+                    raise OpenKBProductFailure(
+                        "OpenKB replacement add produced no native document identity"
+                    )
+                replacement_doc_name = metadata["doc_name"]
+                current_hashes[new_hash] = evidence_id
+                source_records[evidence_id] = {
+                    "file_hash": new_hash,
+                    "doc_name": replacement_doc_name,
+                    "source_path": str(source_path),
+                }
+                native_type = "reindex_update"
+            elif requested_type == "delete":
+                del source_records[evidence_id]
+            else:
+                raise OpenKBAdapterFailure(
+                    f"OpenKB does not support operation {requested_type!r}"
+                )
+            job_receipts.append(
+                {
+                    "requested_type": requested_type,
+                    "native_type": native_type,
+                    "classification": "completed",
+                    "native_success": True,
+                }
+            )
+            native_operations.append(
+                {
+                    "requested": operation,
+                    "removed_doc_name": old_doc_name,
+                    "removal_readback": removal_readback,
+                    "replacement_doc_name": replacement_doc_name,
+                }
+            )
+        receipts[job["job_id"]] = job_receipts
+        native_jobs.append(
+            {"job_id": job["job_id"], "operations": native_operations}
+        )
+    registry_path = kb_dir / ".openkb" / "hashes.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    if not isinstance(registry, dict):
+        raise OpenKBProductFailure(
+            "OpenKB native hash registry is malformed after mutation"
+        )
+    _native_document_map(registry, current_hashes)
+    return receipts, native_jobs, current_hashes, registry
+
+
 def _failure_class(message: str, default: str) -> str:
     lowered = message.lower()
     if re.search(r"(?:error code|status):\s*[45]\d\d", lowered) or any(
@@ -486,6 +781,7 @@ def _run_phase(
     env: dict[str, str],
     direct_map: dict[str, str],
     timeout: int,
+    operations: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     for job in jobs:
@@ -495,6 +791,7 @@ def _run_phase(
         stderr_path = artifacts / "raw" / f"{raw_stem}.stderr.log"
         started = time.monotonic()
         native_status = "not_run"
+        contexts: list[dict[str, Any]] = []
         try:
             stdout, latency_ms = _run_native(
                 [
@@ -519,6 +816,7 @@ def _run_phase(
             _write_json(
                 artifacts / "raw" / f"{raw_stem}.source-trace.json", trace
             )
+            contexts = _native_contexts_from_trace(trace, kb_dir / "wiki")
             if not isinstance(answer, str) or not answer.strip():
                 classification = "product_failed"
                 failure = "OpenKB native query returned an empty answer"
@@ -535,18 +833,22 @@ def _run_phase(
             latency_ms = (time.monotonic() - started) * 1000.0
             classification = _failure_class(str(error), "product_failed")
             evidence_ids = []
+            contexts = []
             failure = str(error)
             native_status = "failed"
         except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
             latency_ms = (time.monotonic() - started) * 1000.0
             classification = "adapter_failed"
             evidence_ids = []
+            contexts = []
             failure = f"OpenKB native output or trace was malformed: {error}"
         rows.append(
             {
                 "job_id": job_id,
                 "classification": classification,
                 "evidence_ids": evidence_ids,
+                "contexts": contexts,
+                "operations": (operations or {}).get(job_id, []),
                 "returned_count": len(evidence_ids),
                 "latency_ms": round(latency_ms, 3),
                 "native_status": native_status,
@@ -584,7 +886,10 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
         source_dir = state_dir / "sources"
         kb_dir.mkdir(parents=True, exist_ok=True)
         expected_hashes = _materialize_sources(jobs, source_dir)
-        timeout = int(env.get("OPENKB_TIMEOUT_SECONDS", "300"))
+        source_paths = _source_paths(jobs, source_dir)
+        timeouts = _bounded_timeouts(
+            jobs, int(env.get("OPENKB_TIMEOUT_SECONDS", "300"))
+        )
 
         _run_native(
             [
@@ -601,7 +906,7 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
             env=env,
             stdout_path=artifacts / "raw" / "openkb-init.stdout.log",
             stderr_path=artifacts / "raw" / "openkb-init.stderr.log",
-            timeout=timeout,
+            timeout=timeouts["init"],
             stdin_text="\n",
         )
         _configure_litellm_api_base(kb_dir, env["OPENAI_BASE_URL"])
@@ -611,20 +916,9 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
             env=env,
             stdout_path=artifacts / "raw" / "openkb-ingest.stdout.log",
             stderr_path=artifacts / "raw" / "openkb-ingest.stderr.log",
-            timeout=timeout,
+            timeout=timeouts["ingest"],
         )
-        failed_adds = ingest_stdout.count("[ERROR] add failed")
-        if failed_adds:
-            provider_markers = ("litellm", "provider", "openai", "api connection")
-            cause = (
-                "provider failure"
-                if any(marker in ingest_stdout.lower() for marker in provider_markers)
-                else "product failure"
-            )
-            raise OpenKBProductFailure(
-                f"OpenKB native add reported {failed_adds} {cause}(s); "
-                "inspect the preserved native ingest log"
-            )
+        _assert_native_add_success(ingest_stdout)
 
         registry_path = kb_dir / ".openkb" / "hashes.json"
         if not registry_path.is_file():
@@ -633,12 +927,15 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
         if not isinstance(registry, dict):
             raise OpenKBProductFailure("OpenKB native hash registry is malformed")
         direct_map = _native_document_map(registry, expected_hashes)
+        source_records = _native_document_records(
+            registry, expected_hashes, source_paths
+        )
         _write_json(artifacts / "raw" / "openkb-hashes.json", registry)
 
-        state_hash = _state_sha256(kb_dir)
+        cold_state_hash = _state_sha256(kb_dir)
         receipt = {
             "revision": OPENKB_REVISION,
-            "native_state_sha256": state_hash,
+            "native_state_sha256": cold_state_hash,
             "source_count": len(expected_hashes),
         }
         _write_json(receipt_path, receipt)
@@ -650,37 +947,62 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
             artifacts=artifacts,
             env=env,
             direct_map=direct_map,
-            timeout=timeout,
+            timeout=timeouts["query"],
         )
-        if _state_sha256(kb_dir) != state_hash:
+        if _state_sha256(kb_dir) != cold_state_hash:
             return _terminal_result(
                 jobs,
                 "adapter_failed",
                 "OpenKB cold query mutated the sealed native ingest state",
             )
+        (
+            operation_receipts,
+            native_operations,
+            warm_hashes,
+            warm_registry,
+        ) = _apply_operations(
+            jobs,
+            kb_dir=kb_dir,
+            artifacts=artifacts,
+            env=env,
+            expected_hashes=expected_hashes,
+            source_records=source_records,
+            timeout=timeouts["mutation"],
+        )
+        warm_direct_map = _native_document_map(warm_registry, warm_hashes)
+        warm_state_hash = _state_sha256(kb_dir)
+        _write_json(
+            artifacts / "raw" / "openkb-operations.json", native_operations
+        )
+        _write_json(
+            artifacts / "raw" / "openkb-hashes-warm.json", warm_registry
+        )
         warm = _run_phase(
             "warm",
             jobs,
             kb_dir=kb_dir,
             artifacts=artifacts,
             env=env,
-            direct_map=direct_map,
-            timeout=timeout,
+            direct_map=warm_direct_map,
+            timeout=timeouts["query"],
+            operations=operation_receipts,
         )
         if (
             json.loads(receipt_path.read_text(encoding="utf-8")) != receipt
-            or _state_sha256(kb_dir) != state_hash
+            or _state_sha256(kb_dir) != warm_state_hash
         ):
             return _terminal_result(
                 jobs,
                 "adapter_failed",
-                "OpenKB warm query did not reuse the exact sealed cold state",
+                "OpenKB warm query mutated the sealed post-operation state",
             )
     except ValueError as error:
         return _terminal_result(jobs, "configuration_failed", str(error))
     except OpenKBProductFailure as error:
         classification = _failure_class(str(error), "product_failed")
         return _terminal_result(jobs, classification, str(error))
+    except OpenKBAdapterFailure as error:
+        return _terminal_result(jobs, "adapter_failed", str(error))
     except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
         return _terminal_result(jobs, "adapter_failed", str(error))
 
@@ -700,14 +1022,16 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
                 "adapter_metadata": {
                     **cold["adapter_metadata"],
                     "ingest_latency_ms": round(ingest_latency_ms, 3),
-                    "native_state_sha256": state_hash,
+                    "native_state_sha256": cold_state_hash,
+                    "native_timeouts_seconds": timeouts,
                 },
             },
             "warm": {
                 **warm,
                 "adapter_metadata": {
                     **warm["adapter_metadata"],
-                    "native_state_sha256": state_hash,
+                    "native_state_sha256": warm_state_hash,
+                    "native_timeouts_seconds": timeouts,
                 },
             },
         },

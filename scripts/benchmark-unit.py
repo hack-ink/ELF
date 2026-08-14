@@ -691,9 +691,9 @@ def failure_result(
 def main() -> int:
     args = parse_args()
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
-    STATE.mkdir(parents=True, exist_ok=True)
     job_ids = [path.stem for path in sorted(INPUT.glob("*.json"))]
     try:
+        STATE.mkdir(parents=True, exist_ok=True)
         required: tuple[str, ...] = ()
         if args.target in {
             "elf",

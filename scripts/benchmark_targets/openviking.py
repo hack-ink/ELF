@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 OPENVIKING_REVISION = "a0e822a0cd5d02e8ed5330a7f7a6d13279f8308b"
 OPENVIKING_REPO = Path(os.environ.get("OPENVIKING_REPO_DIR", "/opt/openviking"))
+EMBEDDING_DIMENSION_TRANSPORT = "explicit_openai_compatible_dimensions"
 FORBIDDEN_FIXTURE_KEYS = {
     "expected_answer",
     "required_evidence",
@@ -162,7 +163,10 @@ def _write_config(state_dir: Path) -> Path:
         {
             "default_account": "elfbench",
             "default_user": "elfbench",
-            "storage": {"workspace": str(state_dir / "native")},
+            "storage": {
+                "workspace": str(state_dir / "native"),
+                "vectordb": {"backend": "local", "dimension": dimensions},
+            },
             "embedding": {
                 "dense": {
                     "provider": "openai",
@@ -196,7 +200,29 @@ def _native_call(operation: str, function: Callable[..., Any], *args: Any, **kwa
         ) from error
 
 
+def _install_explicit_dimension_embedder() -> None:
+    """Make the pinned custom-base OpenAI client send the configured dimension."""
+    try:
+        import openviking.models.embedder as embedder_module
+    except Exception as error:
+        raise OpenVikingProductFailure(
+            f"OpenViking embedder import failed: {type(error).__name__}: {error}"
+        ) from error
+    base = embedder_module.OpenAIDenseEmbedder
+    if getattr(base, "_elf_benchmark_explicit_dimensions", False):
+        return
+
+    class ExplicitDimensionOpenAIEmbedder(base):
+        _elf_benchmark_explicit_dimensions = True
+
+        def _should_send_dimensions(self) -> bool:
+            return bool(self.api_base and self.dimension)
+
+    embedder_module.OpenAIDenseEmbedder = ExplicitDimensionOpenAIEmbedder
+
+
 def _open_client(native_dir: Path) -> Any:
+    _install_explicit_dimension_embedder()
     try:
         from openviking import OpenViking
     except Exception as error:
@@ -227,10 +253,11 @@ def _ingest_job(
     job_index: int,
     source_dir: Path,
     raw_dir: Path,
-) -> tuple[str, dict[str, str]]:
+) -> tuple[str, dict[str, str], dict[str, str]]:
     key = _job_key(job_index, job["job_id"])
     target_root = f"viking://resources/elfbench/{key}"
     source_map: dict[str, str] = {}
+    source_paths: dict[str, str] = {}
     add_results: list[Any] = []
     job_source = source_dir / key
     job_source.mkdir(parents=True, exist_ok=True)
@@ -251,6 +278,7 @@ def _ingest_job(
             build_index=True,
             summarize=False,
         )
+        _assert_add_result_ready(added)
         add_results.append(added)
         root_uri = added.get("root_uri") if isinstance(added, dict) else None
         if not isinstance(root_uri, str) or not root_uri:
@@ -262,9 +290,71 @@ def _ingest_job(
                 f"OpenViking returned duplicate native root_uri: {root_uri}"
             )
         source_map[root_uri] = item["evidence_id"]
+        source_paths[item["evidence_id"]] = str(source_path)
 
     _write_json(raw_dir / f"{key}-add.json", native_json(add_results))
-    return target_root, source_map
+    return target_root, source_map, source_paths
+
+
+def _assert_add_result_ready(added: Any) -> None:
+    if not isinstance(added, dict) or added.get("status") != "success":
+        raise OpenVikingProductFailure(
+            "OpenViking add_resource did not complete successfully"
+        )
+    queue_status = added.get("queue_status")
+    embedding = queue_status.get("Embedding") if isinstance(queue_status, dict) else None
+    if not isinstance(embedding, dict):
+        raise OpenVikingAdapterFailure(
+            "OpenViking add_resource omitted native embedding queue evidence"
+        )
+    if int(embedding.get("error_count") or 0) or not int(
+        embedding.get("processed") or 0
+    ):
+        raise OpenVikingProductFailure(
+            "OpenViking native embedding queue did not index the resource"
+        )
+
+
+def _not_found_error_type() -> type[Exception]:
+    try:
+        from openviking_cli.exceptions import NotFoundError
+    except Exception as error:
+        raise OpenVikingProductFailure(
+            f"OpenViking not-found type import failed: {type(error).__name__}: {error}"
+        ) from error
+    return NotFoundError
+
+
+def _assert_resource_absent(client: Any, uri: str) -> dict[str, str]:
+    """Prove that a successful native rm removed the exact resource identity."""
+    not_found_error = _not_found_error_type()
+    try:
+        client.stat(uri)
+    except not_found_error as error:
+        return {
+            "uri": uri,
+            "classification": "absent",
+            "native_error_type": type(error).__name__,
+        }
+    except Exception as error:
+        raise OpenVikingProductFailure(
+            "OpenViking deletion readback failed: "
+            f"{type(error).__name__}: {error}"
+        ) from error
+    raise OpenVikingProductFailure(
+        "OpenViking native resource remained present after rm"
+    )
+
+
+def _evidence_id_for_uri(uri: str, source_map: dict[str, str]) -> str | None:
+    matches = [
+        (root_uri, evidence_id)
+        for root_uri, evidence_id in source_map.items()
+        if uri == root_uri or uri.startswith(root_uri.rstrip("/") + "/")
+    ]
+    if not matches:
+        return None
+    return max(matches, key=lambda item: len(item[0]))[1]
 
 
 def evidence_ids_from_find(found: Any, source_map: dict[str, str]) -> list[str]:
@@ -280,10 +370,141 @@ def evidence_ids_from_find(found: Any, source_map: dict[str, str]) -> list[str]:
         uri = getattr(resource, "uri", None)
         if uri is None and isinstance(resource, dict):
             uri = resource.get("uri")
-        evidence_id = source_map.get(uri) if isinstance(uri, str) else None
+        evidence_id = (
+            _evidence_id_for_uri(uri, source_map) if isinstance(uri, str) else None
+        )
         if evidence_id and evidence_id not in evidence_ids:
             evidence_ids.append(evidence_id)
     return evidence_ids
+
+
+def _contexts_from_find(
+    client: Any, found: Any, source_map: dict[str, str]
+) -> list[dict[str, Any]]:
+    resources = getattr(found, "resources", None)
+    if resources is None and isinstance(found, dict):
+        resources = found.get("resources")
+    if not isinstance(resources, list):
+        return []
+    contexts: list[dict[str, Any]] = []
+    for resource in resources:
+        uri = getattr(resource, "uri", None)
+        if uri is None and isinstance(resource, dict):
+            uri = resource.get("uri")
+        if not isinstance(uri, str) or not uri:
+            raise OpenVikingAdapterFailure(
+                "OpenViking ranked resource omitted its native URI"
+            )
+        text = _native_call("ranked resource read", client.read, uri)
+        if not isinstance(text, str):
+            raise OpenVikingAdapterFailure(
+                "OpenViking ranked resource read returned non-text content"
+            )
+        contexts.append(
+            {"evidence_id": _evidence_id_for_uri(uri, source_map), "text": text}
+        )
+    return contexts
+
+
+def _apply_operations(
+    client: Any,
+    jobs: list[dict[str, Any]],
+    source_maps: list[dict[str, str]],
+    source_paths: list[dict[str, str]],
+    raw_dir: Path,
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    receipts: dict[str, list[dict[str, Any]]] = {}
+    native_jobs: list[dict[str, Any]] = []
+    for index, job in enumerate(jobs):
+        source_map = source_maps[index]
+        job_paths = source_paths[index]
+        job_receipts: list[dict[str, Any]] = []
+        native_operations: list[dict[str, Any]] = []
+        for operation in job.get("operations") or []:
+            requested_type = operation.get("type")
+            evidence_id = operation.get("evidence_id")
+            matching = [
+                root_uri
+                for root_uri, mapped in source_map.items()
+                if mapped == evidence_id
+            ]
+            source_path_value = job_paths.get(evidence_id)
+            if len(matching) != 1 or not isinstance(source_path_value, str):
+                raise OpenVikingAdapterFailure(
+                    "OpenViking native mutation target did not resolve to one resource"
+                )
+            root_uri = matching[0]
+            native_response: Any = None
+            deletion_readback: dict[str, str] | None = None
+            native_type = "delete"
+            if requested_type == "update":
+                replacement_text = operation.get("text")
+                if not isinstance(replacement_text, str) or not replacement_text:
+                    raise OpenVikingAdapterFailure(
+                        "OpenViking update operation has no replacement text"
+                    )
+                source_path = Path(source_path_value)
+                source_path.write_text(replacement_text, encoding="utf-8")
+                native_response = _native_call(
+                    "resource reindex update",
+                    client.add_resource,
+                    str(source_path),
+                    to=root_uri,
+                    wait=True,
+                    timeout=300,
+                    build_index=True,
+                    summarize=False,
+                )
+                _assert_add_result_ready(native_response)
+                returned_uri = (
+                    native_response.get("root_uri")
+                    if isinstance(native_response, dict)
+                    else None
+                )
+                if returned_uri != root_uri:
+                    raise OpenVikingAdapterFailure(
+                        "OpenViking reindex update changed native resource identity"
+                    )
+                native_type = "reindex_update"
+            elif requested_type == "delete":
+                native_response = _native_call(
+                    "resource delete",
+                    client.rm,
+                    root_uri,
+                    recursive=True,
+                    wait=True,
+                    timeout=300,
+                )
+                deletion_readback = _assert_resource_absent(client, root_uri)
+                del source_map[root_uri]
+                del job_paths[evidence_id]
+            else:
+                raise OpenVikingAdapterFailure(
+                    f"OpenViking does not support operation {requested_type!r}"
+                )
+            job_receipts.append(
+                {
+                    "requested_type": requested_type,
+                    "native_type": native_type,
+                    "classification": "completed",
+                    "native_success": True,
+                }
+            )
+            native_operations.append(
+                {
+                    "requested": operation,
+                    "native_response": native_response,
+                    "deletion_readback": deletion_readback,
+                }
+            )
+        receipts[job["job_id"]] = job_receipts
+        native_job = {"job_id": job["job_id"], "operations": native_operations}
+        native_jobs.append(native_job)
+        _write_json(
+            raw_dir / f"{_job_key(index, job['job_id'])}-operations.json",
+            native_json(native_job),
+        )
+    return receipts, native_jobs
 
 
 def _query_job(
@@ -293,6 +514,7 @@ def _query_job(
     target_root: str,
     source_map: dict[str, str],
     raw_path: Path,
+    operations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     started = time.monotonic()
     found = _native_call(
@@ -314,6 +536,8 @@ def _query_job(
         "job_id": job["job_id"],
         "classification": "completed",
         "evidence_ids": evidence_ids_from_find(found, source_map),
+        "contexts": _contexts_from_find(client, found, source_map),
+        "operations": operations or [],
         "returned_count": returned_count,
         "latency_ms": round(latency_ms, 3),
         "native_status": "completed",
@@ -340,13 +564,14 @@ def _run_openviking(
 
     targets: list[str] = []
     source_maps: list[dict[str, str]] = []
+    source_paths: list[dict[str, str]] = []
     cold_rows: list[dict[str, Any]] = []
     ingest_duration_ms = 0.0
     client = _open_client(state_dir / "native")
     try:
         for index, job in enumerate(jobs):
             ingest_started = time.monotonic()
-            target_root, source_map = _ingest_job(
+            target_root, source_map, job_source_paths = _ingest_job(
                 client,
                 job,
                 job_index=index,
@@ -356,6 +581,7 @@ def _run_openviking(
             ingest_duration_ms += (time.monotonic() - ingest_started) * 1000.0
             targets.append(target_root)
             source_maps.append(source_map)
+            source_paths.append(job_source_paths)
             cold_rows.append(
                 _query_job(
                     client,
@@ -374,6 +600,10 @@ def _run_openviking(
         "corpus_sha256": _corpus_hash(jobs),
         "targets": targets,
         "source_maps": source_maps,
+        "historical_source_maps": [
+            dict(source_map) for source_map in source_maps
+        ],
+        "source_paths": source_paths,
     }
     _write_json(receipt_path, receipt)
 
@@ -386,16 +616,26 @@ def _run_openviking(
     warm_rows: list[dict[str, Any]] = []
     client = _open_client(state_dir / "native")
     try:
+        operation_receipts, native_operations = _apply_operations(
+            client,
+            jobs,
+            readback["source_maps"],
+            readback["source_paths"],
+            raw_warm,
+        )
         state_readback = [
             {
                 uri: _native_call("stat", client.stat, uri)
                 for uri in source_map
             }
-            for source_map in source_maps
+            for source_map in readback["source_maps"]
         ]
         _write_json(
             raw_warm / "native-state-readback.json",
             native_json(state_readback),
+        )
+        _write_json(
+            raw_warm / "native-operations.json", native_json(native_operations)
         )
         for index, job in enumerate(jobs):
             warm_rows.append(
@@ -403,9 +643,10 @@ def _run_openviking(
                     client,
                     job,
                     target_root=targets[index],
-                    source_map=source_maps[index],
+                    source_map=readback["historical_source_maps"][index],
                     raw_path=raw_warm
                     / f"{_job_key(index, job['job_id'])}-find.json",
+                    operations=operation_receipts[job["job_id"]],
                 )
             )
     finally:
@@ -427,6 +668,10 @@ def _run_openviking(
                 "adapter_metadata": {
                     "index_reused": False,
                     "revision": OPENVIKING_REVISION,
+                    "embedding_dimensions": int(
+                        os.environ["EMBEDDING_DIMENSIONS"]
+                    ),
+                    "embedding_dimension_transport": EMBEDDING_DIMENSION_TRANSPORT,
                 },
             },
             "warm": {
@@ -435,6 +680,10 @@ def _run_openviking(
                 "adapter_metadata": {
                     "index_reused": True,
                     "revision": OPENVIKING_REVISION,
+                    "embedding_dimensions": int(
+                        os.environ["EMBEDDING_DIMENSIONS"]
+                    ),
+                    "embedding_dimension_transport": EMBEDDING_DIMENSION_TRANSPORT,
                 },
             },
         },

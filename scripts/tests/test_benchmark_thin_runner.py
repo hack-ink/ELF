@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -51,6 +52,10 @@ REPORT = load_script("benchmark_report", "scripts/benchmark-report.py")
 OPENKB = load_script("benchmark_openkb", "scripts/benchmark_targets/openkb.py")
 GRAPHITI = load_script("benchmark_graphiti", "scripts/benchmark_targets/graphiti.py")
 GRAPHRAG = load_script("benchmark_graphrag", "scripts/benchmark_targets/graphrag.py")
+LETTA = load_script("benchmark_letta", "scripts/benchmark_targets/letta.py")
+OPENVIKING = load_script(
+    "benchmark_openviking", "scripts/benchmark_targets/openviking.py"
+)
 UNIT = load_script("benchmark_unit", "scripts/benchmark-unit.py")
 
 
@@ -498,6 +503,337 @@ class BenchmarkContractTests(unittest.TestCase):
         )
         self.assertFalse(response_format["json_schema"]["strict"])
 
+    def test_graphiti_rejects_schema_documents_and_preserves_stale_native_contexts(
+        self,
+    ) -> None:
+        class ResponseModel:
+            @classmethod
+            def model_validate(cls, value: object) -> None:
+                if value != {"items": []}:
+                    raise ValueError("not an instance")
+
+        GRAPHITI._validate_response_instance(ResponseModel, {"items": []})
+        with self.assertRaisesRegex(ValueError, "not an instance"):
+            GRAPHITI._validate_response_instance(
+                ResponseModel, {"type": "object", "properties": {}}
+            )
+        self.assertIn("one JSON instance", GRAPHITI.SCHEMA_INSTANCE_INSTRUCTION)
+        self.assertIn("not return or describe the schema", GRAPHITI.SCHEMA_INSTANCE_INSTRUCTION)
+
+        edge = types.SimpleNamespace(
+            episodes=["live-episode", "deleted-episode"], fact="stale native fact"
+        )
+
+        class EpisodicNode:
+            @staticmethod
+            async def get_by_uuids(driver: object, uuids: list[str]) -> list[object]:
+                del driver, uuids
+                return [
+                    types.SimpleNamespace(
+                        uuid="live-episode", content="live native episode"
+                    )
+                ]
+
+        contexts, native = GRAPHITI.asyncio.run(
+            GRAPHITI._native_contexts_from_edges(
+                EpisodicNode,
+                object(),
+                [edge],
+                {"live-episode": "e_live", "deleted-episode": "e_deleted"},
+            )
+        )
+        self.assertEqual(
+            contexts,
+            [
+                {"evidence_id": "e_live", "text": "live native episode"},
+                {"evidence_id": "e_deleted", "text": "stale native fact"},
+            ],
+        )
+        self.assertEqual(len(native), 1)
+
+    def test_letta_native_contexts_and_mutation_receipts_use_passage_apis(self) -> None:
+        native_search = {
+            "results": [
+                {"id": "old-update", "content": "old update text"},
+                {"id": "unknown", "content": "unmapped native text"},
+            ]
+        }
+        self.assertEqual(
+            LETTA._native_contexts(native_search, {"old-update": "e_update"}),
+            [
+                {"evidence_id": "e_update", "text": "old update text"},
+                {"evidence_id": None, "text": "unmapped native text"},
+            ],
+        )
+
+        class Passages:
+            def __init__(self) -> None:
+                self.deleted: list[tuple[str, str]] = []
+
+            def delete(self, *, agent_id: str, memory_id: str) -> dict[str, bool]:
+                self.deleted.append((agent_id, memory_id))
+                return {"deleted": True}
+
+            def create(self, *, agent_id: str, text: str) -> list[object]:
+                self.created = (agent_id, text)
+                return [types.SimpleNamespace(id="replacement")]
+
+        passages = Passages()
+        client = types.SimpleNamespace(
+            agents=types.SimpleNamespace(passages=passages)
+        )
+        jobs = [
+            {
+                "job_id": "j_mutation",
+                "operations": [
+                    {"type": "update", "evidence_id": "e_update", "text": "new"},
+                    {"type": "delete", "evidence_id": "e_delete"},
+                ],
+            }
+        ]
+        state = {
+            "j_mutation": {
+                "agent_id": "agent",
+                "passage_identity": {
+                    "old-update": "e_update",
+                    "old-delete": "e_delete",
+                },
+                "historical_passage_identity": {
+                    "old-update": "e_update",
+                    "old-delete": "e_delete",
+                },
+            }
+        }
+        receipts, native = LETTA._apply_operations(client, jobs, state)
+        self.assertEqual(
+            [row["native_type"] for row in receipts["j_mutation"]],
+            ["replace", "delete"],
+        )
+        self.assertEqual(passages.deleted, [("agent", "old-update"), ("agent", "old-delete")])
+        self.assertEqual(
+            state["j_mutation"]["passage_identity"], {"replacement": "e_update"}
+        )
+        self.assertEqual(
+            LETTA._mapped_evidence(
+                {"results": [{"id": "old-delete", "content": "stale"}]},
+                state["j_mutation"]["historical_passage_identity"],
+            ),
+            ["e_delete"],
+        )
+        self.assertEqual(
+            state["j_mutation"]["historical_passage_identity"],
+            {
+                "old-update": "e_update",
+                "old-delete": "e_delete",
+                "replacement": "e_update",
+            },
+        )
+        self.assertEqual(len(native[0]["operations"]), 2)
+
+    def test_openviking_uses_native_uri_prefixes_dimensions_and_mutations(self) -> None:
+        source_map = {
+            "viking://resources/job/source": "e_parent",
+            "viking://resources/job/source/nested": "e_nested",
+        }
+        self.assertEqual(
+            OPENVIKING._evidence_id_for_uri(
+                "viking://resources/job/source/nested/content.md", source_map
+            ),
+            "e_nested",
+        )
+        ready = {
+            "status": "success",
+            "queue_status": {"Embedding": {"processed": 1, "error_count": 0}},
+        }
+        OPENVIKING._assert_add_result_ready(ready)
+        with self.assertRaises(OPENVIKING.OpenVikingProductFailure):
+            OPENVIKING._assert_add_result_ready(
+                {
+                    "status": "success",
+                    "queue_status": {
+                        "Embedding": {"processed": 0, "error_count": 1}
+                    },
+                }
+            )
+
+        class NativeNotFound(Exception):
+            pass
+
+        class Client:
+            def __init__(self) -> None:
+                self.deleted: list[str] = []
+
+            def add_resource(self, path: str, **kwargs: object) -> dict[str, object]:
+                self.updated_path = path
+                return {**ready, "root_uri": kwargs["to"]}
+
+            def rm(self, uri: str, **kwargs: object) -> dict[str, bool]:
+                self.deleted.append(uri)
+                return {"deleted": True}
+
+            def read(self, uri: str) -> str:
+                return f"native content from {uri}"
+
+            def stat(self, uri: str) -> dict[str, bool]:
+                if uri in self.deleted:
+                    raise NativeNotFound(uri)
+                return {"exists": True}
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            update_path = root / "update.txt"
+            delete_path = root / "delete.txt"
+            update_path.write_text("old", encoding="utf-8")
+            delete_path.write_text("delete", encoding="utf-8")
+            client = Client()
+            jobs = [
+                {
+                    "job_id": "j_mutation",
+                    "operations": [
+                        {
+                            "type": "update",
+                            "evidence_id": "e_update",
+                            "text": "replacement",
+                        },
+                        {"type": "delete", "evidence_id": "e_delete"},
+                    ],
+                }
+            ]
+            maps = [
+                {
+                    "viking://resources/update": "e_update",
+                    "viking://resources/delete": "e_delete",
+                }
+            ]
+            historical_maps = [dict(maps[0])]
+            paths = [{"e_update": str(update_path), "e_delete": str(delete_path)}]
+            with mock.patch.object(
+                OPENVIKING,
+                "_not_found_error_type",
+                return_value=NativeNotFound,
+            ):
+                receipts, native = OPENVIKING._apply_operations(
+                    client, jobs, maps, paths, root / "raw"
+                )
+            contexts = OPENVIKING._contexts_from_find(
+                client,
+                {
+                    "resources": [
+                        {"uri": "viking://resources/update/content.md"}
+                    ]
+                },
+                maps[0],
+            )
+            stale_contexts = OPENVIKING._contexts_from_find(
+                client,
+                {"resources": [{"uri": "viking://resources/delete/content.md"}]},
+                historical_maps[0],
+            )
+            rendered_config = root / "state" / "ov.conf"
+            with mock.patch.dict(
+                OPENVIKING.os.environ,
+                {
+                    "EMBEDDING_API_BASE": "https://provider.test/v1",
+                    "EMBEDDING_API_KEY": "protected",
+                    "EMBEDDING_MODEL": "Qwen3-Embedding-8B",
+                    "EMBEDDING_DIMENSIONS": "4096",
+                },
+                clear=False,
+            ):
+                OPENVIKING._write_config(root / "state")
+            config = json.loads(rendered_config.read_text(encoding="utf-8"))
+            updated_text = update_path.read_text(encoding="utf-8")
+
+        self.assertEqual(
+            [row["native_type"] for row in receipts["j_mutation"]],
+            ["reindex_update", "delete"],
+        )
+        self.assertEqual(updated_text, "replacement")
+        self.assertEqual(client.deleted, ["viking://resources/delete"])
+        self.assertEqual(contexts[0]["evidence_id"], "e_update")
+        self.assertEqual(stale_contexts[0]["evidence_id"], "e_delete")
+        self.assertEqual(len(native[0]["operations"]), 2)
+        self.assertEqual(
+            native[0]["operations"][1]["deletion_readback"]["classification"],
+            "absent",
+        )
+        self.assertEqual(config["storage"]["vectordb"]["dimension"], 4096)
+        self.assertEqual(config["embedding"]["dense"]["dimension"], 4096)
+
+    def test_openkb_scale_timeouts_and_native_trace_contexts_are_bounded(self) -> None:
+        jobs = [{"corpus": {"items": [{} for _ in range(74)]}}]
+        self.assertEqual(
+            OPENKB._bounded_timeouts(jobs, 1200),
+            {"init": 300, "ingest": 2220, "query": 180, "mutation": 600},
+        )
+        capped = [{"corpus": {"items": [{} for _ in range(200)]}}]
+        self.assertEqual(OPENKB._bounded_timeouts(capped, 1200)["ingest"], 2700)
+
+        with tempfile.TemporaryDirectory() as directory:
+            wiki = Path(directory)
+            page = wiki / "sources" / "native.json"
+            page.parent.mkdir(parents=True)
+            page.write_text('{"content":"native replacement"}\n', encoding="utf-8")
+            contexts = OPENKB._native_contexts_from_trace(
+                [
+                    {
+                        "wiki_path": "summaries/failed-native-read",
+                        "evidence_ids": [],
+                    },
+                    {
+                        "wiki_path": "sources/native.json",
+                        "evidence_ids": ["e_native"],
+                    }
+                ],
+                wiki,
+            )
+            with self.assertRaises(OPENKB.OpenKBAdapterFailure):
+                OPENKB._native_contexts_from_trace(
+                    [
+                        {
+                            "wiki_path": "sources/missing.json",
+                            "evidence_ids": ["e_missing"],
+                        }
+                    ],
+                    wiki,
+                )
+        self.assertEqual(
+            contexts,
+            [
+                {
+                    "evidence_id": "e_native",
+                    "text": '{"content":"native replacement"}\n',
+                }
+            ],
+        )
+
+    def test_openkb_requires_exact_registry_and_removed_document_absence(self) -> None:
+        with self.assertRaises(OPENKB.OpenKBProductFailure):
+            OPENKB._native_document_map(
+                {
+                    "active": {"doc_name": "active"},
+                    "stale": {"doc_name": "stale"},
+                },
+                {"active": "e_active"},
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            kb = Path(directory)
+            registry = kb / ".openkb" / "hashes.json"
+            registry.parent.mkdir(parents=True)
+            registry.write_text("{}\n", encoding="utf-8")
+            stale = kb / "wiki" / "summaries" / "removed.md"
+            stale.parent.mkdir(parents=True)
+            stale.write_text("stale\n", encoding="utf-8")
+            with self.assertRaises(OPENKB.OpenKBProductFailure):
+                OPENKB._assert_native_document_absent(kb, "old-hash", "removed")
+            stale.unlink()
+            readback = OPENKB._assert_native_document_absent(
+                kb, "old-hash", "removed"
+            )
+        self.assertTrue(readback["file_hash_absent"])
+        self.assertTrue(readback["doc_name_absent"])
+
     def test_readiness_repairs_remain_native_and_bounded(self) -> None:
         compose = (REPO / "docker/benchmark/compose.yml").read_text(encoding="utf-8")
         unit_image = (REPO / "docker/benchmark/Dockerfile").read_text(encoding="utf-8")
@@ -506,6 +842,7 @@ class BenchmarkContractTests(unittest.TestCase):
         )
         self.assertIn('EMBEDDING_SEND_DIM: "true"', compose)
         self.assertIn('OPENKB_TIMEOUT_SECONDS: "1200"', compose)
+        self.assertIn('/benchmark/state:mode=1777', compose)
         self.assertIn("/opt/graphrag-venv/bin/python", compose)
         self.assertIn(
             "COPY config/local/tokenizer.wordlevel.json /config/local/tokenizer.wordlevel.json",
