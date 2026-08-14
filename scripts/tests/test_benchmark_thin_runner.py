@@ -682,9 +682,25 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertEqual(["--reset-index" in call for call in calls], [True, False, True, False])
         self.assertEqual(["--reuse-index" in call for call in calls], [False, True, False, True])
         self.assertEqual(
+            [call[call.index("--query-mode") + 1] for call in calls],
+            ["mix", "mix", "mix", "mix"],
+        )
+        self.assertEqual(
             result["phases"]["cold"]["adapter_metadata"]["job_isolation"],
             "native_document_clear_before_each_cold_job",
         )
+        self.assertEqual(
+            result["phases"]["cold"]["adapter_metadata"]["query_modes"],
+            ["mix"],
+        )
+
+    def test_lightrag_query_modes_are_locked_to_suite_kind(self) -> None:
+        self.assertEqual(UNIT.lightrag_query_mode({"suite": "retrieval"}), "naive")
+        self.assertEqual(
+            UNIT.lightrag_query_mode({"suite": "knowledge_structure"}), "mix"
+        )
+        with self.assertRaisesRegex(RuntimeError, "unsupported LightRAG benchmark suite"):
+            UNIT.lightrag_query_mode({"suite": "repository_knowledge"})
 
     def test_report_has_required_english_decision_sections(self) -> None:
         suite = self.subset("common-core-v1")

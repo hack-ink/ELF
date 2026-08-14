@@ -24,6 +24,10 @@ ARTIFACTS = ROOT / "artifacts"
 STATE = ROOT / "state"
 ADAPTER = Path("/usr/local/bin/real_world_live_adapter")
 QMD_REVISION = "e428df76bc0274d9e93eb7ca3e95673315c42e90"
+LIGHTRAG_QUERY_MODES = {
+    "retrieval": "naive",
+    "knowledge_structure": "mix",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -302,6 +306,14 @@ def _rows_status(rows: list[dict[str, Any]]) -> str:
     return "completed"
 
 
+def lightrag_query_mode(job: dict[str, Any]) -> str:
+    suite = str(job.get("suite") or "")
+    try:
+        return LIGHTRAG_QUERY_MODES[suite]
+    except KeyError as error:
+        raise RuntimeError(f"unsupported LightRAG benchmark suite kind: {suite}") from error
+
+
 def run_lightrag_target() -> dict[str, Any]:
     """Run isolated LightRAG cold/warm pairs in the existing unit protocol."""
     wait_port("lightrag", 9621)
@@ -322,6 +334,7 @@ def run_lightrag_target() -> dict[str, Any]:
         shutil.copy2(fixture_path, job_input / fixture_path.name)
         job_state = state_dir / "jobs" / job_id
         job_fixtures = {job_id: job}
+        query_mode = lightrag_query_mode(job)
         cold_status = "completed"
 
         for phase in ("cold", "warm"):
@@ -349,6 +362,8 @@ def run_lightrag_target() -> dict[str, Any]:
                 "lightrag-competitor-benchmark",
                 "--api-base",
                 "http://lightrag:9621",
+                "--query-mode",
+                query_mode,
             ]
             command.append("--reset-index" if phase == "cold" else "--reuse-index")
             duration_ms = run_command(command, raw_dir / "adapter.log", env)
@@ -383,6 +398,9 @@ def run_lightrag_target() -> dict[str, Any]:
             and all(row["classification"] == "completed" for row in phases[phase]["jobs"]),
             "job_count": len(phases[phase]["jobs"]),
             "job_isolation": "native_document_clear_before_each_cold_job",
+            "query_modes": sorted(
+                {lightrag_query_mode(job) for job in loaded}
+            ),
         }
 
     result_class = _combined_status(phases)
