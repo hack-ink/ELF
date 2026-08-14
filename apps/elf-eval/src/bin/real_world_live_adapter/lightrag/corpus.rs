@@ -2,11 +2,6 @@ use std::fs;
 
 use crate::{CorpusText, LightragArgs, LightragSource, LoadedJob, Result};
 
-fn opaque_source_name(evidence_id: &str) -> String {
-	let digest = blake3::hash(evidence_id.as_bytes()).to_hex();
-	format!("source-{}.md", &digest.as_str()[..24])
-}
-
 pub(super) fn write_lightrag_corpus(
 	args: &LightragArgs,
 	loaded: &LoadedJob,
@@ -36,16 +31,20 @@ pub(super) fn lightrag_keywords(query: &str) -> Vec<String> {
 	crate::terms(query).into_iter().take(12).collect()
 }
 
+fn opaque_source_name(evidence_id: &str) -> String {
+	let digest = blake3::hash(evidence_id.as_bytes()).to_hex();
+
+	format!("source-{}.md", &digest.as_str()[..24])
+}
+
 #[cfg(test)]
 mod tests {
-	use super::opaque_source_name;
-
 	#[test]
 	fn source_name_is_stable_and_does_not_expose_evidence_id() {
 		let evidence_id = "customer-decision-2026-07";
-		let name = opaque_source_name(evidence_id);
+		let name = super::opaque_source_name(evidence_id);
 
-		assert_eq!(name, opaque_source_name(evidence_id));
+		assert_eq!(name, super::opaque_source_name(evidence_id));
 		assert!(name.starts_with("source-"));
 		assert!(!name.contains(evidence_id));
 	}

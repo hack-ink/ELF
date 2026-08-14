@@ -4,12 +4,20 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{
 	AdapterKind, CommandEvidence, LightragArgs, LoadedJob, MaterializedJob, MaterializedJobInput,
 	MaterializedOutput, Result, Uuid, eyre,
 	lightrag::{api, corpus, mapping, metadata, status},
 };
+
+#[derive(Deserialize, Serialize)]
+struct LightragIndexState {
+	schema: String,
+	run_slug: String,
+	job_ids: Vec<String>,
+}
 
 pub(crate) async fn run_lightrag_async(args: LightragArgs) -> Result<()> {
 	let jobs = crate::load_jobs(&args.fixtures)?;
@@ -45,13 +53,6 @@ pub(crate) async fn run_lightrag_async(args: LightragArgs) -> Result<()> {
 	})
 }
 
-#[derive(Deserialize, Serialize)]
-struct LightragIndexState {
-	schema: String,
-	run_slug: String,
-	job_ids: Vec<String>,
-}
-
 async fn materialize_lightrag_jobs(
 	args: &LightragArgs,
 	jobs: &[LoadedJob],
@@ -64,7 +65,9 @@ async fn materialize_lightrag_jobs(
 			"LightRAG index reset requires exactly one isolated benchmark job."
 		));
 	}
+
 	fs::create_dir_all(&args.work_dir)?;
+
 	let state_path = args.work_dir.join("index-state.json");
 	let expected_job_ids = jobs.iter().map(|job| job.job.job_id.clone()).collect::<Vec<_>>();
 	let state = if args.reuse_index {
@@ -72,9 +75,11 @@ async fn materialize_lightrag_jobs(
 			serde_json::from_slice(&fs::read(&state_path).map_err(|err| {
 				eyre::eyre!("LightRAG warm state is missing at {}: {err}", state_path.display())
 			})?)?;
+
 		if state.job_ids != expected_job_ids {
 			return Err(eyre::eyre!("LightRAG warm state job identity differs from cold ingest."));
 		}
+
 		state
 	} else {
 		LightragIndexState {
@@ -83,13 +88,14 @@ async fn materialize_lightrag_jobs(
 			job_ids: expected_job_ids,
 		}
 	};
-
 	let client = reqwest::Client::builder().timeout(Duration::from_secs(180)).build()?;
 
 	api::wait_for_lightrag(args, &client).await?;
+
 	if args.reset_index {
 		let clear_response = api::clear_lightrag_documents(args, &client).await?;
 		let native_dir = args.work_dir.join("native").join("cold");
+
 		fs::create_dir_all(&native_dir)?;
 		fs::write(
 			native_dir.join("workspace-clear.json"),
@@ -102,6 +108,7 @@ async fn materialize_lightrag_jobs(
 	for loaded in jobs {
 		out.push(materialize_lightrag_job(args, &client, loaded, &state.run_slug).await?);
 	}
+
 	if !args.reuse_index {
 		fs::write(&state_path, serde_json::to_vec_pretty(&state)?)?;
 	}
@@ -126,31 +133,38 @@ async fn materialize_lightrag_job(
 	let sources = corpus::write_lightrag_corpus(args, loaded, &corpus, run_slug)?;
 	let phase = if args.reuse_index { "warm" } else { "cold" };
 	let native_dir = args.work_dir.join("native").join(phase);
+
 	fs::create_dir_all(&native_dir)?;
+
 	let indexing_latency_ms = if args.reuse_index {
 		None
 	} else {
 		let indexed_at = Instant::now();
 		let insert_response = api::insert_lightrag_texts(args, client, &corpus, &sources).await?;
+
 		fs::write(
 			native_dir.join(format!("{}-insert.json", crate::slug(&loaded.job.job_id))),
 			serde_json::to_vec_pretty(&insert_response)?,
 		)?;
 		api::wait_for_lightrag_index(args, client, &insert_response, corpus.len()).await?;
+
 		Some(indexed_at.elapsed().as_secs_f64() * 1_000.0)
 	};
 	let queried_at = Instant::now();
 	let query_response = api::query_lightrag_context(args, client, loaded).await?;
 	let latency_ms = queried_at.elapsed().as_secs_f64() * 1_000.0;
+
 	fs::write(
 		native_dir.join(format!("{}-query.json", crate::slug(&loaded.job.job_id))),
 		serde_json::to_vec_pretty(&query_response)?,
 	)?;
+
 	let references = query_response
 		.get("references")
-		.and_then(serde_json::Value::as_array)
+		.and_then(Value::as_array)
 		.ok_or_else(|| eyre::eyre!("LightRAG query response omitted native references."))?;
 	let source_mappings = mapping::lightrag_source_mappings(&sources, &query_response);
+
 	if !references.is_empty()
 		&& source_mappings.iter().any(|mapping| mapping.evidence_ids.len() != 1)
 	{
@@ -158,6 +172,7 @@ async fn materialize_lightrag_job(
 			"LightRAG returned a reference that could not map to one native source identity."
 		));
 	}
+
 	let evidence_ids = mapping::lightrag_mapped_evidence_ids(&source_mappings);
 	let selected = crate::selected_retrieved_corpus_texts(&corpus, &evidence_ids);
 

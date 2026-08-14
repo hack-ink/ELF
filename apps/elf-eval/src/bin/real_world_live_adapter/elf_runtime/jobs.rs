@@ -1,7 +1,8 @@
 use crate::{
-	AdapterKind, BaselineRuntime, CommandEvidence, DeleteRequest, ElfArgs, ElfService, LoadedJob,
-	MaterializedJob, MaterializedJobInput, MaterializedOutput, NoteOp, Result,
-	SuiteMaterializationSelectionInput, UpdateRequest, aggregate_status,
+	AGENT_ID, AdapterKind, BaselineRuntime, CommandEvidence, CorpusText, DeleteRequest, ElfArgs,
+	ElfService, IngestedCorpus, LoadedJob, MaterializedJob, MaterializedJobInput,
+	MaterializedOutput, NoteOp, Result, SuiteMaterializationSelectionInput, TENANT_ID,
+	UpdateRequest, aggregate_status,
 	elf_runtime::{search, surfaces},
 	env, eyre, fs, serde_json,
 };
@@ -35,13 +36,31 @@ pub(crate) async fn run_elf(args: ElfArgs) -> Result<()> {
 	})
 }
 
+fn elf_job_content(
+	loaded: &LoadedJob,
+	contexts: &[serde_json::Value],
+	selected_content: String,
+) -> String {
+	if loaded.job.operations.is_empty() {
+		selected_content
+	} else {
+		contexts
+			.iter()
+			.filter_map(|context| context.get("text").and_then(serde_json::Value::as_str))
+			.collect::<Vec<_>>()
+			.join("\n")
+	}
+}
+
 async fn materialize_elf_jobs(args: &ElfArgs, jobs: &[LoadedJob]) -> Result<Vec<MaterializedJob>> {
 	let base_dsn = env::var("ELF_PG_DSN")
 		.map_err(|_| eyre::eyre!("ELF_PG_DSN must be set for ELF live real-world adapter."))?;
 	let qdrant_url = env::var("ELF_QDRANT_GRPC_URL")
 		.or_else(|_| env::var("ELF_QDRANT_URL"))
 		.map_err(|_| eyre::eyre!("ELF_QDRANT_GRPC_URL or ELF_QDRANT_URL must be set."))?;
+
 	fs::create_dir_all(&args.work_dir)?;
+
 	let run_suffix = crate::short_hash(args.adapter_id.as_str());
 	let runtime = BaselineRuntime {
 		config_path: args.config.clone(),
@@ -54,12 +73,46 @@ async fn materialize_elf_jobs(args: &ElfArgs, jobs: &[LoadedJob]) -> Result<Vec<
 	let mut out = Vec::with_capacity(jobs.len());
 
 	for loaded in jobs {
-		out.push(materialize_elf_job(&runtime, &service, loaded, &args).await?);
+		out.push(materialize_elf_job(&runtime, &service, loaded, args).await?);
 	}
 
 	drop(service);
 
 	Ok(out)
+}
+
+async fn prepare_elf_ingest(
+	runtime: &BaselineRuntime,
+	service: &ElfService,
+	loaded: &LoadedJob,
+	args: &ElfArgs,
+	corpus: &[CorpusText],
+	project_id: &str,
+) -> Result<IngestedCorpus> {
+	let state_path = args.work_dir.join(format!("{}.json", crate::slug(&loaded.job.job_id)));
+
+	if args.reuse_index {
+		let raw = fs::read(&state_path).map_err(|err| {
+			eyre::eyre!("Warm ELF ingest receipt is missing at {}: {err}", state_path.display())
+		})?;
+		let ingested = serde_json::from_slice(&raw)?;
+
+		apply_native_operations(runtime, service, loaded, &ingested, project_id).await?;
+
+		Ok(ingested)
+	} else {
+		if state_path.exists() {
+			return Err(eyre::eyre!("Cold ELF state already exists at {}.", state_path.display()));
+		}
+
+		let ingested =
+			crate::ingest_elf_corpus(service, loaded, &args.adapter_id, project_id, corpus).await?;
+
+		crate::run_worker(runtime).await?;
+		fs::write(&state_path, serde_json::to_vec_pretty(&ingested)?)?;
+
+		Ok(ingested)
+	}
 }
 
 async fn materialize_elf_job(
@@ -78,33 +131,8 @@ async fn materialize_elf_job(
 	let corpus = crate::corpus_texts(loaded)?;
 	let stored_corpus = crate::elf_stored_corpus_texts(&corpus)?;
 	let project_id = crate::project_id_for_job(&loaded.job.job_id);
-	let state_path = args.work_dir.join(format!("{}.json", crate::slug(&loaded.job.job_id)));
-	let ingested = if args.reuse_index {
-		let raw = fs::read(&state_path).map_err(|err| {
-			eyre::eyre!("Warm ELF ingest receipt is missing at {}: {err}", state_path.display())
-		})?;
-
-		let ingested = serde_json::from_slice(&raw)?;
-		apply_native_operations(runtime, service, loaded, &ingested, project_id.as_str()).await?;
-		ingested
-	} else {
-		if state_path.exists() {
-			return Err(eyre::eyre!("Cold ELF state already exists at {}.", state_path.display()));
-		}
-		let ingested = crate::ingest_elf_corpus(
-			service,
-			loaded,
-			&args.adapter_id,
-			project_id.as_str(),
-			&corpus,
-		)
-		.await?;
-
-		crate::run_worker(runtime).await?;
-		fs::write(&state_path, serde_json::to_vec_pretty(&ingested)?)?;
-		ingested
-	};
-
+	let ingested =
+		prepare_elf_ingest(runtime, service, loaded, args, &corpus, project_id.as_str()).await?;
 	let (response, latency_ms) = search::search_elf_job(service, loaded, &project_id).await?;
 	let evidence_ids = crate::search_response_evidence_ids(&response);
 	let contexts = crate::search_response_contexts(&response);
@@ -156,22 +184,12 @@ async fn materialize_elf_job(
 			consolidation: &optional.consolidation,
 			dreaming_readback: optional.dreaming_readback,
 		});
-	let native_content = contexts
-		.iter()
-		.filter_map(|context| context.get("text").and_then(serde_json::Value::as_str))
-		.collect::<Vec<_>>()
-		.join("\n");
-	let content = if loaded.job.operations.is_empty() {
-		suite_selection.selected.content
-	} else {
-		native_content
-	};
 
 	Ok(crate::materialized_job(
 		loaded,
 		&args.adapter_id,
 		MaterializedJobInput {
-			content,
+			content: elf_job_content(loaded, &contexts, suite_selection.selected.content),
 			evidence_ids: suite_selection.selected.evidence_ids,
 			contexts: Some(contexts),
 			pages: optional.pages,
@@ -202,24 +220,25 @@ async fn apply_native_operations(
 	runtime: &BaselineRuntime,
 	service: &ElfService,
 	loaded: &LoadedJob,
-	ingested: &crate::IngestedCorpus,
+	ingested: &IngestedCorpus,
 	project_id: &str,
 ) -> Result<()> {
 	if loaded.job.operations.is_empty() {
 		return Ok(());
 	}
+
 	let mut affected_note_ids = Vec::new();
+
 	for operation in &loaded.job.operations {
-		let note_ids = ingested
-			.note_ids_by_evidence
-			.get(&operation.evidence_id)
-			.ok_or_else(|| {
+		let note_ids =
+			ingested.note_ids_by_evidence.get(&operation.evidence_id).ok_or_else(|| {
 				eyre::eyre!(
 					"ELF operation references unknown evidence {} for {}.",
 					operation.evidence_id,
 					loaded.job.job_id
 				)
 			})?;
+
 		for note_id in note_ids {
 			match operation.operation_type.as_str() {
 				"update" => {
@@ -231,9 +250,9 @@ async fn apply_native_operations(
 					})?;
 					let response = service
 						.update(UpdateRequest {
-							tenant_id: crate::TENANT_ID.to_string(),
+							tenant_id: TENANT_ID.to_string(),
 							project_id: project_id.to_string(),
-							agent_id: crate::AGENT_ID.to_string(),
+							agent_id: AGENT_ID.to_string(),
 							note_id: *note_id,
 							text: Some(text),
 							importance: None,
@@ -241,6 +260,7 @@ async fn apply_native_operations(
 							ttl_days: None,
 						})
 						.await?;
+
 					if response.op != NoteOp::Update {
 						return Err(eyre::eyre!(
 							"ELF update returned {:?} for {}.",
@@ -248,16 +268,17 @@ async fn apply_native_operations(
 							operation.evidence_id
 						));
 					}
-				}
+				},
 				"delete" => {
 					let response = service
 						.delete(DeleteRequest {
-							tenant_id: crate::TENANT_ID.to_string(),
+							tenant_id: TENANT_ID.to_string(),
 							project_id: project_id.to_string(),
-							agent_id: crate::AGENT_ID.to_string(),
+							agent_id: AGENT_ID.to_string(),
 							note_id: *note_id,
 						})
 						.await?;
+
 					if response.op != NoteOp::Delete {
 						return Err(eyre::eyre!(
 							"ELF delete returned {:?} for {}.",
@@ -265,15 +286,19 @@ async fn apply_native_operations(
 							operation.evidence_id
 						));
 					}
-				}
+				},
 				other => return Err(eyre::eyre!("Unsupported ELF operation {other}.")),
 			}
+
 			affected_note_ids.push(*note_id);
 		}
 	}
+
 	if affected_note_ids.is_empty() {
 		return Err(eyre::eyre!("ELF operation set affected no notes."));
 	}
+
 	crate::run_worker(runtime).await?;
+
 	Ok(())
 }

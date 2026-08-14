@@ -35,12 +35,14 @@ pub(super) async fn clear_lightrag_documents(
 ) -> Result<serde_json::Value> {
 	let response = lightrag_delete_json(args, client, "/documents").await?;
 	let status = response.get("status").and_then(serde_json::Value::as_str);
+
 	if status != Some("success") {
 		return Err(eyre::eyre!(
 			"LightRAG document clear did not complete successfully: {}",
 			serde_json::to_string(&response)?
 		));
 	}
+
 	Ok(response)
 }
 

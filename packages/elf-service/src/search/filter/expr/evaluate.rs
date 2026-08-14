@@ -67,7 +67,7 @@ impl FilterExpr {
 		let filter_value = value.to_node_value();
 		let matches = note_value == filter_value;
 
-		(matches, Some(format!("eq:{}", field.as_str())).filter(|_| !matches))
+		(matches, (!matches).then_some(format!("eq:{}", field.as_str())))
 	}
 
 	fn evaluate_neq(
@@ -79,7 +79,7 @@ impl FilterExpr {
 		let filter_value = value.to_node_value();
 		let matches = note_value != filter_value;
 
-		(matches, Some(format!("neq:{}", field.as_str())).filter(|_| !matches))
+		(matches, (!matches).then_some(format!("neq:{}", field.as_str())))
 	}
 
 	fn evaluate_in(
@@ -90,7 +90,7 @@ impl FilterExpr {
 		let note_value = field.lookup_note_value(note);
 		let matches = values.iter().any(|value| note_value == FilterNodeValue::from(value));
 
-		(matches, Some(format!("in:{}", field.as_str())).filter(|_| !matches))
+		(matches, (!matches).then_some(format!("in:{}", field.as_str())))
 	}
 
 	fn evaluate_contains(
@@ -107,7 +107,7 @@ impl FilterExpr {
 		};
 		let matches = note_text.contains(value);
 
-		(matches, Some(format!("contains:{}", field.as_str())).filter(|_| !matches))
+		(matches, (!matches).then_some(format!("contains:{}", field.as_str())))
 	}
 
 	fn evaluate_gt(
@@ -119,7 +119,7 @@ impl FilterExpr {
 			FilterNodeValue::Number(note_value) => {
 				let matches = note_value > value.to_numeric();
 
-				(matches, Some(format!("gt:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("gt:{}", field.as_str())))
 			},
 			FilterNodeValue::DateTime(note_value) => {
 				let matches = match value {
@@ -127,7 +127,7 @@ impl FilterExpr {
 					_ => false,
 				};
 
-				(matches, Some(format!("gt:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("gt:{}", field.as_str())))
 			},
 			_ => (false, Some(format!("gt:{}", field.as_str()))),
 		}
@@ -142,7 +142,7 @@ impl FilterExpr {
 			FilterNodeValue::Number(note_value) => {
 				let matches = note_value >= value.to_numeric();
 
-				(matches, Some(format!("gte:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("gte:{}", field.as_str())))
 			},
 			FilterNodeValue::DateTime(note_value) => {
 				let matches = match value {
@@ -150,7 +150,7 @@ impl FilterExpr {
 					_ => false,
 				};
 
-				(matches, Some(format!("gte:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("gte:{}", field.as_str())))
 			},
 			_ => (false, Some(format!("gte:{}", field.as_str()))),
 		}
@@ -165,7 +165,7 @@ impl FilterExpr {
 			FilterNodeValue::Number(note_value) => {
 				let matches = note_value < value.to_numeric();
 
-				(matches, Some(format!("lt:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("lt:{}", field.as_str())))
 			},
 			FilterNodeValue::DateTime(note_value) => {
 				let matches = match value {
@@ -173,7 +173,7 @@ impl FilterExpr {
 					_ => false,
 				};
 
-				(matches, Some(format!("lt:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("lt:{}", field.as_str())))
 			},
 			_ => (false, Some(format!("lt:{}", field.as_str()))),
 		}
@@ -188,7 +188,7 @@ impl FilterExpr {
 			FilterNodeValue::Number(note_value) => {
 				let matches = note_value <= value.to_numeric();
 
-				(matches, Some(format!("lte:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("lte:{}", field.as_str())))
 			},
 			FilterNodeValue::DateTime(note_value) => {
 				let matches = match value {
@@ -196,7 +196,7 @@ impl FilterExpr {
 					_ => false,
 				};
 
-				(matches, Some(format!("lte:{}", field.as_str())).filter(|_| !matches))
+				(matches, (!matches).then_some(format!("lte:{}", field.as_str())))
 			},
 			_ => (false, Some(format!("lte:{}", field.as_str()))),
 		}

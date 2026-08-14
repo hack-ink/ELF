@@ -1,3 +1,5 @@
+use color_eyre::eyre;
+
 use crate::{Command, Path, QmdArgs, Result, fs};
 
 pub(super) fn ensure_qmd_checkout(args: &QmdArgs, log_path: &Path) -> Result<()> {
@@ -28,8 +30,9 @@ pub(super) fn ensure_qmd_checkout(args: &QmdArgs, log_path: &Path) -> Result<()>
 		Command::new("git").arg("-C").arg(&args.qmd_dir).arg("rev-parse").arg("HEAD"),
 		log_path,
 	)?;
+
 	if observed.trim() != args.qmd_revision {
-		return Err(color_eyre::eyre::eyre!(
+		return Err(eyre::eyre!(
 			"qmd checkout is {}, expected {}.",
 			observed.trim(),
 			args.qmd_revision

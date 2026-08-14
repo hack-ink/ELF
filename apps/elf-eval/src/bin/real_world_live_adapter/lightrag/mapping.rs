@@ -59,9 +59,9 @@ fn lightrag_reference_mapping(
 }
 
 fn map_lightrag_evidence_ids(sources: &[LightragSource], native_source: &str) -> Vec<String> {
+	let native_name = Path::new(native_source).file_name();
 	let mut evidence_ids = Vec::new();
 
-	let native_name = Path::new(native_source).file_name();
 	for source in sources {
 		let expected_name = Path::new(source.file_source.as_str()).file_name();
 		let source_match = native_source == source.file_source
@@ -79,7 +79,7 @@ fn map_lightrag_evidence_ids(sources: &[LightragSource], native_source: &str) ->
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::{LightragSource, serde_json};
 
 	fn source() -> LightragSource {
 		LightragSource {
@@ -93,7 +93,7 @@ mod tests {
 		let response = serde_json::json!({
 			"references": [{"file_path": "/app/elf-real-world/run/job/ev-current.md"}]
 		});
-		let mappings = lightrag_source_mappings(&[source()], &response);
+		let mappings = super::lightrag_source_mappings(&[source()], &response);
 
 		assert_eq!(mappings[0].evidence_ids, ["ev-current"]);
 		assert_eq!(mappings[0].mapping_status, "matched_native_source");
@@ -105,7 +105,7 @@ mod tests {
 			"response": "The answer quotes ev-current and its full source text.",
 			"references": [{"file_path": "unknown.md", "content": ["ev-current"]}]
 		});
-		let mappings = lightrag_source_mappings(&[source()], &response);
+		let mappings = super::lightrag_source_mappings(&[source()], &response);
 
 		assert!(mappings[0].evidence_ids.is_empty());
 		assert_eq!(mappings[0].mapping_status, "unmatched");

@@ -34,7 +34,7 @@ pub(super) fn lightrag_metadata(args: &LightragArgs) -> Value {
 		"provider_boundaries": {
 			"llm_binding": "openai-compatible",
 			"embedding_binding": "openai-compatible",
-			"embedding_dim": 4096,
+			"embedding_dim": 4_096,
 			"rerank_enabled_for_query": false,
 			"api_key_provided": args.api_key.as_deref().is_some_and(|key| !key.is_empty()),
 			"operator_owned_provider_credentials_used": true
