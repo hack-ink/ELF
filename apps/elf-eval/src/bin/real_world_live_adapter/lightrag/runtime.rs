@@ -56,6 +56,14 @@ async fn materialize_lightrag_jobs(
 	args: &LightragArgs,
 	jobs: &[LoadedJob],
 ) -> Result<Vec<MaterializedJob>> {
+	if args.reset_index && args.reuse_index {
+		return Err(eyre::eyre!("LightRAG index reset cannot be combined with warm index reuse."));
+	}
+	if args.reset_index && jobs.len() != 1 {
+		return Err(eyre::eyre!(
+			"LightRAG index reset requires exactly one isolated benchmark job."
+		));
+	}
 	fs::create_dir_all(&args.work_dir)?;
 	let state_path = args.work_dir.join("index-state.json");
 	let expected_job_ids = jobs.iter().map(|job| job.job.job_id.clone()).collect::<Vec<_>>();
@@ -79,6 +87,15 @@ async fn materialize_lightrag_jobs(
 	let client = reqwest::Client::builder().timeout(Duration::from_secs(180)).build()?;
 
 	api::wait_for_lightrag(args, &client).await?;
+	if args.reset_index {
+		let clear_response = api::clear_lightrag_documents(args, &client).await?;
+		let native_dir = args.work_dir.join("native").join("cold");
+		fs::create_dir_all(&native_dir)?;
+		fs::write(
+			native_dir.join("workspace-clear.json"),
+			serde_json::to_vec_pretty(&clear_response)?,
+		)?;
+	}
 
 	let mut out = Vec::with_capacity(jobs.len());
 

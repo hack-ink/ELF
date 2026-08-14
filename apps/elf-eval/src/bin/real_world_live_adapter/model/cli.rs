@@ -113,6 +113,9 @@ pub(crate) struct LightragArgs {
 	/// Query the cold-run LightRAG state without a second document ingest.
 	#[arg(long, default_value_t = false)]
 	pub(crate) reuse_index: bool,
+	/// Clear the native LightRAG workspace before one isolated cold job.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reset_index: bool,
 }
 
 #[derive(Debug, Subcommand)]

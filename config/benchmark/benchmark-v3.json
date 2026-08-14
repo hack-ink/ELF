@@ -175,7 +175,8 @@
       "dockerfile": "docker/benchmark/honcho.Dockerfile",
       "native_deviations": {
         "correction": "The v3 public API appends corrected messages; message update changes metadata only.",
-        "delete": "The v3 public API deletes a complete session, not an individual message."
+        "delete": "The v3 public API deletes a complete session, not an individual message.",
+        "embedding_dimension": "The pinned self-hosted pgvector bootstrap uses 1536 dimensions, while its HNSW vector and half-vector index limits are below the shared 4096 dimensions; the product must fail closed rather than receive reduced embeddings."
       },
       "pin": {"kind": "git", "source": "https://github.com/plastic-labs/honcho.git", "release": "v3.0.12", "value": "93dcf59c4a4225bb020b20c628799737fefae318"}
     }

@@ -204,7 +204,10 @@ def _settings(root: Path) -> dict[str, Any]:
                 "auth_method": "api_key",
                 "api_key": "${EMBEDDING_API_KEY}",
                 "api_base": "${EMBEDDING_API_BASE}",
-                "call_args": {"dimensions": EMBEDDING_DIMENSIONS},
+                "call_args": {
+                    "dimensions": EMBEDDING_DIMENSIONS,
+                    "allowed_openai_params": ["dimensions"],
+                },
             }
         },
         "input": {

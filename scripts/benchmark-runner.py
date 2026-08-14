@@ -313,6 +313,35 @@ def cleanup_project(project: str, compose_file: Path, env: dict[str, str]) -> di
     }
 
 
+def compose_project_logs(project: str, compose_file: Path, env: dict[str, str]) -> str:
+    """Capture dependency logs before Compose removes the isolated project."""
+    try:
+        completed = command(
+            [
+                "docker",
+                "compose",
+                "--project-name",
+                project,
+                "--file",
+                str(compose_file),
+                "logs",
+                "--no-color",
+                "--timestamps",
+            ],
+            env=env,
+            check=False,
+            timeout=60,
+        )
+    except Exception as error:
+        return f"Compose dependency log capture failed: {type(error).__name__}\n"
+    if completed.returncode:
+        return (
+            f"Compose dependency log capture exited {completed.returncode}\n"
+            + completed.stdout
+        )
+    return completed.stdout
+
+
 def project_images(project: str, compose_file: Path, env: dict[str, str]) -> list[dict[str, Any]]:
     try:
         completed = command(
@@ -581,8 +610,14 @@ def run_unit(
         compose_output = harness_error + "\n"
         compose_exit = 125
     unit_root.mkdir(parents=True, exist_ok=True)
-    (unit_root / "compose.log").write_text(compose_output, encoding="utf-8")
     runtime_images = project_images(project, compose_file, env)
+    dependency_logs = compose_project_logs(project, compose_file, env)
+    (unit_root / "compose.log").write_text(
+        compose_output
+        + "\n--- Compose dependency logs captured before cleanup ---\n"
+        + dependency_logs,
+        encoding="utf-8",
+    )
     cleanup = cleanup_project(project, compose_file, env)
     result_path = artifact_dir / "unit-result.json"
     if timed_out:
@@ -866,7 +901,7 @@ def main() -> int:
     bundle_path = artifact_root / "bundle.json"
     write_json(bundle_path, bundle)
     if full_run:
-        report_path = artifact_root / "report.zh-CN.md"
+        report_path = artifact_root / "report.en.md"
         report = command(
             [
                 sys.executable,

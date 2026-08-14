@@ -160,7 +160,7 @@ services:
     entrypoint: ["/app/.venv/bin/python", "-m", "src.deriver"]
     depends_on:
       honcho-api:
-        condition: service_healthy
+        condition: service_started
     environment: *honcho-environment
 
   elf-unit:
@@ -250,7 +250,7 @@ services:
     <<: *unit
     image: ${BENCHMARK_GRAPHRAG_IMAGE:-elf-benchmark-graphrag:v4}
     command:
-      - python3
+      - /opt/graphrag-venv/bin/python
       - /opt/benchmark/benchmark-unit.py
       - --target
       - graphrag
@@ -292,7 +292,7 @@ services:
     image: ${BENCHMARK_HONCHO_IMAGE:-elf-benchmark-honcho:v4}
     depends_on:
       honcho-api:
-        condition: service_healthy
+        condition: service_started
       honcho-deriver:
         condition: service_started
     environment:

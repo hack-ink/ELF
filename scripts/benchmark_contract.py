@@ -91,8 +91,8 @@ def opaque_job_id(job_id: str) -> str:
     return opaque_identifier("job", job_id)
 
 
-def opaque_evidence_id(evidence_id: str) -> str:
-    return opaque_identifier("evidence", evidence_id)
+def opaque_evidence_id(evidence_id: str, job_id: str) -> str:
+    return opaque_identifier("evidence", f"{job_id}\0{evidence_id}")
 
 
 def assert_product_payload_is_blind(value: Any, path: str = "$") -> None:
@@ -202,7 +202,9 @@ def product_job(job: dict[str, Any], suite: dict[str, Any]) -> dict[str, Any]:
     for operation in job.get("operations") or []:
         product_operation = {
             "type": operation["type"],
-            "evidence_id": opaque_evidence_id(operation["evidence_id"]),
+            "evidence_id": opaque_evidence_id(
+                operation["evidence_id"], job["job_id"]
+            ),
         }
         if operation.get("text") is not None:
             product_operation["text"] = operation["text"]
@@ -215,7 +217,9 @@ def product_job(job: dict[str, Any], suite: dict[str, Any]) -> dict[str, Any]:
         "corpus": {
             "items": [
                 {
-                    "evidence_id": opaque_evidence_id(item["evidence_id"]),
+                    "evidence_id": opaque_evidence_id(
+                        item["evidence_id"], job["job_id"]
+                    ),
                     "text": item["text"],
                 }
                 for item in job["corpus"]
@@ -424,11 +428,6 @@ def evaluate_unit(
 
     jobs_by_id = {job["job_id"]: job for job in suite["jobs"]}
     job_id_map = {opaque_job_id(job_id): job_id for job_id in jobs_by_id}
-    evidence_id_map = {
-        opaque_evidence_id(item["evidence_id"]): item["evidence_id"]
-        for job in suite["jobs"]
-        for item in job["corpus"]
-    }
     suite_kind = suite["kind"]
     contract_failures: list[str] = []
     phases: dict[str, Any] = {}
@@ -448,6 +447,10 @@ def evaluate_unit(
             definition = jobs_by_id.get(job_id)
             if definition is None:
                 continue
+            evidence_id_map = {
+                opaque_evidence_id(item["evidence_id"], job_id): item["evidence_id"]
+                for item in definition["corpus"]
+            }
             qrels = definition["qrels"]
             raw_evidence = _dedupe(
                 [str(evidence_id) for evidence_id in raw_job.get("evidence_ids") or []]
@@ -682,7 +685,7 @@ def answer_cases(
         evidence = {
             key: text
             for evidence_id, text in source_evidence.items()
-            for key in (evidence_id, opaque_evidence_id(evidence_id))
+            for key in (evidence_id, opaque_evidence_id(evidence_id, job["job_id"]))
         }
         context = []
         used = 0

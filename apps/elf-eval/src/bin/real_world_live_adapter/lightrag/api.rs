@@ -29,6 +29,21 @@ pub(super) async fn wait_for_lightrag(args: &LightragArgs, client: &Client) -> R
 	))
 }
 
+pub(super) async fn clear_lightrag_documents(
+	args: &LightragArgs,
+	client: &Client,
+) -> Result<serde_json::Value> {
+	let response = lightrag_delete_json(args, client, "/documents").await?;
+	let status = response.get("status").and_then(serde_json::Value::as_str);
+	if status != Some("success") {
+		return Err(eyre::eyre!(
+			"LightRAG document clear did not complete successfully: {}",
+			serde_json::to_string(&response)?
+		));
+	}
+	Ok(response)
+}
+
 pub(super) async fn insert_lightrag_texts(
 	args: &LightragArgs,
 	client: &Client,
@@ -135,6 +150,21 @@ async fn lightrag_post_json(
 ) -> Result<serde_json::Value> {
 	let url = format!("{}{}", metadata::lightrag_api_base(args), path);
 	let mut request = client.post(url).json(body);
+
+	if let Some(api_key) = args.api_key.as_deref().filter(|key| !key.is_empty()) {
+		request = request.bearer_auth(api_key);
+	}
+
+	lightrag_send_json(request).await
+}
+
+async fn lightrag_delete_json(
+	args: &LightragArgs,
+	client: &Client,
+	path: &str,
+) -> Result<serde_json::Value> {
+	let url = format!("{}{}", metadata::lightrag_api_base(args), path);
+	let mut request = client.delete(url);
 
 	if let Some(api_key) = args.api_key.as_deref().filter(|key| !key.is_empty()) {
 		request = request.bearer_auth(api_key);

@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -48,6 +49,9 @@ PREFLIGHT = load_script(
 )
 REPORT = load_script("benchmark_report", "scripts/benchmark-report.py")
 OPENKB = load_script("benchmark_openkb", "scripts/benchmark_targets/openkb.py")
+GRAPHITI = load_script("benchmark_graphiti", "scripts/benchmark_targets/graphiti.py")
+GRAPHRAG = load_script("benchmark_graphrag", "scripts/benchmark_targets/graphrag.py")
+UNIT = load_script("benchmark_unit", "scripts/benchmark-unit.py")
 
 
 class BenchmarkContractTests(unittest.TestCase):
@@ -71,7 +75,7 @@ class BenchmarkContractTests(unittest.TestCase):
         warm_jobs = []
         for job in suite["jobs"]:
             relevant = job["qrels"].get("relevant_evidence") or []
-            retrieved = [opaque_evidence_id(value) for value in relevant]
+            retrieved = [opaque_evidence_id(value, job["job_id"]) for value in relevant]
             cold_text = {item["evidence_id"]: item["text"] for item in job["corpus"]}
             warm_text = dict(cold_text)
             for operation in job.get("operations") or []:
@@ -80,12 +84,18 @@ class BenchmarkContractTests(unittest.TestCase):
                 elif operation["type"] == "delete":
                     warm_text.pop(operation["evidence_id"], None)
             cold_contexts = [
-                {"evidence_id": opaque_evidence_id(value), "text": cold_text[value]}
+                {
+                    "evidence_id": opaque_evidence_id(value, job["job_id"]),
+                    "text": cold_text[value],
+                }
                 for value in relevant
                 if value in cold_text
             ]
             warm_contexts = [
-                {"evidence_id": opaque_evidence_id(value), "text": warm_text[value]}
+                {
+                    "evidence_id": opaque_evidence_id(value, job["job_id"]),
+                    "text": warm_text[value],
+                }
                 for value in relevant
                 if value in warm_text
             ]
@@ -169,6 +179,32 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertTrue(payload["corpus"]["items"][0]["evidence_id"].startswith("e_"))
         self.assertTrue(payload["operations"])
         self.assertTrue(payload["operations"][0]["evidence_id"].startswith("e_"))
+
+    def test_product_evidence_identity_is_scoped_to_its_job(self) -> None:
+        shared = "same-source-name"
+        self.assertNotEqual(
+            opaque_evidence_id(shared, "first-job"),
+            opaque_evidence_id(shared, "second-job"),
+        )
+
+    def test_cross_job_evidence_cannot_receive_current_job_credit(self) -> None:
+        suite = self.subset("common-core-v1", 2)
+        unit = self.completed_unit("elf", suite)
+        other_job = suite["jobs"][1]
+        cross_job_id = opaque_evidence_id(
+            other_job["corpus"][0]["evidence_id"], other_job["job_id"]
+        )
+        for phase in ("cold", "warm"):
+            unit["phases"][phase]["jobs"][0]["evidence_ids"] = [cross_job_id]
+            unit["phases"][phase]["jobs"][0]["returned_count"] = 1
+        evaluated = evaluate_unit(suite, unit, self.targets["elf"])
+        first = next(
+            row
+            for row in evaluated["phases"]["warm"]["jobs"]
+            if row["job_id"] == suite["jobs"][0]["job_id"]
+        )
+        self.assertEqual(first["recall_at_5"], 0.0)
+        self.assertEqual(first["source_trace_rate"], 0.0)
 
     def test_elf_and_external_adapter_have_identical_normalized_shape(self) -> None:
         suite = self.subset("common-core-v1", 2)
@@ -390,7 +426,7 @@ class BenchmarkContractTests(unittest.TestCase):
 
         unit["phases"]["warm"]["jobs"][0]["contexts"].append(
             {
-                "evidence_id": opaque_evidence_id(deleted),
+                "evidence_id": opaque_evidence_id(deleted, suite["jobs"][0]["job_id"]),
                 "text": suite["jobs"][0]["corpus"][1]["text"],
             }
         )
@@ -420,6 +456,14 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertTrue(cleanup["passed"])
         self.assertEqual(cleanup["remaining"], {"containers": [], "volumes": [], "networks": []})
 
+    def test_compose_dependency_logs_are_captured_before_cleanup(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, "honcho-api | startup failed\n")
+        with mock.patch.object(RUNNER, "command", return_value=completed) as command:
+            output = RUNNER.compose_project_logs("elfb-test", Path("compose.yml"), {})
+        self.assertIn("startup failed", output)
+        self.assertIn("logs", command.call_args.args[0])
+        self.assertIn("--timestamps", command.call_args.args[0])
+
     def test_provider_preflight_paths_are_openai_compatible(self) -> None:
         self.assertEqual(
             PREFLIGHT.endpoint("https://provider.test/v1", "embeddings"),
@@ -430,6 +474,30 @@ class BenchmarkContractTests(unittest.TestCase):
             "https://provider.test/v1/chat/completions",
         )
 
+    def test_canonical_cargo_make_entrypoint_forwards_runner_arguments(self) -> None:
+        makefile = (REPO / "makefiles/benchmark-core.toml").read_text(encoding="utf-8")
+        benchmark_task = makefile.split("[tasks.benchmark-competitors]", 1)[1].split(
+            "[tasks.", 1
+        )[0]
+        self.assertIn('"${@}"', benchmark_task)
+
+    def test_graphiti_preserves_the_requested_response_schema(self) -> None:
+        class ResponseModel:
+            @staticmethod
+            def model_json_schema() -> dict:
+                return {
+                    "type": "object",
+                    "properties": {"items": {"type": "array"}},
+                    "required": ["items"],
+                }
+
+        response_format = GRAPHITI._chat_response_format(ResponseModel)
+        self.assertEqual(response_format["type"], "json_schema")
+        self.assertEqual(
+            response_format["json_schema"]["schema"], ResponseModel.model_json_schema()
+        )
+        self.assertFalse(response_format["json_schema"]["strict"])
+
     def test_readiness_repairs_remain_native_and_bounded(self) -> None:
         compose = (REPO / "docker/benchmark/compose.yml").read_text(encoding="utf-8")
         unit_image = (REPO / "docker/benchmark/Dockerfile").read_text(encoding="utf-8")
@@ -438,11 +506,25 @@ class BenchmarkContractTests(unittest.TestCase):
         )
         self.assertIn('EMBEDDING_SEND_DIM: "true"', compose)
         self.assertIn('OPENKB_TIMEOUT_SECONDS: "1200"', compose)
+        self.assertIn("/opt/graphrag-venv/bin/python", compose)
         self.assertIn(
             "COPY config/local/tokenizer.wordlevel.json /config/local/tokenizer.wordlevel.json",
             unit_image,
         )
         self.assertIn("UV_PYTHON_INSTALL_DIR=/opt/uv-python", honcho_image)
+        honcho_deriver = compose.split("  honcho-deriver:", 1)[1].split(
+            "  elf-unit:", 1
+        )[0]
+        honcho_unit = compose.split("  honcho-unit:", 1)[1].split("\nvolumes:", 1)[0]
+        self.assertNotIn("condition: service_healthy", honcho_deriver)
+        self.assertNotIn("condition: service_healthy", honcho_unit)
+
+    def test_graphrag_passes_the_frozen_embedding_dimension_explicitly(self) -> None:
+        settings = GRAPHRAG._settings(Path("/benchmark/state/graphrag"))
+        call_args = settings["embedding_models"]["benchmark_embedding"]["call_args"]
+        self.assertEqual(call_args["dimensions"], 4096)
+        self.assertEqual(call_args["allowed_openai_params"], ["dimensions"])
+        self.assertEqual(settings["vector_store"]["vector_size"], 4096)
 
     def test_openkb_timeout_preserves_bytes_and_product_failure(self) -> None:
         timeout = subprocess.TimeoutExpired(
@@ -484,7 +566,127 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertEqual(stdout, "ready\n")
         self.assertEqual(run.call_args.kwargs["input"], "\n")
 
-    def test_report_has_required_chinese_decision_sections(self) -> None:
+    def test_openkb_uses_explicit_litellm_transport_and_job_scoped_sources(self) -> None:
+        self.assertEqual(OPENKB._litellm_model("gpt-5.6-luna"), "openai/gpt-5.6-luna")
+        self.assertEqual(
+            OPENKB._litellm_model("anthropic/claude-example"),
+            "anthropic/claude-example",
+        )
+        jobs = [
+            {
+                "job_id": "j_first",
+                "corpus": {"items": [{"evidence_id": "e_shared", "text": "old"}]},
+            },
+            {
+                "job_id": "j_second",
+                "corpus": {"items": [{"evidence_id": "e_shared", "text": "new"}]},
+            },
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            hashes = OPENKB._materialize_sources(jobs, root / "sources")
+            config = root / "kb" / ".openkb" / "config.yaml"
+            config.parent.mkdir(parents=True)
+            config.write_text("model: openai/gpt-5.6-luna\n", encoding="utf-8")
+            OPENKB._configure_litellm_api_base(root / "kb", "http://proxy.test/v1")
+            rendered = config.read_text(encoding="utf-8")
+            source_names = sorted(path.name for path in (root / "sources").glob("*.md"))
+        self.assertEqual(len(hashes), 2)
+        self.assertEqual(len(source_names), 2)
+        self.assertTrue(all(name.startswith("source-") for name in source_names))
+        self.assertIn("litellm:", rendered)
+        self.assertIn('api_base: "http://proxy.test/v1"', rendered)
+        self.assertIn("OpenAIChatCompletionsModel", OPENKB._QUERY_PROGRAM)
+        self.assertIn('model=os.environ["CHAT_MODEL"]', OPENKB._QUERY_PROGRAM)
+        self.assertNotIn("LitellmModel(", OPENKB._QUERY_PROGRAM)
+
+    def test_openkb_failure_detail_is_bounded_and_redacts_injected_secrets(self) -> None:
+        detail = OPENKB._bounded_failure_detail(
+            "",
+            "provider rejected secret-value " + ("x" * 5000),
+            {"CHAT_API_KEY": "secret-value"},
+        )
+        self.assertNotIn("secret-value", detail)
+        self.assertIn("<redacted>", detail)
+        self.assertIn("[truncated; inspect the preserved native log]", detail)
+
+    def test_lightrag_pairs_cold_and_warm_inside_each_isolated_job(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_dir = root / "input"
+            input_dir.mkdir()
+            for index in range(2):
+                job = {
+                    "job_id": f"j_{index}",
+                    "suite": "knowledge_structure",
+                    "prompt": {"content": f"question {index}"},
+                    "corpus": {
+                        "items": [
+                            {"evidence_id": f"e_{index}", "text": f"source {index}"}
+                        ]
+                    },
+                    "operations": [],
+                }
+                (input_dir / f"j_{index}.json").write_text(
+                    json.dumps(job), encoding="utf-8"
+                )
+
+            calls: list[list[str]] = []
+
+            def fake_run(command, log_path, env):
+                calls.append(command)
+                fixture_dir = Path(command[command.index("--fixtures") + 1])
+                job = json.loads(next(fixture_dir.glob("*.json")).read_text(encoding="utf-8"))
+                warm_phase = "--reuse-index" in command
+                evidence_path = Path(command[command.index("--evidence-out") + 1])
+                evidence_path.parent.mkdir(parents=True, exist_ok=True)
+                evidence_path.write_text(
+                    json.dumps(
+                        {
+                            "metadata": {"index_reused": warm_phase},
+                            "jobs": [
+                                {
+                                    "job_id": job["job_id"],
+                                    "status": "completed",
+                                    "evidence_ids": [job["corpus"]["items"][0]["evidence_id"]],
+                                    "returned_count": 1,
+                                    "latency_ms": 5.0,
+                                    "contexts": [
+                                        {
+                                            "evidence_id": job["corpus"]["items"][0]["evidence_id"],
+                                            "text": job["corpus"]["items"][0]["text"],
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.write_text("ok\n", encoding="utf-8")
+                return 10.0
+
+            with (
+                mock.patch.object(UNIT, "INPUT", input_dir),
+                mock.patch.object(UNIT, "STATE", root / "state"),
+                mock.patch.object(UNIT, "ARTIFACTS", root / "artifacts"),
+                mock.patch.object(UNIT, "ADAPTER", Path("/adapter")),
+                mock.patch.object(UNIT, "wait_port"),
+                mock.patch.object(UNIT, "run_command", side_effect=fake_run),
+            ):
+                result = UNIT.run_lightrag_target()
+
+        self.assertEqual(result["result_class"], "completed")
+        self.assertTrue(result["warm_reused_state"])
+        self.assertEqual(["--reset-index" in call for call in calls], [True, False, True, False])
+        self.assertEqual(["--reuse-index" in call for call in calls], [False, True, False, True])
+        self.assertEqual(
+            result["phases"]["cold"]["adapter_metadata"]["job_isolation"],
+            "native_document_clear_before_each_cold_job",
+        )
+
+    def test_report_has_required_english_decision_sections(self) -> None:
         suite = self.subset("common-core-v1")
         unit = self.completed_unit("elf", suite)
         evaluation = evaluate_unit(suite, unit, self.targets["elf"])
@@ -514,13 +716,16 @@ class BenchmarkContractTests(unittest.TestCase):
         }
         report = REPORT.publish(bundle)
         for heading in (
-            "决策摘要",
-            "五项产品决策",
-            "覆盖与失败",
-            "逐产品实测强弱",
-            "ELF 优化顺序",
+            "Decision Summary",
+            "Five Product Decisions",
+            "Coverage and Failures",
+            "Measured Product Observations",
+            "ELF Development Order",
         ):
             self.assertIn(heading, report)
+        self.assertIsNone(re.search(r"[\u3400-\u9fff]", report))
+        self.assertNotIn("N/A", report)
+        self.assertIn("Not applicable", report)
         self.assertIn(
             "The pinned revision constructs a hierarchy but exposes no native ranked retrieval operation.",
             report,
@@ -544,13 +749,13 @@ class BenchmarkContractTests(unittest.TestCase):
         self.assertEqual(evaluation["classification"], "adapter_failed")
         self.assertEqual(REPORT.elf_jobs(bundle), [])
         summary = "\n".join(REPORT.elf_job_summary(bundle))
-        self.assertIn("整个单元不计分", summary)
-        self.assertNotIn("最强场景", summary)
+        self.assertIn("whole unit unscored", summary)
+        self.assertNotIn("Strongest scenarios", summary)
         roadmap = "\n".join(REPORT.roadmap(bundle))
-        self.assertIn("没有产生可归因的指标失败", roadmap)
-        self.assertNotIn("先消除 ELF 原生运行失败", roadmap)
+        self.assertIn("no attributable ELF metric failure", roadmap)
+        self.assertNotIn("Eliminate native ELF runtime failures", roadmap)
         observations = "\n".join(REPORT.product_observations(bundle))
-        self.assertIn("不能从未计分单元形成实测强弱结论", observations)
+        self.assertIn("an unscored unit cannot support a measured strength", observations)
         self.assertNotIn("memory-lifecycle-v1:adapter_failed", observations)
 
     def test_zero_retrieval_does_not_become_stale_suppression_strength(self) -> None:
@@ -590,10 +795,10 @@ class BenchmarkContractTests(unittest.TestCase):
             "suite_results": {"common-core-v1": {"results": [elf, qmd]}},
         }
         observations = "\n".join(REPORT.product_observations(bundle))
-        self.assertIn("零陈旧命中与零召回同时出现", observations)
+        self.assertIn("zero stale hits and zero recall", observations)
         qmd_line = next(line for line in observations.splitlines() if "**qmd**" in line)
-        self.assertNotIn("陈旧证据命中率（方向化值 1.000）", qmd_line)
-        self.assertNotIn("实测相对强项为 Recall@5（方向化值 0.000）", qmd_line)
+        self.assertNotIn("Forbidden or stale evidence hit rate (directional value 1.000)", qmd_line)
+        self.assertNotIn("measured relative strength: Recall@5 (directional value 0.000)", qmd_line)
 
     def test_shared_answer_metrics_remain_observations_without_product_attribution(self) -> None:
         suite = self.subset("knowledge-structure-v1")
@@ -631,10 +836,10 @@ class BenchmarkContractTests(unittest.TestCase):
             [],
         )
         observations = "\n".join(REPORT.product_observations(bundle))
-        self.assertNotIn("答案正确率（方向化值", observations)
-        self.assertNotIn("无依据仍作答率（方向化值", observations)
+        self.assertNotIn("Programmatic answer correctness (directional value", observations)
+        self.assertNotIn("Unsupported-answer rate (directional value", observations)
         roadmap = "\n".join(REPORT.roadmap(bundle))
-        self.assertNotIn("收紧证据绑定回答与拒答", roadmap)
+        self.assertNotIn("Tighten evidence-bound answers and refusal", roadmap)
 
         without_answer = copy.deepcopy(job)
         without_answer["answer_correct"] = 1.0
@@ -644,8 +849,31 @@ class BenchmarkContractTests(unittest.TestCase):
         )
 
         report = REPORT.publish(bundle)
-        self.assertIn("端到端观测，不用于产品强弱或路线图归因", report)
-        self.assertIn("不用于宣布产品强项、赢家、ELF 场景强弱或产品路线图", report)
+        self.assertIn("end-to-end observation, not product or roadmap attribution", report)
+        self.assertIn("do not declare product strengths, winners, ELF scenario strengths, or roadmap actions", report)
+
+    def test_quality_table_excludes_failed_rows_without_hiding_coverage(self) -> None:
+        suite = self.subset("common-core-v1")
+        row = {
+            "target": "elf",
+            "evaluation": evaluate_unit(
+                suite,
+                self.completed_unit("elf", suite),
+                self.targets["elf"],
+            ),
+            "cleanup": {"passed": True},
+        }
+        row["evaluation"]["classification"] = "adapter_failed"
+        row["evaluation"]["phases"]["warm"]["quality_denominator"] = False
+        self.assertNotIn("elf", "\n".join(REPORT.result_table([row], "common-core-v1")))
+        self.assertIn(
+            "elf",
+            "\n".join(
+                REPORT.coverage_table(
+                    {"suite_results": {"common-core-v1": {"results": [row]}}}
+                )
+            ),
+        )
 
     def test_roadmap_lists_all_failures_and_separates_privacy(self) -> None:
         suite = self.subset("common-core-v1", 10)
@@ -671,9 +899,9 @@ class BenchmarkContractTests(unittest.TestCase):
             },
         }
         roadmap = "\n".join(REPORT.roadmap(bundle))
-        self.assertIn("强化陈旧证据抑制", roadmap)
-        self.assertIn("失败 jobs（10）", roadmap)
-        self.assertNotIn("修复隐私范围隔离", roadmap)
+        self.assertIn("Strengthen stale-evidence suppression", roadmap)
+        self.assertIn("failed jobs (10)", roadmap)
+        self.assertNotIn("Repair privacy-scope isolation", roadmap)
         for job in suite["jobs"]:
             self.assertIn(job["job_id"], roadmap)
 
@@ -703,10 +931,10 @@ class BenchmarkContractTests(unittest.TestCase):
         }
         decisions = "\n".join(REPORT.five_decisions(bundle))
         roadmap = "\n".join(REPORT.roadmap(bundle))
-        self.assertIn("ELF 性能处置", decisions)
-        self.assertIn("warm 为最快非 ELF 的 20.0×", decisions)
-        self.assertIn("缩短检索与摄取关键路径", roadmap)
-        self.assertIn("触发 10× 同 job 延迟阈值的 jobs（2）", roadmap)
+        self.assertIn("ELF performance disposition", decisions)
+        self.assertIn("warm is 20.0× the fastest non-ELF row", decisions)
+        self.assertIn("Shorten the retrieval and ingest critical path", roadmap)
+        self.assertIn("jobs above the 10× same-job latency threshold (2)", roadmap)
         for job in suite["jobs"]:
             self.assertIn(job["job_id"], roadmap)
 

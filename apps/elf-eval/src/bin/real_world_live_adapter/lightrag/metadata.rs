@@ -8,6 +8,7 @@ pub(super) fn lightrag_metadata(args: &LightragArgs) -> Value {
 	serde_json::json!({
 		"schema": "elf.lightrag_context_export_metadata/v1",
 		"index_reused": args.reuse_index,
+		"index_reset_before_cold": args.reset_index,
 		"api_base": lightrag_api_base(args),
 		"query": {
 			"mode": args.query_mode,
@@ -49,7 +50,7 @@ pub(super) fn lightrag_metadata(args: &LightragArgs) -> Value {
 			"index_interval_seconds": args.index_interval_seconds
 		},
 		"source_mapping": {
-			"corpus_file_source_template": "elf-real-world/{run_slug}/{job_slug}/{evidence_id}.md",
+			"corpus_file_source_template": "elf-real-world/{run_slug}/{job_slug}/source-{opaque_digest}.md",
 			"mapping_inputs": ["references.file_path", "references.reference_id"],
 			"content_inference_allowed": false
 		}

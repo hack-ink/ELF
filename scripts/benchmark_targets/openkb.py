@@ -38,7 +38,8 @@ import sys
 from pathlib import Path
 
 from agents import ModelSettings, Runner, set_tracing_disabled
-from agents.extensions.models.litellm_model import LitellmModel
+from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+from openai import AsyncOpenAI
 from openai.types.shared.reasoning import Reasoning
 from openkb.agent.query import MAX_TURNS, build_query_agent
 from openkb.config import load_config
@@ -70,10 +71,12 @@ async def main():
         ModelSettings(reasoning=Reasoning(effort=reasoning_effort))
     )
     agent = agent.clone(
-        model=LitellmModel(
-            model=model,
-            base_url=os.environ["OPENAI_BASE_URL"],
-            api_key=os.environ["OPENAI_API_KEY"],
+        model=OpenAIChatCompletionsModel(
+            model=os.environ["CHAT_MODEL"],
+            openai_client=AsyncOpenAI(
+                base_url=os.environ["OPENAI_BASE_URL"],
+                api_key=os.environ["OPENAI_API_KEY"],
+            ),
         ),
         model_settings=model_settings,
     )
@@ -83,6 +86,7 @@ async def main():
             {
                 "final_output": result.final_output or "",
                 "input_items": jsonable(result.to_input_list()),
+                "transport": "openai_chat_completions",
             },
             ensure_ascii=True,
             separators=(",", ":"),
@@ -108,6 +112,19 @@ def _subprocess_text(value: str | bytes | None) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
     return value or ""
+
+
+def _bounded_failure_detail(
+    stdout: str, stderr: str, env: dict[str, str], limit: int = 4000
+) -> str:
+    """Keep typed failures concise while retaining the full native log on disk."""
+    detail = (stderr or stdout).strip()
+    for name, value in env.items():
+        if value and re.search(r"(?:KEY|TOKEN|SECRET|PASSWORD)", name, re.IGNORECASE):
+            detail = detail.replace(value, "<redacted>")
+    if len(detail) > limit:
+        detail = detail[:limit].rstrip() + "\n...[truncated; inspect the preserved native log]"
+    return detail
 
 
 def _load_jobs(input_dir: Path) -> list[dict[str, Any]]:
@@ -151,8 +168,8 @@ def _safe_name(value: str) -> str:
     return f"{stem[:80]}-{suffix}.md"
 
 
-def _opaque_source_name(evidence_id: str) -> str:
-    digest = hashlib.sha256(evidence_id.encode("utf-8")).hexdigest()
+def _opaque_source_name(job_id: str, evidence_id: str) -> str:
+    digest = hashlib.sha256(f"{job_id}:{evidence_id}".encode("utf-8")).hexdigest()
     return f"source-{digest[:24]}.md"
 
 
@@ -165,23 +182,37 @@ def _materialize_sources(
 ) -> dict[str, str]:
     source_dir.mkdir(parents=True, exist_ok=True)
     hashes: dict[str, str] = {}
-    seen_ids: dict[str, str] = {}
     for job in jobs:
+        job_id = str(job["job_id"])
         for item in job["corpus"]["items"]:
             evidence_id = str(item["evidence_id"])
             rendered = _render_source(str(item["text"]))
-            previous = seen_ids.get(evidence_id)
-            if previous is not None and previous != rendered:
-                raise ValueError(f"conflicting OpenKB evidence id: {evidence_id}")
-            seen_ids[evidence_id] = rendered
-    for evidence_id, rendered in sorted(seen_ids.items()):
-        path = source_dir / _opaque_source_name(evidence_id)
-        path.write_text(rendered, encoding="utf-8")
-        source_hash = hashlib.sha256(path.read_bytes()).hexdigest()
-        if source_hash in hashes and hashes[source_hash] != evidence_id:
-            raise ValueError("OpenKB cannot distinguish duplicate source content")
-        hashes[source_hash] = evidence_id
+            path = source_dir / _opaque_source_name(job_id, evidence_id)
+            path.write_text(rendered, encoding="utf-8")
+            source_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+            if source_hash in hashes and hashes[source_hash] != evidence_id:
+                raise ValueError("OpenKB cannot distinguish duplicate source content")
+            hashes[source_hash] = evidence_id
     return hashes
+
+
+def _litellm_model(model: str) -> str:
+    """Select LiteLLM's OpenAI transport for an operator-defined proxy alias."""
+    return model if "/" in model else f"openai/{model}"
+
+
+def _configure_litellm_api_base(kb_dir: Path, api_base: str) -> None:
+    """Use OpenKB's native LiteLLM settings for the isolated proxy route."""
+    config_path = kb_dir / ".openkb" / "config.yaml"
+    current = config_path.read_text(encoding="utf-8")
+    if "\nlitellm:" in f"\n{current}":
+        raise ValueError("OpenKB init unexpectedly supplied a LiteLLM config block")
+    config_path.write_text(
+        current.rstrip()
+        + "\nlitellm:\n"
+        + f"  api_base: {json.dumps(api_base, ensure_ascii=True)}\n",
+        encoding="utf-8",
+    )
 
 
 def _openkb_env() -> dict[str, str]:
@@ -196,6 +227,7 @@ def _openkb_env() -> dict[str, str]:
             "LITELLM_LOCAL_MODEL_COST_MAP": "True",
             "LLM_API_KEY": api_key,
             "OPENAI_API_KEY": api_key,
+            "OPENAI_API_BASE": api_base,
             "OPENAI_BASE_URL": api_base,
             "NO_COLOR": "1",
             "PYTHONPATH": str(OPENKB_REPO),
@@ -237,7 +269,7 @@ def _run_native(
     stdout_path.write_text(completed.stdout, encoding="utf-8")
     stderr_path.write_text(completed.stderr, encoding="utf-8")
     if completed.returncode:
-        detail = (completed.stderr or completed.stdout).strip()
+        detail = _bounded_failure_detail(completed.stdout, completed.stderr, env)
         raise OpenKBProductFailure(
             f"OpenKB native operation exited {completed.returncode}: {detail}"
         )
@@ -540,9 +572,10 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
         for job in jobs:
             assert_qrel_blind(job)
         env = _openkb_env()
-        model = env.get("OPENKB_MODEL") or env.get("CHAT_MODEL")
-        if not model:
+        configured_model = env.get("OPENKB_MODEL") or env.get("CHAT_MODEL")
+        if not configured_model:
             raise ValueError("OpenKB requires OPENKB_MODEL or CHAT_MODEL")
+        model = _litellm_model(configured_model)
         receipt_path = state_dir / "cold-ingest.json"
         if receipt_path.exists():
             raise ValueError("OpenKB cold state already has an ingest receipt")
@@ -571,7 +604,8 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
             timeout=timeout,
             stdin_text="\n",
         )
-        _, ingest_latency_ms = _run_native(
+        _configure_litellm_api_base(kb_dir, env["OPENAI_BASE_URL"])
+        ingest_stdout, ingest_latency_ms = _run_native(
             [str(OPENKB_PYTHON), "-m", "openkb", "add", str(source_dir)],
             cwd=kb_dir,
             env=env,
@@ -579,6 +613,18 @@ def run_openkb(input_dir: Path, artifacts: Path, state_dir: Path) -> dict[str, A
             stderr_path=artifacts / "raw" / "openkb-ingest.stderr.log",
             timeout=timeout,
         )
+        failed_adds = ingest_stdout.count("[ERROR] add failed")
+        if failed_adds:
+            provider_markers = ("litellm", "provider", "openai", "api connection")
+            cause = (
+                "provider failure"
+                if any(marker in ingest_stdout.lower() for marker in provider_markers)
+                else "product failure"
+            )
+            raise OpenKBProductFailure(
+                f"OpenKB native add reported {failed_adds} {cause}(s); "
+                "inspect the preserved native ingest log"
+            )
 
         registry_path = kb_dir / ".openkb" / "hashes.json"
         if not registry_path.is_file():

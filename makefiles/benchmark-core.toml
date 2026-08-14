@@ -9,6 +9,7 @@ workspace = false
 command = "python3"
 args = [
 	"scripts/benchmark-runner.py",
+	"${@}",
 ]
 
 [tasks.test-benchmark-runner-contract]

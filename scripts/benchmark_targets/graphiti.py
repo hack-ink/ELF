@@ -170,6 +170,20 @@ def _required_environment() -> dict[str, str]:
     return environment
 
 
+def _chat_response_format(response_model: Any) -> dict[str, Any]:
+    """Preserve Graphiti's response schema on the Luna chat-completions route."""
+    if response_model is None:
+        return {"type": "json_object"}
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "graphiti_response",
+            "strict": False,
+            "schema": response_model.model_json_schema(),
+        },
+    }
+
+
 def _wait_for_falkordb(host: str, port: int, timeout_seconds: float) -> None:
     deadline = time.monotonic() + timeout_seconds
     last_error: OSError | None = None
@@ -247,7 +261,7 @@ def _new_graphiti(environment: dict[str, str]) -> tuple[Any, Any, Any]:
             max_tokens: int = 8192,
             model_size: Any = None,
         ) -> dict[str, Any]:
-            del response_model, model_size
+            del model_size
             native_messages = [
                 {"role": message.role, "content": self._clean_input(message.content)}
                 for message in messages
@@ -258,7 +272,7 @@ def _new_graphiti(environment: dict[str, str]) -> tuple[Any, Any, Any]:
                 messages=native_messages,
                 max_tokens=max_tokens,
                 reasoning_effort=CHAT_REASONING_EFFORT,
-                response_format={"type": "json_object"},
+                response_format=_chat_response_format(response_model),
             )
             content = response.choices[0].message.content or "{}"
             return json.loads(content)
@@ -462,6 +476,7 @@ async def _query_phase(
                 "embedding_dimensions": EMBEDDING_DIMENSIONS,
                 "chat_model": CHAT_MODEL,
                 "chat_reasoning_effort": CHAT_REASONING_EFFORT,
+                "structured_response": "chat_completions_json_schema",
             },
         },
         native_output,
