@@ -104,8 +104,11 @@ pub(crate) struct LightragArgs {
 	/// Delay between LightRAG health-check attempts.
 	#[arg(long, default_value_t = 2)]
 	pub(crate) startup_interval_seconds: u64,
+	/// Retry attempts while a destructive pipeline clear is busy.
+	#[arg(long, default_value_t = 6)]
+	pub(crate) clear_attempts: u32,
 	/// Poll attempts for asynchronous document indexing.
-	#[arg(long, default_value_t = 60)]
+	#[arg(long, default_value_t = 64)]
 	pub(crate) index_attempts: u32,
 	/// Delay between document indexing status checks.
 	#[arg(long, default_value_t = 2)]
@@ -127,4 +130,38 @@ pub(crate) enum CommandArgs {
 	Qmd(QmdArgs),
 	/// Materialize adapter responses by exporting LightRAG query context and source mappings.
 	Lightrag(LightragArgs),
+}
+
+#[cfg(test)]
+mod tests {
+	use clap::Parser;
+
+	use crate::model::cli::{Args, CommandArgs};
+
+	#[test]
+	fn lightrag_retry_wait_defaults_fit_the_largest_unit_envelope() -> Result<(), clap::Error> {
+		let parsed = Args::try_parse_from([
+			"adapter",
+			"lightrag",
+			"--fixtures",
+			"input",
+			"--out-fixtures",
+			"output",
+			"--evidence-out",
+			"evidence.json",
+			"--work-dir",
+			"work",
+		])?;
+		let CommandArgs::Lightrag(args) = parsed.command else {
+			unreachable!("parsed lightrag command changed variant")
+		};
+		let wait_attempts = u64::from(args.clear_attempts.saturating_sub(1))
+			+ u64::from(args.index_attempts.saturating_sub(1));
+		let largest_unit_retry_wait_seconds = wait_attempts * args.index_interval_seconds * 24;
+
+		assert_eq!(largest_unit_retry_wait_seconds, 3_264);
+		assert!(largest_unit_retry_wait_seconds < 3_600);
+
+		Ok(())
+	}
 }

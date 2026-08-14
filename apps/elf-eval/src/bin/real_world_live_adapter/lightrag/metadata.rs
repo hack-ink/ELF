@@ -41,6 +41,7 @@ pub(super) fn lightrag_metadata(args: &LightragArgs) -> Value {
 		},
 		"cache_and_resource_envelope": {
 			"cargo_cache": "/usr/local/cargo",
+			"clear_attempts": args.clear_attempts,
 			"pip_cache": "/root/.cache/pip",
 			"huggingface_cache": "/root/.cache/huggingface",
 			"lightrag_storage": "/app/data/rag_storage",
