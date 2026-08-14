@@ -155,7 +155,7 @@ class BenchmarkContractTests(unittest.TestCase):
         validate_manifest(self.manifest)
         self.assertEqual(set(self.suites), set(SUITE_IDS))
         self.assertEqual(len(self.manifest["targets"]), 12)
-        self.assertEqual(self.manifest["runner"]["capacity"], 2)
+        self.assertEqual(self.manifest["runner"]["capacity"], 1)
         for suite_id, expected in {
             "common-core-v1": 24,
             "memory-lifecycle-v1": 8,

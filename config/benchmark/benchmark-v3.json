@@ -1,7 +1,7 @@
 {
   "schema": "elf.benchmark_manifest/v4",
   "runner": {
-    "capacity": 2,
+    "capacity": 1,
     "fallback_capacity": 1,
     "compose_file": "docker/benchmark/compose.yml",
     "image": "elf-benchmark-unit:v4",
