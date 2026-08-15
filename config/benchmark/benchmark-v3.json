@@ -1,0 +1,190 @@
+{
+  "schema": "elf.benchmark_manifest/v4",
+  "runner": {
+    "capacity": 1,
+    "fallback_capacity": 1,
+    "compose_file": "docker/benchmark/compose.yml",
+    "image": "elf-benchmark-unit:v4",
+    "unit_timeout_seconds": 3600,
+    "context_budget_chars": 12000,
+    "seed": 260813
+  },
+  "providers": {
+    "chat": {
+      "model": "gpt-5.6-luna",
+      "reasoning_effort": "high"
+    },
+    "embedding": {
+      "model": "Qwen3-Embedding-8B",
+      "dimensions": 4096
+    }
+  },
+  "metrics": [
+    "expected_evidence_recall_at_5",
+    "ndcg_at_5",
+    "forbidden_or_stale_evidence_hit_rate",
+    "source_or_citation_trace_rate",
+    "programmatic_answer_correctness",
+    "native_correction_and_update_success",
+    "native_deletion_or_forgetting_success",
+    "privacy_scope_violation_rate",
+    "unsupported_answer_rate",
+    "cold_ingest_duration",
+    "warm_query_latency",
+    "completed_and_typed_failure_counts",
+    "provider_usage_when_returned"
+  ],
+  "failure_classes": {
+    "completed": {"quality_denominator": true},
+    "product_failed": {"quality_denominator": false},
+    "adapter_failed": {"quality_denominator": false},
+    "harness_failed": {"quality_denominator": false},
+    "provider_failed": {"quality_denominator": false},
+    "configuration_failed": {"quality_denominator": false},
+    "timeout_failed": {"quality_denominator": false},
+    "cleanup_failed": {"quality_denominator": false},
+    "not_applicable": {"quality_denominator": false}
+  },
+  "targets": [
+    {
+      "id": "elf",
+      "adapter": "elf",
+      "role": "source_linked_agent_memory_and_knowledge",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "memory-lifecycle-v1", "knowledge-structure-v1", "repository-knowledge-v1"],
+      "pin": {"kind": "benchmark_source_commit"}
+    },
+    {
+      "id": "mem0",
+      "adapter": "mem0",
+      "role": "semantic_agent_memory",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "memory-lifecycle-v1"],
+      "pin": {"kind": "python_package", "value": "mem0ai==2.0.12", "lock": "config/benchmark/locks/mem0.txt"}
+    },
+    {
+      "id": "qmd",
+      "adapter": "qmd",
+      "role": "local_repository_and_document_search",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "repository-knowledge-v1"],
+      "native_deviations": {"retrieval": "native_bm25_ranked_search"},
+      "pin": {"kind": "git", "source": "https://github.com/tobi/qmd.git", "value": "e428df76bc0274d9e93eb7ca3e95673315c42e90"}
+    },
+    {
+      "id": "lightrag",
+      "adapter": "lightrag",
+      "role": "graph_assisted_retrieval_and_synthesis",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "knowledge-structure-v1"],
+      "pin": {"kind": "container_image", "value": "ghcr.io/hkuds/lightrag@sha256:de09cd75e32b6b45b104625a9fb229f84f3dec4827ecffc825aa4438b196cbe6"}
+    },
+    {
+      "id": "openviking",
+      "adapter": "native_resource_find",
+      "role": "context_routing_hierarchy_and_trajectory",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "knowledge-structure-v1", "repository-knowledge-v1"],
+      "image": "elf-benchmark-openviking:v4",
+      "dockerfile": "docker/benchmark/openviking.Dockerfile",
+      "pin": {"kind": "git", "source": "https://github.com/volcengine/OpenViking.git", "value": "a0e822a0cd5d02e8ed5330a7f7a6d13279f8308b"}
+    },
+    {
+      "id": "graphrag",
+      "adapter": "native_local_search",
+      "role": "graph_assisted_retrieval_and_synthesis",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "knowledge-structure-v1"],
+      "image": "elf-benchmark-graphrag:v4",
+      "dockerfile": "docker/benchmark/graphrag.Dockerfile",
+      "pin": {"kind": "python_package", "value": "graphrag==3.1.0", "lock": "config/benchmark/locks/graphrag.txt"}
+    },
+    {
+      "id": "graphiti",
+      "adapter": "native_temporal_graph_search",
+      "role": "temporal_knowledge_graph",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "memory-lifecycle-v1", "knowledge-structure-v1"],
+      "image": "elf-benchmark-graphiti:v4",
+      "dockerfile": "docker/benchmark/graphiti.Dockerfile",
+      "pin": {
+        "kind": "python_package",
+        "value": "graphiti-core[falkordb]==0.21.0",
+        "lock": "config/benchmark/locks/graphiti.txt",
+        "service_image": "falkordb/falkordb@sha256:286d829e23ea4f927d8c06859efb12a3288d00b03746a517f4d8c22b75202015"
+      }
+    },
+    {
+      "id": "letta",
+      "adapter": "native_archival_search",
+      "role": "stateful_core_and_archival_memory",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "memory-lifecycle-v1"],
+      "image": "elf-benchmark-letta:v4",
+      "dockerfile": "docker/benchmark/letta.Dockerfile",
+      "pin": {
+        "kind": "container_image",
+        "value": "letta/letta@sha256:aa66c3eeee13d2dfc40c650d709b550237ee31bfc91942a52fa488a13fa8c102",
+        "client_lock": "config/benchmark/locks/letta.txt"
+      }
+    },
+    {
+      "id": "sag",
+      "adapter": "native_multi_search_source_id_trace",
+      "role": "structure_aware_graph_and_multi_search",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "knowledge-structure-v1"],
+      "image": "elf-benchmark-sag:v4",
+      "dockerfile": "docker/benchmark/sag.Dockerfile",
+      "native_deviations": {
+        "embedding_dimensions": 1024,
+        "reason": "The pinned unmodified SAG schema supports 1024-dimensional embeddings."
+      },
+      "pin": {"kind": "git", "source": "https://github.com/Zleap-AI/SAG.git", "value": "84a5b8c9bd45944b8a3cd76e0ba4762ce68ccc72"}
+    },
+    {
+      "id": "pageindex",
+      "adapter": "native_hierarchy_construction",
+      "role": "document_hierarchy_construction",
+      "score_eligible": false,
+      "suites": ["knowledge-structure-v1"],
+      "image": "elf-benchmark-pageindex:v4",
+      "dockerfile": "docker/benchmark/pageindex.Dockerfile",
+      "not_applicable": {
+        "common-core-v1": "The pinned revision constructs a hierarchy but exposes no native ranked retrieval operation."
+      },
+      "pin": {"kind": "git", "source": "https://github.com/VectifyAI/PageIndex.git", "value": "f413c66fee0bfbb7291c389333f9cc1adac68d57", "lock": "config/benchmark/locks/pageindex.txt"}
+    },
+    {
+      "id": "openkb",
+      "adapter": "agent_query_with_native_source_trace",
+      "role": "knowledge_base_organization_and_agent_tools",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "knowledge-structure-v1", "repository-knowledge-v1"],
+      "image": "elf-benchmark-openkb:v4",
+      "dockerfile": "docker/benchmark/openkb.Dockerfile",
+      "pin": {"kind": "git", "source": "https://github.com/VectifyAI/OpenKB.git", "value": "0d905e40afa6f416c616f00c56a4cd0fd995a787"}
+    },
+    {
+      "id": "honcho",
+      "adapter": "native_hybrid_message_search",
+      "role": "reasoning_first_memory_peer_models_and_dreaming",
+      "score_eligible": true,
+      "suites": ["common-core-v1", "memory-lifecycle-v1"],
+      "image": "elf-benchmark-honcho:v4",
+      "dockerfile": "docker/benchmark/honcho.Dockerfile",
+      "native_deviations": {
+        "correction": "The v3 public API appends corrected messages; message update changes metadata only.",
+        "delete": "The v3 public API deletes a complete session, not an individual message.",
+        "embedding_dimension": "The pinned self-hosted pgvector bootstrap uses 1536 dimensions, while its HNSW vector and half-vector index limits are below the shared 4096 dimensions; the product must fail closed rather than receive reduced embeddings."
+      },
+      "pin": {"kind": "git", "source": "https://github.com/plastic-labs/honcho.git", "release": "v3.0.12", "value": "93dcf59c4a4225bb020b20c628799737fefae318"}
+    }
+  ],
+  "suites": [
+    {"id": "common-core-v1", "kind": "retrieval", "path": "config/benchmark/suites/common-core-v1.json"},
+    {"id": "memory-lifecycle-v1", "kind": "memory_lifecycle", "path": "config/benchmark/suites/memory-lifecycle-v1.json"},
+    {"id": "knowledge-structure-v1", "kind": "knowledge_structure", "path": "config/benchmark/suites/knowledge-structure-v1.json"},
+    {"id": "repository-knowledge-v1", "kind": "repository_knowledge", "path": "config/benchmark/suites/repository-knowledge-v1.json"}
+  ]
+}

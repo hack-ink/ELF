@@ -1,0 +1,122 @@
+{
+  "schema": "elf.benchmark_suite/v4",
+  "suite_id": "repository-knowledge-v1",
+  "kind": "repository_knowledge",
+  "purpose": "native_repository_search_changed_source_visibility_stale_suppression_and_resume",
+  "top_k": 5,
+  "jobs": [
+    {
+      "job_id": "repo-change-validation-command",
+      "stratum": "changed_source_visibility",
+      "title": "Find the changed validation command",
+      "query": "Which command now runs the complete validation gate?",
+      "corpus": [
+        {"evidence_id": "repo_validation", "text": "The complete validation gate runs cargo make check."},
+        {"evidence_id": "repo_validation_context", "text": "Validation must finish before a review request."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "repo_validation", "text": "The complete validation gate now runs cargo make verify-all. The old cargo make check command is obsolete."}
+      ],
+      "qrels": {"relevant_evidence": ["repo_validation"], "forbidden_evidence": [], "answer_facts": ["cargo make verify-all"], "forbidden_answer_facts": ["runs cargo make check"], "required_operations": ["update"]}
+    },
+    {
+      "job_id": "repo-delete-retired-runbook",
+      "stratum": "stale_document_suppression",
+      "title": "Suppress a deleted recovery runbook",
+      "query": "Which Meridian recovery runbook is active?",
+      "corpus": [
+        {"evidence_id": "repo_meridian_active", "text": "docs/runbooks/meridian.md restores the last signed release after draining the canary."},
+        {"evidence_id": "repo_meridian_retired", "text": "docs/legacy/meridian-unsafe.md restores an unsigned image and is retired."}
+      ],
+      "operations": [
+        {"type": "delete", "evidence_id": "repo_meridian_retired"}
+      ],
+      "qrels": {"relevant_evidence": ["repo_meridian_active"], "forbidden_evidence": ["repo_meridian_retired"], "answer_facts": ["last signed release", "draining the canary"], "forbidden_answer_facts": ["unsigned image"], "required_operations": ["delete"]}
+    },
+    {
+      "job_id": "repo-resume-storage-migration",
+      "stratum": "work_resume",
+      "title": "Resume a repository migration from the latest checkpoint",
+      "query": "Where did the storage migration stop and what is the next command?",
+      "corpus": [
+        {"evidence_id": "repo_storage_checkpoint", "text": "Storage migration checkpoint: schema generation is pending. Next run cargo make schema."},
+        {"evidence_id": "repo_storage_design", "text": "The target storage is PostgreSQL 18 with pgvector."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "repo_storage_checkpoint", "text": "Storage migration checkpoint: schema generation completed at commit 7da91c. Next run cargo make migration-smoke."}
+      ],
+      "qrels": {"relevant_evidence": ["repo_storage_checkpoint"], "forbidden_evidence": [], "answer_facts": ["schema generation completed", "7da91c", "cargo make migration-smoke"], "forbidden_answer_facts": ["Next run cargo make schema"], "required_operations": ["update"]}
+    },
+    {
+      "job_id": "repo-change-api-version",
+      "stratum": "developer_documentation_change",
+      "title": "Find the current API version in updated documentation",
+      "query": "Which API version should new Vega clients use?",
+      "corpus": [
+        {"evidence_id": "repo_vega_api", "text": "docs/api/vega.md: new clients use Vega API v2."},
+        {"evidence_id": "repo_vega_auth", "text": "Vega clients authenticate with signed service credentials."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "repo_vega_api", "text": "docs/api/vega.md: new clients now use Vega API v3. Vega API v2 is retired."}
+      ],
+      "qrels": {"relevant_evidence": ["repo_vega_api"], "forbidden_evidence": [], "answer_facts": ["v3"], "forbidden_answer_facts": ["use Vega API v2"], "required_operations": ["update"]}
+    },
+    {
+      "job_id": "repo-delete-secret-example",
+      "stratum": "privacy_and_stale_suppression",
+      "title": "Remove a committed secret example from repository search",
+      "query": "What safe authentication guidance remains in the Atlas docs?",
+      "corpus": [
+        {"evidence_id": "repo_atlas_auth", "text": "Atlas documentation says to load credentials from the approved secret manager."},
+        {"evidence_id": "repo_atlas_secret", "text": "Atlas example token atlas-demo-secret-442 was committed by mistake and must be deleted."}
+      ],
+      "operations": [
+        {"type": "delete", "evidence_id": "repo_atlas_secret"}
+      ],
+      "qrels": {"relevant_evidence": ["repo_atlas_auth"], "forbidden_evidence": ["repo_atlas_secret"], "answer_facts": ["approved secret manager"], "forbidden_answer_facts": ["atlas-demo-secret-442"], "required_operations": ["delete"], "privacy": true}
+    },
+    {
+      "job_id": "repo-change-config-default",
+      "stratum": "changed_source_visibility",
+      "title": "Find a changed configuration default",
+      "query": "What is the current Juniper queue-depth alert threshold?",
+      "corpus": [
+        {"evidence_id": "repo_juniper_config", "text": "config/juniper.toml sets queue_alert_threshold = 1000."},
+        {"evidence_id": "repo_juniper_queue", "text": "Juniper jobs use the cobalt-main queue."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "repo_juniper_config", "text": "config/juniper.toml now sets queue_alert_threshold = 500. The 1000-job threshold is obsolete."}
+      ],
+      "qrels": {"relevant_evidence": ["repo_juniper_config"], "forbidden_evidence": [], "answer_facts": ["500"], "forbidden_answer_facts": ["1000"], "required_operations": ["update"]}
+    },
+    {
+      "job_id": "repo-delete-deprecated-module",
+      "stratum": "stale_document_suppression",
+      "title": "Suppress documentation for a removed module",
+      "query": "Which module owns Cinder retry policy?",
+      "corpus": [
+        {"evidence_id": "repo_cinder_current", "text": "packages/cinder-runtime owns Cinder retry policy."},
+        {"evidence_id": "repo_cinder_removed", "text": "packages/cinder-legacy owns Cinder retry policy; this module was removed."}
+      ],
+      "operations": [
+        {"type": "delete", "evidence_id": "repo_cinder_removed"}
+      ],
+      "qrels": {"relevant_evidence": ["repo_cinder_current"], "forbidden_evidence": ["repo_cinder_removed"], "answer_facts": ["packages/cinder-runtime"], "forbidden_answer_facts": ["packages/cinder-legacy"], "required_operations": ["delete"]}
+    },
+    {
+      "job_id": "repo-update-release-resume",
+      "stratum": "combined_change_and_resume",
+      "title": "Resume a release after updating its gate and deleting a bypass",
+      "query": "What remains before the Solstice release can publish?",
+      "corpus": [
+        {"evidence_id": "repo_solstice_state", "text": "Solstice packaging is incomplete; finish packaging before publishing."},
+        {"evidence_id": "repo_solstice_bypass", "text": "docs/drafts/solstice-bypass.md allows publishing without approval."}
+      ],
+      "operations": [
+        {"type": "update", "evidence_id": "repo_solstice_state", "text": "Solstice packaging and checksum verification are complete. Obtain release approval before publishing."},
+        {"type": "delete", "evidence_id": "repo_solstice_bypass"}
+      ],
+      "qrels": {"relevant_evidence": ["repo_solstice_state"], "forbidden_evidence": ["repo_solstice_bypass"], "answer_facts": ["packaging", "checksum verification", "release approval"], "forbidden_answer_facts": ["without approval"], "required_operations": ["update", "delete"]}
+    }
+  ]
+}

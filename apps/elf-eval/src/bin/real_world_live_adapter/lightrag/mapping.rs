@@ -1,7 +1,8 @@
-use crate::{CorpusText, LightragSource, SourceMappingEvidence, serde_json};
+use std::path::Path;
+
+use crate::{LightragSource, SourceMappingEvidence, serde_json};
 
 pub(super) fn lightrag_source_mappings(
-	corpus: &[CorpusText],
 	sources: &[LightragSource],
 	response: &serde_json::Value,
 ) -> Vec<SourceMappingEvidence> {
@@ -9,22 +10,7 @@ pub(super) fn lightrag_source_mappings(
 
 	if let Some(references) = response.get("references").and_then(serde_json::Value::as_array) {
 		for reference in references {
-			mappings.push(lightrag_reference_mapping(corpus, sources, reference));
-		}
-	}
-
-	if mappings.is_empty()
-		&& let Some(context) = response.get("response").and_then(serde_json::Value::as_str)
-	{
-		let evidence_ids = map_lightrag_evidence_ids(corpus, sources, context);
-
-		if !evidence_ids.is_empty() {
-			mappings.push(SourceMappingEvidence {
-				source: "response_context".to_string(),
-				evidence_ids,
-				mapping_status: "matched_context".to_string(),
-				content_count: 1,
-			});
+			mappings.push(lightrag_reference_mapping(sources, reference));
 		}
 	}
 
@@ -44,7 +30,6 @@ pub(super) fn lightrag_mapped_evidence_ids(mappings: &[SourceMappingEvidence]) -
 }
 
 fn lightrag_reference_mapping(
-	corpus: &[CorpusText],
 	sources: &[LightragSource],
 	reference: &serde_json::Value,
 ) -> SourceMappingEvidence {
@@ -61,16 +46,9 @@ fn lightrag_reference_mapping(
 		.flatten()
 		.filter_map(serde_json::Value::as_str)
 		.collect::<Vec<_>>();
-	let joined_content = content.join("\n");
-	let combined = format!("{source}\n{joined_content}");
-	let evidence_ids = map_lightrag_evidence_ids(corpus, sources, combined.as_str());
-	let mapping_status = if evidence_ids.is_empty() {
-		"unmatched"
-	} else if !joined_content.is_empty() {
-		"matched_reference_content"
-	} else {
-		"matched_reference_source"
-	};
+	let evidence_ids = map_lightrag_evidence_ids(sources, source.as_str());
+	let mapping_status =
+		if evidence_ids.is_empty() { "unmatched" } else { "matched_native_source" };
 
 	SourceMappingEvidence {
 		source,
@@ -80,40 +58,56 @@ fn lightrag_reference_mapping(
 	}
 }
 
-fn map_lightrag_evidence_ids(
-	corpus: &[CorpusText],
-	sources: &[LightragSource],
-	haystack: &str,
-) -> Vec<String> {
-	let normalized_haystack = crate::normalize_ascii_alnum_lowercase(haystack);
+fn map_lightrag_evidence_ids(sources: &[LightragSource], native_source: &str) -> Vec<String> {
+	let native_name = Path::new(native_source).file_name();
 	let mut evidence_ids = Vec::new();
 
-	for item in corpus {
-		let evidence_slug = crate::slug(&item.evidence_id);
-		let signature = normalized_text_signature(item.text.as_str());
-		let source_match = sources.iter().any(|source| {
-			source.evidence_id == item.evidence_id
-				&& (haystack.contains(source.file_source.as_str())
-					|| haystack.contains(source.artifact_path.to_string_lossy().as_ref()))
-		});
-		let id_match = haystack.contains(item.evidence_id.as_str())
-			|| haystack.contains(evidence_slug.as_str())
-			|| normalized_haystack.contains(evidence_slug.as_str());
-		let content_match =
-			!signature.is_empty() && normalized_haystack.contains(signature.as_str());
+	for source in sources {
+		let expected_name = Path::new(source.file_source.as_str()).file_name();
+		let source_match = native_source == source.file_source
+			|| native_source.ends_with(source.file_source.as_str())
+			|| native_source == source.evidence_id
+			|| (native_name.is_some() && native_name == expected_name);
 
-		if source_match || id_match || content_match {
-			crate::push_unique(&mut evidence_ids, item.evidence_id.clone());
+		if source_match {
+			crate::push_unique(&mut evidence_ids, source.evidence_id.clone());
 		}
 	}
 
 	evidence_ids
 }
 
-fn normalized_text_signature(text: &str) -> String {
-	crate::normalize_ascii_alnum_lowercase(text)
-		.split_whitespace()
-		.take(8)
-		.collect::<Vec<_>>()
-		.join(" ")
+#[cfg(test)]
+mod tests {
+	use crate::{LightragSource, serde_json};
+
+	fn source() -> LightragSource {
+		LightragSource {
+			evidence_id: "ev-current".to_string(),
+			file_source: "elf-real-world/run/job/ev-current.md".to_string(),
+		}
+	}
+
+	#[test]
+	fn native_reference_path_maps_to_exact_evidence_identity() {
+		let response = serde_json::json!({
+			"references": [{"file_path": "/app/elf-real-world/run/job/ev-current.md"}]
+		});
+		let mappings = super::lightrag_source_mappings(&[source()], &response);
+
+		assert_eq!(mappings[0].evidence_ids, ["ev-current"]);
+		assert_eq!(mappings[0].mapping_status, "matched_native_source");
+	}
+
+	#[test]
+	fn answer_content_does_not_reconstruct_missing_native_provenance() {
+		let response = serde_json::json!({
+			"response": "The answer quotes ev-current and its full source text.",
+			"references": [{"file_path": "unknown.md", "content": ["ev-current"]}]
+		});
+		let mappings = super::lightrag_source_mappings(&[source()], &response);
+
+		assert!(mappings[0].evidence_ids.is_empty());
+		assert_eq!(mappings[0].mapping_status, "unmatched");
+	}
 }

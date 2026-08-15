@@ -1,4 +1,4 @@
-use crate::{Serialize, Uuid, serde_json};
+use crate::{Deserialize, Serialize, Uuid, serde_json};
 
 use super::{AdapterKind, MaterializationStatus, SourceMappingEvidence};
 
@@ -33,6 +33,8 @@ pub(crate) struct MaterializedJobEvidence {
 	pub(crate) status: MaterializationStatus,
 	pub(crate) query: String,
 	pub(crate) evidence_ids: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(crate) contexts: Option<Vec<serde_json::Value>>,
 	pub(crate) returned_count: usize,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(crate) indexing_latency_ms: Option<f64>,
@@ -64,7 +66,7 @@ pub(crate) struct OperatorDebugMaterializationEvidence {
 	pub(crate) raw_sql_needed: bool,
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(crate) struct CaptureMaterializationEvidence {
 	pub(crate) stored_evidence_ids: Vec<String>,
 	pub(crate) excluded_evidence_ids: Vec<String>,
@@ -72,7 +74,7 @@ pub(crate) struct CaptureMaterializationEvidence {
 	pub(crate) write_policy_audit_count: usize,
 	pub(crate) write_policy_exclusion_count: usize,
 	pub(crate) write_policy_redaction_count: usize,
-	#[serde(skip_serializing_if = "Vec::is_empty")]
+	#[serde(default, skip_serializing_if = "Vec::is_empty")]
 	pub(crate) runtime_source_refs: Vec<CaptureRuntimeSourceRefEvidence>,
 }
 
@@ -128,7 +130,7 @@ pub(crate) struct DreamingReadbackMaterializationEvidence {
 	pub(crate) no_source_mutation_checked: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct CaptureRuntimeSourceRefEvidence {
 	pub(crate) evidence_id: String,
 	pub(crate) source_ref: serde_json::Value,

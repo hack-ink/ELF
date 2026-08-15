@@ -24,6 +24,12 @@ pub(crate) struct ElfArgs {
 	/// Adapter id embedded in generated adapter_response objects.
 	#[arg(long, default_value = "elf_live_real_world")]
 	pub(crate) adapter_id: String,
+	/// Directory that persists cold-run ingest metadata for the warm query.
+	#[arg(long, value_name = "DIR")]
+	pub(crate) work_dir: PathBuf,
+	/// Query the cold-run database and collections without a second ingest.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reuse_index: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -46,9 +52,18 @@ pub(crate) struct QmdArgs {
 	/// qmd repository URL used when qmd_dir is absent.
 	#[arg(long, default_value = "https://github.com/tobi/qmd.git")]
 	pub(crate) qmd_repo_url: String,
+	/// Exact qmd commit used by the benchmark image.
+	#[arg(long, default_value = "e428df76bc0274d9e93eb7ca3e95673315c42e90")]
+	pub(crate) qmd_revision: String,
 	/// Adapter id embedded in generated adapter_response objects.
 	#[arg(long, default_value = "qmd_live_real_world")]
 	pub(crate) adapter_id: String,
+	/// Query the cold-run qmd index without a second update or embed.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reuse_index: bool,
+	/// Use qmd's native BM25 path for non-measured architecture readiness.
+	#[arg(long, default_value_t = false)]
+	pub(crate) lexical_only: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -89,12 +104,21 @@ pub(crate) struct LightragArgs {
 	/// Delay between LightRAG health-check attempts.
 	#[arg(long, default_value_t = 2)]
 	pub(crate) startup_interval_seconds: u64,
+	/// Retry attempts while a destructive pipeline clear is busy.
+	#[arg(long, default_value_t = 6)]
+	pub(crate) clear_attempts: u32,
 	/// Poll attempts for asynchronous document indexing.
-	#[arg(long, default_value_t = 60)]
+	#[arg(long, default_value_t = 64)]
 	pub(crate) index_attempts: u32,
 	/// Delay between document indexing status checks.
 	#[arg(long, default_value_t = 2)]
 	pub(crate) index_interval_seconds: u64,
+	/// Query the cold-run LightRAG state without a second document ingest.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reuse_index: bool,
+	/// Clear the native LightRAG workspace before one isolated cold job.
+	#[arg(long, default_value_t = false)]
+	pub(crate) reset_index: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -106,4 +130,38 @@ pub(crate) enum CommandArgs {
 	Qmd(QmdArgs),
 	/// Materialize adapter responses by exporting LightRAG query context and source mappings.
 	Lightrag(LightragArgs),
+}
+
+#[cfg(test)]
+mod tests {
+	use clap::Parser;
+
+	use crate::model::cli::{Args, CommandArgs};
+
+	#[test]
+	fn lightrag_retry_wait_defaults_fit_the_largest_unit_envelope() -> Result<(), clap::Error> {
+		let parsed = Args::try_parse_from([
+			"adapter",
+			"lightrag",
+			"--fixtures",
+			"input",
+			"--out-fixtures",
+			"output",
+			"--evidence-out",
+			"evidence.json",
+			"--work-dir",
+			"work",
+		])?;
+		let CommandArgs::Lightrag(args) = parsed.command else {
+			unreachable!("parsed lightrag command changed variant")
+		};
+		let wait_attempts = u64::from(args.clear_attempts.saturating_sub(1))
+			+ u64::from(args.index_attempts.saturating_sub(1));
+		let largest_unit_retry_wait_seconds = wait_attempts * args.index_interval_seconds * 24;
+
+		assert_eq!(largest_unit_retry_wait_seconds, 3_264);
+		assert!(largest_unit_retry_wait_seconds < 3_600);
+
+		Ok(())
+	}
 }

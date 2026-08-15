@@ -21,7 +21,7 @@ pub(crate) fn run_qmd_command(
 	command
 		.current_dir(&args.qmd_dir)
 		.env("HOME", home_dir)
-		.env("XDG_CACHE_HOME", "/root/.cache")
+		.env("XDG_CACHE_HOME", home_dir.join(".cache"))
 		.env("QMD_FORCE_CPU", "1")
 		.arg("tsx")
 		.arg("src/cli/qmd.ts");

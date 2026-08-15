@@ -1035,6 +1035,7 @@ dependencies = [
  "elf-cli",
  "elf-config",
  "elf-domain",
+ "elf-providers",
  "elf-service",
  "elf-storage",
  "elf-testkit",

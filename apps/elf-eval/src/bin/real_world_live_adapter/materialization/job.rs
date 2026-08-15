@@ -64,6 +64,7 @@ pub(super) fn materialized_job(
 			status,
 			query: loaded.job.prompt.content.clone(),
 			evidence_ids: input.evidence_ids,
+			contexts: input.contexts,
 			returned_count: input.returned_count,
 			indexing_latency_ms: input.indexing_latency_ms,
 			latency_ms: input.latency_ms,

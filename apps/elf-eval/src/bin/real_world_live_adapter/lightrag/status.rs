@@ -4,14 +4,16 @@ pub(super) fn lightrag_not_encoded_job(
 	adapter_id: &str,
 	loaded: &LoadedJob,
 ) -> Option<MaterializedJob> {
-	match loaded.job.suite.as_str() {
-		"retrieval" => None,
-		_ => Some(crate::materialized_declared_status_job(
+	if supports_retrieval_suite(loaded.job.suite.as_str()) {
+		None
+	} else {
+		Some(crate::materialized_declared_status_job(
 			adapter_id,
 			loaded,
 			MaterializationStatus::NotEncoded,
-			"LightRAG context-export smoke only maps retrieved context/source paths; this suite is not encoded for LightRAG scoring.".to_string(),
-		)),
+			"LightRAG has no benchmark encoding for this suite's required native operations."
+				.to_string(),
+		))
 	}
 }
 
@@ -36,6 +38,7 @@ pub(super) fn lightrag_failure_jobs(
 				MaterializedJobInput {
 					content: String::new(),
 					evidence_ids: Vec::new(),
+					contexts: None,
 					pages: Vec::new(),
 					latency_ms: 0.0,
 					indexing_latency_ms: None,
@@ -83,4 +86,18 @@ pub(super) fn lightrag_index_processed(status: &serde_json::Value, expected_docs
 				normalized.contains("processed") || normalized.contains("success")
 			})
 		})
+}
+
+fn supports_retrieval_suite(suite: &str) -> bool {
+	matches!(suite, "retrieval" | "knowledge_structure")
+}
+
+#[cfg(test)]
+mod tests {
+	#[test]
+	fn retrieval_and_knowledge_structure_use_the_native_query_adapter() {
+		assert!(super::supports_retrieval_suite("retrieval"));
+		assert!(super::supports_retrieval_suite("knowledge_structure"));
+		assert!(!super::supports_retrieval_suite("memory_lifecycle"));
+	}
 }

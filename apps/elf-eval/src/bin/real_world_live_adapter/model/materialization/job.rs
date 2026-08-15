@@ -19,6 +19,7 @@ pub(crate) struct MaterializedJob {
 pub(crate) struct MaterializedJobInput {
 	pub(crate) content: String,
 	pub(crate) evidence_ids: Vec<String>,
+	pub(crate) contexts: Option<Vec<serde_json::Value>>,
 	pub(crate) pages: Vec<serde_json::Value>,
 	pub(crate) latency_ms: f64,
 	pub(crate) indexing_latency_ms: Option<f64>,

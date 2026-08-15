@@ -26,7 +26,10 @@ pub(super) use self::{
 		TemporalReconciliationMaterializationEvidence, TemporalReconciliationSelection,
 		TraceExplainabilityOutput, TraceStageOutput,
 	},
-	providers::{DeterministicEmbedding, NoopExtractor, TokenOverlapRerank},
+	providers::{
+		DeterministicEmbedding, ExternalEmbedding, NoopExtractor, RetrievalOrderRerank,
+		TokenOverlapRerank,
+	},
 	runtime::{BaselineRuntime, LightragSource},
 };
 

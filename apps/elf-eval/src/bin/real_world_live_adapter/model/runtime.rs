@@ -4,7 +4,6 @@ use super::PathBuf;
 pub(crate) struct LightragSource {
 	pub(crate) evidence_id: String,
 	pub(crate) file_source: String,
-	pub(crate) artifact_path: PathBuf,
 }
 
 #[derive(Debug)]

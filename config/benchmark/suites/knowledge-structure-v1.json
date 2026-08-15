@@ -1,0 +1,110 @@
+{
+  "schema": "elf.benchmark_suite/v4",
+  "suite_id": "knowledge-structure-v1",
+  "kind": "knowledge_structure",
+  "purpose": "native_knowledge_ingestion_hierarchy_graph_multihop_and_citation",
+  "top_k": 5,
+  "jobs": [
+    {
+      "job_id": "knowledge-cobalt-stack",
+      "stratum": "multi_hop_architecture",
+      "title": "Connect runtime, queue, and storage decisions",
+      "query": "Which runtime, queue, and durable store form Cobalt's backend path?",
+      "corpus": [
+        {"evidence_id": "knowledge_cobalt_runtime", "text": "# Cobalt Runtime\nThe request service uses Rust and Axum."},
+        {"evidence_id": "knowledge_cobalt_queue", "text": "# Cobalt Processing\nAccepted jobs enter the cobalt-main queue."},
+        {"evidence_id": "knowledge_cobalt_store", "text": "# Cobalt Storage\nWorkers persist completed jobs in PostgreSQL 18 with pgvector."},
+        {"evidence_id": "knowledge_cobalt_rejected", "text": "# Rejected Design\nA Redis-only durable store was rejected."}
+      ],
+      "qrels": {"relevant_evidence": ["knowledge_cobalt_runtime", "knowledge_cobalt_queue", "knowledge_cobalt_store"], "forbidden_evidence": ["knowledge_cobalt_rejected"], "answer_facts": ["Rust", "Axum", "cobalt-main", "PostgreSQL 18", "pgvector"]}
+    },
+    {
+      "job_id": "knowledge-meridian-recovery",
+      "stratum": "causal_graph",
+      "title": "Trace deployment failure to recovery action",
+      "query": "If Meridian's canary fails its latency gate, what sequence restores service?",
+      "corpus": [
+        {"evidence_id": "knowledge_meridian_deploy", "text": "Meridian deploys a 5 percent canary to the primary cluster."},
+        {"evidence_id": "knowledge_meridian_gate", "text": "The canary fails when p95 latency exceeds 240 milliseconds for ten minutes."},
+        {"evidence_id": "knowledge_meridian_action", "text": "A failed Meridian canary is drained, then the last signed release is restored."},
+        {"evidence_id": "knowledge_meridian_old", "text": "An unsigned manual image was used in a retired recovery draft."}
+      ],
+      "qrels": {"relevant_evidence": ["knowledge_meridian_deploy", "knowledge_meridian_gate", "knowledge_meridian_action"], "forbidden_evidence": ["knowledge_meridian_old"], "answer_facts": ["5 percent canary", "240 milliseconds", "drained", "last signed release"]}
+    },
+    {
+      "job_id": "knowledge-orion-policy-tree",
+      "stratum": "document_hierarchy",
+      "title": "Navigate a nested release policy",
+      "query": "What approvals and evidence does Orion require before a public release?",
+      "corpus": [
+        {"evidence_id": "knowledge_orion_policy", "text": "# Orion Release Policy\n## Engineering gate\nIntegration tests must pass.\n## Security gate\nA security reviewer must approve the source-linked findings.\n## Publication gate\nThe release owner must sign the final checksum manifest."},
+        {"evidence_id": "knowledge_orion_roles", "text": "The Orion release owner is the Platform Runtime lead."},
+        {"evidence_id": "knowledge_orion_draft", "text": "A draft proposed publishing before security review; it was rejected."}
+      ],
+      "qrels": {"relevant_evidence": ["knowledge_orion_policy", "knowledge_orion_roles"], "forbidden_evidence": ["knowledge_orion_draft"], "answer_facts": ["integration tests", "security reviewer", "source-linked findings", "checksum manifest", "Platform Runtime"]}
+    },
+    {
+      "job_id": "knowledge-kestrel-auth-chain",
+      "stratum": "multi_source_policy",
+      "title": "Connect identity, lifetime, and rotation policy",
+      "query": "How does Kestrel authenticate services, how long do credentials live, and what triggers rotation?",
+      "corpus": [
+        {"evidence_id": "knowledge_kestrel_auth", "text": "Kestrel service-to-service authentication uses mTLS."},
+        {"evidence_id": "knowledge_kestrel_lifetime", "text": "Kestrel service certificates expire after 24 hours."},
+        {"evidence_id": "knowledge_kestrel_rotation", "text": "Rotate a Kestrel certificate immediately after an ownership or scope change."},
+        {"evidence_id": "knowledge_kestrel_old", "text": "Long-lived bearer tokens are retired for Kestrel."}
+      ],
+      "qrels": {"relevant_evidence": ["knowledge_kestrel_auth", "knowledge_kestrel_lifetime", "knowledge_kestrel_rotation"], "forbidden_evidence": ["knowledge_kestrel_old"], "answer_facts": ["mTLS", "24 hours", "ownership", "scope change"]}
+    },
+    {
+      "job_id": "knowledge-juniper-ownership-graph",
+      "stratum": "entity_relationship",
+      "title": "Resolve service, queue, and owner relationships",
+      "query": "Who owns Juniper, which queue carries its work, and who receives a depth alert?",
+      "corpus": [
+        {"evidence_id": "knowledge_juniper_owner", "text": "The Delivery Systems team owns Juniper."},
+        {"evidence_id": "knowledge_juniper_queue", "text": "Juniper production jobs use the cobalt-main queue."},
+        {"evidence_id": "knowledge_juniper_alert", "text": "When cobalt-main exceeds 500 Juniper jobs, alert the Delivery Systems on-call engineer."},
+        {"evidence_id": "knowledge_juniper_old", "text": "The amber-old queue no longer carries Juniper work."}
+      ],
+      "qrels": {"relevant_evidence": ["knowledge_juniper_owner", "knowledge_juniper_queue", "knowledge_juniper_alert"], "forbidden_evidence": ["knowledge_juniper_old"], "answer_facts": ["Delivery Systems", "cobalt-main", "500", "on-call"]}
+    },
+    {
+      "job_id": "knowledge-lumen-handbook",
+      "stratum": "long_document_hierarchy",
+      "title": "Retrieve a nested retention exception",
+      "query": "How long does Lumen retain operational events, and which exception needs legal approval?",
+      "corpus": [
+        {"evidence_id": "knowledge_lumen_handbook", "text": "# Lumen Data Handbook\n## Operational events\nRetain ordinary operational events for 30 days.\n### Investigation hold\nAn active incident may extend retention to 60 days.\n### Legal exception\nRetention beyond 60 days requires written Legal approval and a case identifier.\n## Backups\nEncrypt every backup at rest."},
+        {"evidence_id": "knowledge_lumen_owner", "text": "The Compliance Engineering team administers Lumen retention."},
+        {"evidence_id": "knowledge_lumen_old", "text": "A retired handbook retained all events for 90 days without approval."}
+      ],
+      "qrels": {"relevant_evidence": ["knowledge_lumen_handbook"], "forbidden_evidence": ["knowledge_lumen_old"], "answer_facts": ["30 days", "60 days", "written Legal approval", "case identifier"]}
+    },
+    {
+      "job_id": "knowledge-vega-api-map",
+      "stratum": "knowledge_base_organization",
+      "title": "Connect API version to authentication and migration",
+      "query": "Which Vega API version is active, how is it authenticated, and what must v2 clients do?",
+      "corpus": [
+        {"evidence_id": "knowledge_vega_version", "text": "Vega API v3 is the active production interface."},
+        {"evidence_id": "knowledge_vega_auth", "text": "Vega v3 requests use signed service credentials."},
+        {"evidence_id": "knowledge_vega_migration", "text": "Vega v2 clients must migrate to v3 before 2026-09-30."},
+        {"evidence_id": "knowledge_vega_old", "text": "Vega v2 was once the default interface but is retired."}
+      ],
+      "qrels": {"relevant_evidence": ["knowledge_vega_version", "knowledge_vega_auth", "knowledge_vega_migration"], "forbidden_evidence": ["knowledge_vega_old"], "answer_facts": ["v3", "signed service credentials", "2026-09-30"]}
+    },
+    {
+      "job_id": "knowledge-lyra-citation-boundary",
+      "stratum": "unsupported_with_sources",
+      "title": "Refuse a claim absent from an organized knowledge base",
+      "query": "What is Lyra's confidential launch code?",
+      "corpus": [
+        {"evidence_id": "knowledge_lyra_schedule", "text": "Lyra's launch rehearsal is Friday; no launch code is stored in this source."},
+        {"evidence_id": "knowledge_lyra_owner", "text": "The Platform team owns Lyra; no launch code is documented."},
+        {"evidence_id": "knowledge_lyra_policy", "text": "A missing launch code must be reported as unknown rather than inferred."}
+      ],
+      "qrels": {"relevant_evidence": [], "forbidden_evidence": ["knowledge_lyra_schedule", "knowledge_lyra_owner"], "answer_facts": [], "expect_unsupported": true}
+    }
+  ]
+}

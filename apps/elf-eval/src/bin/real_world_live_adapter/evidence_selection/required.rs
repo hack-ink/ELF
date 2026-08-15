@@ -1,5 +1,5 @@
 use crate::evidence_selection::{
-	self, BTreeSet, CorpusText, IngestedCorpus, LiveExpectedClaim, LoadedJob, SelectedEvidenceText,
+	self, CorpusText, IngestedCorpus, LiveExpectedClaim, LoadedJob, SelectedEvidenceText,
 	TemporalReconciliationMaterializationEvidence, TraceStageOutput,
 };
 
@@ -18,28 +18,15 @@ pub(super) fn required_evidence_satisfied_impl(
 		.all(|required| evidence_ids.iter().any(|id| id == &required.evidence_id))
 }
 
-pub(super) fn selected_required_corpus_texts_impl(
-	loaded: &LoadedJob,
+pub(super) fn selected_retrieved_corpus_texts_impl(
 	corpus: &[CorpusText],
 	retrieved_evidence_ids: &[String],
 ) -> SelectedEvidenceText {
-	let required_ids = loaded
-		.job
-		.required_evidence
-		.iter()
-		.map(|evidence| evidence.evidence_id.as_str())
-		.collect::<BTreeSet<_>>();
 	let mut selected_ids = Vec::new();
 
-	if required_ids.is_empty() {
-		for evidence_id in retrieved_evidence_ids.iter().take(1) {
+	for evidence_id in retrieved_evidence_ids {
+		if corpus.iter().any(|item| item.evidence_id == *evidence_id) {
 			evidence_selection::push_unique(&mut selected_ids, evidence_id.clone());
-		}
-	} else {
-		for evidence in &loaded.job.required_evidence {
-			if retrieved_evidence_ids.iter().any(|id| id == &evidence.evidence_id) {
-				evidence_selection::push_unique(&mut selected_ids, evidence.evidence_id.clone());
-			}
 		}
 	}
 
@@ -123,9 +110,5 @@ pub(super) fn elf_selected_evidence_text_impl(
 		return (selection.selected, Some(selection.evidence), Some(selection.trace_stages));
 	}
 
-	(
-		evidence_selection::selected_required_corpus_texts(loaded, stored_corpus, evidence_ids),
-		None,
-		None,
-	)
+	(evidence_selection::selected_retrieved_corpus_texts(stored_corpus, evidence_ids), None, None)
 }

@@ -115,6 +115,7 @@ pub(super) fn materialized_declared_status_job(
 			status,
 			query: loaded.job.prompt.content.clone(),
 			evidence_ids: Vec::new(),
+			contexts: None,
 			returned_count: 0,
 			indexing_latency_ms: None,
 			latency_ms: 0.0,
@@ -139,7 +140,10 @@ fn not_encoded_reason(suite: &str) -> Option<&'static str> {
 		| "project_decisions"
 		| "retrieval"
 		| "memory_evolution"
-		| "personalization" => None,
+		| "personalization"
+		| "memory_lifecycle"
+		| "knowledge_structure"
+		| "repository_knowledge" => None,
 		"consolidation" => Some(
 			"The live adapter sweep retrieves evidence-linked answers but does not generate or review consolidation proposals.",
 		),
