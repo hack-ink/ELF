@@ -12,13 +12,14 @@ tags:
   - evidence
   - benchmarking
   - competitor-scoreboard
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-27-public-quantitative-competitor-scoreboard-report.json
-  - apps/elf-eval/fixtures/real_world_memory/
-  - apps/elf-eval/fixtures/real_world_external_adapters/
+source_refs: []
 code_refs:
   - Makefile.toml
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-27-public-quantitative-competitor-scoreboard-report.json
+  - apps/elf-eval/fixtures/real_world_external_adapters/memory_projects_manifest.json
+  - apps/elf-eval/fixtures/real_world_memory/adversarial_quality/unsupported_claim_refusal.json
+  - apps/elf-eval/fixtures/real_world_memory/production_ops/private_manifest_absence_blocked.json
   - apps/elf-eval/tests/real_world_job_benchmark.rs
   - docs/spec/agent_memory_quantitative_benchmark_v1.md
 related:
@@ -28,7 +29,7 @@ related:
 drift_watch:
   - docs/evidence/benchmarking/2026-06-27-public-quantitative-competitor-scoreboard-report.md
   - apps/elf-eval/fixtures/report_snapshots/2026-06-27-public-quantitative-competitor-scoreboard-report.json
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
   - docs/spec/agent_memory_quantitative_benchmark_v1.md
   - docs/evidence/benchmarking/index.md
   - README.md

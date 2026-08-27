@@ -12,12 +12,14 @@ tags:
   - evidence
   - benchmarking
   - p4-production-readiness
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-23-p4-production-readiness-evidence-gates-report.json
-  - apps/elf-eval/fixtures/real_world_memory/production_ops/
+source_refs: []
 code_refs:
   - Makefile.toml
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-23-p4-production-readiness-evidence-gates-report.json
+  - apps/elf-eval/fixtures/real_world_memory/production_ops/backup_restore_cold_start_readback.json
+  - apps/elf-eval/fixtures/real_world_memory/production_ops/private_manifest_absence_blocked.json
+  - apps/elf-eval/fixtures/real_world_memory/production_ops/resource_envelope_budget.json
 related:
   - docs/spec/real_world_agent_memory_benchmark_v1.md
   - docs/evidence/benchmarking/2026-06-19-operator-approved-public-proxy-production-private-addendum.md

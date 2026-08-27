@@ -12,12 +12,15 @@ tags:
   - evidence
   - benchmarking
   - knowledge-workspace
-source_refs:
-  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.json
+source_refs: []
 code_refs:
   - Makefile.toml
-  - apps/elf-eval/fixtures/real_world_memory/source_library/
-  - apps/elf-eval/fixtures/real_world_memory/knowledge/
+  - apps/elf-eval/fixtures/report_snapshots/2026-06-22-p2-knowledge-workspace-pageindex-openkb-closeout-report.json
+  - apps/elf-eval/fixtures/real_world_memory/source_library/long_document_source_library.json
+  - apps/elf-eval/fixtures/real_world_memory/source_library/social_thread_source_library.json
+  - apps/elf-eval/fixtures/real_world_memory/knowledge/changed_source_watch_rebuild.json
+  - apps/elf-eval/fixtures/real_world_memory/knowledge/entity_concept_issue_pages.json
+  - apps/elf-eval/fixtures/real_world_memory/knowledge/project_page_rebuild.json
 related:
   - docs/spec/agent_memory_knowledge_system_v1.md
   - docs/spec/system_knowledge_pages_v1.md

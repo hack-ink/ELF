@@ -15,7 +15,11 @@ tags:
 source_refs:
   - https://linear.app/hackink/issue/XY-1119
 code_refs:
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/artifacts/recovery.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/recovery.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/operational/recovery_report.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/operational_reports.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/validation/recovery_artifact/core.rs
   - apps/elf-eval/fixtures/real_world_memory/production_ops/authority_plane_recovery_drill.json
   - docs/spec/real_world_agent_memory_benchmark_v1.md
   - docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
@@ -23,7 +27,11 @@ related:
   - docs/spec/real_world_agent_memory_benchmark_v1.md
   - docs/runbook/benchmarking/real_world_agent_memory_benchmark.md
 drift_watch:
-  - apps/elf-eval/src/bin/real_world_job_benchmark.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/artifacts/recovery.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/recovery.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/operational/recovery_report.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/operational_reports.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/validation/recovery_artifact/core.rs
   - apps/elf-eval/fixtures/real_world_memory/production_ops/
   - docs/spec/real_world_agent_memory_benchmark_v1.md
 ---
@@ -57,9 +65,13 @@ or multi-region failover evidence.
 
 ## Evidence Anchors
 
-- `apps/elf-eval/src/bin/real_world_job_benchmark.rs` defines and validates
-  `AuthorityRecoveryDrillArtifact` and aggregates
-  `OperationalAuthorityRecoveryReport`.
+- `apps/elf-eval/src/bin/real_world_job_benchmark/artifacts/recovery.rs` defines
+  `AuthorityRecoveryDrillArtifact`.
+- `apps/elf-eval/src/bin/real_world_job_benchmark/recovery.rs` and
+  `apps/elf-eval/src/bin/real_world_job_benchmark/validation/recovery_artifact/core.rs`
+  validate recovery-drill predicates.
+- `apps/elf-eval/src/bin/real_world_job_benchmark/operational/recovery_report.rs`
+  aggregates `OperationalAuthorityRecoveryReport`.
 - `apps/elf-eval/fixtures/real_world_memory/production_ops/authority_plane_recovery_drill.json`
   encodes one production-ops job with topology, degraded-read labels, RPO/RTO,
   matching before/after authority record counts, replay, rebuild, migration repair,
@@ -88,7 +100,10 @@ pass
 
 ## Citations
 
-- `apps/elf-eval/src/bin/real_world_job_benchmark.rs`
+- `apps/elf-eval/src/bin/real_world_job_benchmark/artifacts/recovery.rs`
+- `apps/elf-eval/src/bin/real_world_job_benchmark/recovery.rs`
+- `apps/elf-eval/src/bin/real_world_job_benchmark/operational/recovery_report.rs`
+- `apps/elf-eval/src/bin/real_world_job_benchmark/validation/recovery_artifact/core.rs`
 - `apps/elf-eval/fixtures/real_world_memory/production_ops/authority_plane_recovery_drill.json`
 - `docs/spec/real_world_agent_memory_benchmark_v1.md`
 - `docs/runbook/benchmarking/real_world_agent_memory_benchmark.md`

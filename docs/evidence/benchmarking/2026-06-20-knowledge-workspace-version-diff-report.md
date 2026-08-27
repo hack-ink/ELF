@@ -22,7 +22,7 @@ without turning derived pages into authoritative memory.
 Inputs: `cargo make real-world-memory-live-knowledge`,
 `packages/elf-service/src/knowledge.rs`,
 `apps/elf-eval/src/bin/real_world_live_adapter.rs`, and
-`apps/elf-eval/src/bin/real_world_job_benchmark.rs`.
+`apps/elf-eval/src/bin/real_world_job_benchmark/feature_metrics/knowledge.rs`.
 Outputs: Service and benchmark evidence for `elf.knowledge_page.version_diff/v1`.
 
 ## Executive Judgment
@@ -78,4 +78,3 @@ From `tmp/real-world-memory/live-knowledge/elf-report.json`:
 | XY-1020 | Temporal graph-lite facts can now feed cited pages without making pages source truth. |
 | XY-1021 | Dreaming review queue can propose page rebuilds using source-backed diffs and lint. |
 | Graph/RAG contained adapters | External comparison needs comparable version-diff and citation/lint outputs. |
-

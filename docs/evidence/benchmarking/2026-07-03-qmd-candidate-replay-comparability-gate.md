@@ -1,3 +1,36 @@
+---
+type: Evidence
+title: "qmd Candidate-Replay Comparability Gate"
+description: "Evidence report for the XY-1156 qmd candidate-replay comparability gate and claim boundary."
+resource: docs/evidence/benchmarking/2026-07-03-qmd-candidate-replay-comparability-gate.md
+status: active
+authority: evidence
+owner: benchmarking
+last_verified: 2026-07-03
+tags:
+  - docs
+  - evidence
+  - benchmarking
+  - qmd
+  - comparability
+source_refs: []
+code_refs:
+  - Makefile.toml
+  - scripts/materialize-qmd-candidate-replay-gate.py
+  - apps/elf-eval/src/bin/real_world_job_benchmark/main.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/quantitative.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/quantitative_reports.rs
+  - docs/spec/agent_memory_quantitative_benchmark_v1.md
+related:
+  - docs/evidence/benchmarking/2026-06-27-public-quantitative-competitor-scoreboard-report.md
+  - docs/spec/agent_memory_quantitative_benchmark_v1.md
+drift_watch:
+  - Makefile.toml
+  - scripts/materialize-qmd-candidate-replay-gate.py
+  - apps/elf-eval/src/bin/real_world_job_benchmark/quantitative.rs
+  - apps/elf-eval/src/bin/real_world_job_benchmark/quantitative_reports.rs
+  - docs/spec/agent_memory_quantitative_benchmark_v1.md
+---
 # qmd Candidate-Replay Comparability Gate - July 3, 2026
 
 ## Purpose

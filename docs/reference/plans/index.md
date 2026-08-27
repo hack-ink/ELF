@@ -36,3 +36,4 @@ accepted durable claims into `docs/spec/`, `docs/runbook/`, `docs/decisions/`,
 - `2026-03-01-reflection-consolidation-loop-eval-scenarios.md`: retained historical plan artifact.
 - `2026-03-04-search-modes-design.md`: retained historical plan artifact.
 - `2026-06-08-elf-hardening-evaluation-decisions.md`: retained historical plan artifact.
+- `2026-07-03-source-backed-memory-knowledge-roadmap.md`: retained source-backed memory, knowledge workspace, work journal, dreaming, model ladder, competitor absorption, and benchmark roadmap.
