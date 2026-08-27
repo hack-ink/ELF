@@ -28,7 +28,7 @@ jobs:
           rustflags: ""
 
       - name: Install cargo-make
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5
+        uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026
         with:
           tool: cargo-make
 
